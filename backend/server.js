@@ -67,10 +67,19 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: "Server error" });
 });
 
-// First run: if there is no admin, create one from ADMIN_USERNAME / ADMIN_PASSWORD in .env
+// First run: if there is no admin, create one from ADMIN_USERNAME / ADMIN_PASSWORD / ADMIN_EMAIL.
+// If the admin already exists without an email, ADMIN_EMAIL is attached so they can sign in with it.
 async function ensureAdmin() {
-  if (await User.exists({ role: "admin" })) return;
   const username = process.env.ADMIN_USERNAME || "admin";
+  const email = String(process.env.ADMIN_EMAIL || "").toLowerCase().trim();
+
+  if (await User.exists({ role: "admin" })) {
+    if (email && !(await User.exists({ email }))) {
+      const r = await User.updateOne({ username, role: "admin", email: "" }, { email });
+      if (r.modifiedCount) console.log(`Admin "${username}" can now sign in with ${email}`);
+    }
+    return;
+  }
   if (await User.exists({ username })) {
     throw new Error(`No admin exists and the username "${username}" belongs to a doer. Change ADMIN_USERNAME.`);
   }
@@ -78,8 +87,8 @@ async function ensureAdmin() {
   if (!password) {
     throw new Error("Set ADMIN_PASSWORD to create the first admin.");
   }
-  await User.create({ name: "Admin", username, password: await bcrypt.hash(password, 10), role: "admin" });
-  console.log(`Created admin user "${username}" (password is in backend/.env)`);
+  await User.create({ name: "Admin", username, email, password: await bcrypt.hash(password, 10), role: "admin" });
+  console.log(`Created admin user "${username}"${email ? ` (${email})` : ""}`);
 }
 
 // Long-running server (local / Render). On Vercel this file is imported instead,
@@ -119,3 +128,4 @@ if (require.main === module) {
 
 module.exports = app;
 module.exports.start = start;
+module.exports.ensureAdmin = ensureAdmin;

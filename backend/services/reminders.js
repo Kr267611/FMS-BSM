@@ -2,6 +2,7 @@ const Task = require("../models/Task");
 const User = require("../models/User");
 const Setting = require("../models/Setting");
 const { todayKey } = require("./dates");
+const { mailer, fromAddress } = require("./mailer");
 
 // Each doer's pending tasks due up to today (overdue + due today)
 async function pendingByDoer() {
@@ -51,18 +52,6 @@ function messageFor(entry) {
   );
 }
 
-function mailer() {
-  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
-  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) return null;
-  const nodemailer = require("nodemailer");
-  return nodemailer.createTransport({
-    host: SMTP_HOST,
-    port: Number(SMTP_PORT) || 587,
-    secure: Number(SMTP_PORT) === 465,
-    auth: { user: SMTP_USER, pass: SMTP_PASS },
-  });
-}
-
 async function sendEmailReminders() {
   const transport = mailer();
   if (!transport) return { sent: 0, skipped: 0, error: "Email (SMTP) is not configured - see backend/.env" };
@@ -78,7 +67,7 @@ async function sendEmailReminders() {
     }
     try {
       await transport.sendMail({
-        from: process.env.MAIL_FROM || process.env.SMTP_USER,
+        from: fromAddress(),
         to: e.doer.email,
         subject: `FMS: ${e.tasks.length} pending task(s), ${e.overdue} overdue`,
         text: messageFor(e),

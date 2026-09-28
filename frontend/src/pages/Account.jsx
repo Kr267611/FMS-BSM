@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api } from "../api";
+import { api, setToken } from "../api";
 import { useAuth } from "../App";
 
 export default function Account() {
@@ -13,6 +13,7 @@ export default function Account() {
     setMsg(null);
     try {
       const r = await api("/auth/change-password", { method: "POST", body: { oldPassword, newPassword } });
+      setToken(r.token); // keep this device signed in; other devices are signed out
       setMsg({ ok: true, text: r.message });
       setOld("");
       setNew("");
@@ -28,7 +29,7 @@ export default function Account() {
       </div>
       <div className="card narrow">
         <p>
-          <b>{user.name}</b> ({user.username}) · {user.role === "admin" ? "Admin" : "Doer"}
+          <b>{user.name}</b> ({user.email || user.username}) · {user.role === "admin" ? "Admin" : "Doer"}
         </p>
         <form className="stack" onSubmit={save}>
           <label>
@@ -37,7 +38,7 @@ export default function Account() {
           </label>
           <label>
             New password
-            <input type="password" value={newPassword} onChange={(e) => setNew(e.target.value)} required minLength={6} autoComplete="new-password" />
+            <input type="password" value={newPassword} onChange={(e) => setNew(e.target.value)} required minLength={8} autoComplete="new-password" />
           </label>
           {msg && <div className={msg.ok ? "notice" : "error"}>{msg.text}</div>}
           <button className="btn primary">Change password</button>

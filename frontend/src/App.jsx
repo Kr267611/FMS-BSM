@@ -2,6 +2,8 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { api, getToken, setToken } from "./api";
 import Login from "./pages/Login";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import MyTasks from "./pages/MyTasks";
 import Jobs from "./pages/Jobs";
 import Processes from "./pages/Processes";
@@ -41,6 +43,8 @@ export default function App() {
     <AuthContext.Provider value={{ user, login, logout }}>
       <Routes>
         <Route path="/login" element={user ? <Navigate to="/" /> : <Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/*" element={user ? <Shell /> : <Navigate to="/login" />} />
       </Routes>
     </AuthContext.Provider>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../App";
 
@@ -29,17 +30,20 @@ export default function Login() {
         <h1>FMS BSM</h1>
         <p className="muted">Flow Management System — sign in to continue</p>
         <label>
-          Username
-          <input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus autoComplete="username" />
+          Email or username
+          <input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus autoComplete="username" required />
         </label>
         <label>
           Password
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
         </label>
         {error && <div className="error">{error}</div>}
         <button className="btn primary" disabled={busy}>
           {busy ? "Signing in…" : "Sign in"}
         </button>
+        <Link to="/forgot-password" className="small center">
+          Forgot password?
+        </Link>
       </form>
     </div>
   );

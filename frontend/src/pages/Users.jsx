@@ -105,7 +105,7 @@ function UserForm({ initial, onClose, onSaved }) {
       </label>
       <label>
         {isNew ? "Password" : "New password (leave blank to keep)"}
-        <input type="password" value={v.password} onChange={(e) => set({ password: e.target.value })} required={isNew} minLength={6} autoComplete="new-password" />
+        <input type="password" value={v.password} onChange={(e) => set({ password: e.target.value })} required={isNew} minLength={8} autoComplete="new-password" />
       </label>
       <label>
         Role
@@ -119,7 +119,7 @@ function UserForm({ initial, onClose, onSaved }) {
         <input value={v.department} onChange={(e) => set({ department: e.target.value })} />
       </label>
       <label>
-        Email (for reminders)
+        Email (sign-in, password reset, reminders)
         <input type="email" value={v.email} onChange={(e) => set({ email: e.target.value })} />
       </label>
       <label>
