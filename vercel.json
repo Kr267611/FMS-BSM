@@ -10,7 +10,7 @@
     { "source": "/api/:path*", "destination": "https://fms-bsm.onrender.com/api/:path*" },
     {
       "source": "/(login|forgot-password|reset-password|jobs|mis|processes|sheets|reminders|users|account)",
-      "destination": { "service": "frontend", "path": "/index.html" }
+      "destination": "/index.html"
     },
     { "source": "/(.*)", "destination": { "service": "frontend" } }
   ],
