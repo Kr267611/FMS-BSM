@@ -1,6 +1,6 @@
 const express = require("express");
 const { syncAll } = require("../services/sheetSync");
-const { sendEmailReminders } = require("../services/reminders");
+const { sendDailyReminders } = require("../services/reminders");
 
 // Called by Vercel Cron (see vercel.json). Vercel sends "Authorization: Bearer <CRON_SECRET>".
 const router = express.Router();
@@ -18,7 +18,7 @@ router.get("/sync", async (req, res) => {
 });
 
 router.get("/reminders", async (req, res) => {
-  res.json(await sendEmailReminders());
+  res.json(await sendDailyReminders());
 });
 
 module.exports = router;

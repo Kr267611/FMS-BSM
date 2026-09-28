@@ -8,8 +8,9 @@ let localServer = null;
 async function connectDB() {
   let uri = process.env.MONGO_URI;
 
-  if (!uri && process.env.VERCEL) {
-    throw new Error("MONGO_URI is not set. Add your MongoDB Atlas connection string in the Vercel project settings.");
+  // Hosted (Vercel / Render): never fall back to a throwaway local database
+  if (!uri && (process.env.VERCEL || process.env.RENDER)) {
+    throw new Error("MONGO_URI is not set. Add your MongoDB Atlas connection string in the hosting environment variables.");
   }
 
   if (!uri) {

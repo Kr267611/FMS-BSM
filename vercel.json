@@ -4,14 +4,10 @@
     "frontend": {
       "root": "frontend/",
       "framework": "vite"
-    },
-    "backend": {
-      "root": "backend/",
-      "framework": "express"
     }
   },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": { "service": "backend" } },
+    { "source": "/api/:path*", "destination": "https://fms-bsm-api.onrender.com/api/:path*" },
     {
       "source": "/(login|jobs|mis|processes|sheets|reminders|users|account)",
       "destination": { "service": "frontend", "path": "/index.html" }

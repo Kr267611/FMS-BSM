@@ -23,5 +23,8 @@
   "devDependencies": {
     "mongodb-memory-server-core": "^11.3.0",
     "nodemon": "^3.1.14"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

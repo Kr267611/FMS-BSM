@@ -1,7 +1,6 @@
-const Setting = require("../models/Setting");
 const { syncAll } = require("./sheetSync");
-const { sendEmailReminders } = require("./reminders");
-const { todayKey, TZ } = require("./dates");
+const { sendDailyReminders } = require("./reminders");
+const { TZ } = require("./dates");
 
 const timeFmt = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: false });
 
@@ -24,12 +23,8 @@ async function runSync() {
 async function maybeSendReminders() {
   const at = process.env.REMINDER_TIME || "09:00";
   if (timeFmt.format(new Date()) < at) return;
-  const today = todayKey();
-  const last = await Setting.findOne({ key: "lastReminderDay" }).lean();
-  if (last?.value === today) return;
-  await Setting.updateOne({ key: "lastReminderDay" }, { value: today }, { upsert: true });
-  const r = await sendEmailReminders();
-  console.log("Daily reminder:", JSON.stringify(r));
+  const r = await sendDailyReminders();
+  if (!r.alreadySent) console.log("Daily reminder:", JSON.stringify(r));
 }
 
 function startScheduler() {

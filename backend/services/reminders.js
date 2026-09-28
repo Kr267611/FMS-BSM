@@ -1,5 +1,6 @@
 const Task = require("../models/Task");
 const User = require("../models/User");
+const Setting = require("../models/Setting");
 const { todayKey } = require("./dates");
 
 // Each doer's pending tasks due up to today (overdue + due today)
@@ -90,4 +91,17 @@ async function sendEmailReminders() {
   return { sent, skipped, failed };
 }
 
-module.exports = { pendingByDoer, messageFor, sendEmailReminders };
+// Once per IST day, whoever triggers it first (the in-process scheduler or Vercel Cron).
+// The unique key on Setting makes the second caller fail with a duplicate-key error.
+async function sendDailyReminders() {
+  if (!mailer()) return { sent: 0, skipped: 0, error: "Email (SMTP) is not configured" };
+  try {
+    await Setting.create({ key: `reminderSent:${todayKey()}`, value: new Date() });
+  } catch (err) {
+    if (err.code === 11000) return { alreadySent: true };
+    throw err;
+  }
+  return sendEmailReminders();
+}
+
+module.exports = { pendingByDoer, messageFor, sendEmailReminders, sendDailyReminders };
