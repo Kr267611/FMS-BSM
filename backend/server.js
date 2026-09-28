@@ -105,8 +105,15 @@ async function start() {
 
 if (require.main === module) {
   start().catch((err) => {
-    console.error(err);
-    process.exit(1);
+    // One readable line first; hosting logs interleave the long stack/topology dump
+    const reason = err?.reason?.error?.message || err?.cause?.message || "";
+    console.error(`STARTUP FAILED: ${err?.name || "Error"}: ${err?.message}${reason ? ` (${reason})` : ""}`);
+    if (/IP|whitelist|access list|ServerSelection/i.test(`${err?.name} ${err?.message}`)) {
+      console.error("Hint: in MongoDB Atlas, add 0.0.0.0/0 under Network Access (IP Access List).");
+    } else if (/auth/i.test(String(err?.message))) {
+      console.error("Hint: the username or password in MONGO_URI is wrong.");
+    }
+    setTimeout(() => process.exit(1), 500); // let the log lines flush
   });
 }
 
