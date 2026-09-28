@@ -1,232 +1,121 @@
-import { useEffect, useState } from "react";
-import { api } from "../api";
-import DoerSelect from "../components/DoerSelect";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { api, can } from "../api";
+import { useAuth } from "../App";
+import { useUsers } from "../components/DoerSelect";
+import { describeCondition, describeDoer, describePlan, describeStart } from "../fms";
 
-const blank = () => ({
-  name: "",
-  description: "",
-  skipSundays: false,
-  active: true,
-  fields: [{ label: "", type: "text", options: [], required: false }],
-  steps: [{ name: "", doer: "", tat: 1, tatUnit: "days", how: "" }],
-});
-
+// Master FMS: every FMS as a ladder of steps
 export default function Processes() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const users = useUsers();
   const [list, setList] = useState(null);
-  const [editing, setEditing] = useState(null);
+  const [templates, setTemplates] = useState([]);
+  const [error, setError] = useState("");
+  const canAdd = can(user, "fms", "add");
+  const canEdit = can(user, "fms", "edit");
 
-  const load = () => api("/processes", { query: { all: 1 } }).then(setList);
+  const load = () =>
+    api("/processes", { query: { all: 1 } })
+      .then(setList)
+      .catch((e) => setError(e.message));
   useEffect(() => {
     load();
-  }, []);
+    if (canAdd) api("/processes/templates").then(setTemplates).catch(() => {});
+  }, [canAdd]);
 
-  if (editing) {
-    return (
-      <ProcessForm
-        initial={editing}
-        onClose={() => setEditing(null)}
-        onSaved={() => {
-          setEditing(null);
-          load();
-        }}
-      />
-    );
+  const nameOf = useMemo(() => {
+    const m = new Map(users.map((u) => [u._id, u.name]));
+    return (v) => (v && typeof v === "object" ? v.name : m.get(String(v || "")));
+  }, [users]);
+
+  async function duplicate(p) {
+    try {
+      const copy = await api(`/processes/${p._id}/duplicate`, { method: "POST" });
+      navigate(`/processes/${copy._id}`);
+    } catch (e) {
+      setError(e.message);
+    }
   }
+
+  const taken = new Set((list || []).map((p) => p.name.toLowerCase()));
 
   return (
     <>
       <div className="page-head">
-        <h2>FMS Builder</h2>
-        <button className="btn primary" onClick={() => setEditing(blank())}>
-          + New Process
-        </button>
+        <div>
+          <h2>Master FMS</h2>
+          <div className="muted">Each FMS is a ladder of steps: who does it, when it starts, its TAT and what they fill in.</div>
+        </div>
+        {canAdd && (
+          <Link className="btn primary" to="/processes/new">
+            + New FMS
+          </Link>
+        )}
       </div>
-      <p className="muted">Each process is one FMS. Set the doer and TAT for every step, and the software handles the rest.</p>
-      {!list && <p className="muted">Loading…</p>}
-      <div className="cards">
+      {error && <div className="error">{error}</div>}
+
+      {canAdd && templates.length > 0 && (
+        <div className="card template-strip">
+          <div>
+            <b>Start from a sheet you already use</b>
+            <div className="muted small">The steps, TATs, escalation rules and doers are set up from the Google Sheet.</div>
+          </div>
+          <div className="row wrap">
+            {templates.map((t) => (
+              <Link key={t.id} className="btn ghost" to={`/processes/new?template=${t.id}`} title={t.description}>
+                {t.name} ({t.steps} steps){taken.has(t.name.toLowerCase()) ? " – exists" : ""}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!list && !error && <p className="muted">Loading…</p>}
+      {list && !list.length && <div className="card empty">No FMS yet. {canAdd ? "Create one, or start from a template above." : ""}</div>}
+      <div className="fms-list">
         {(list || []).map((p) => (
-          <div key={p._id} className={"card process-card" + (p.active ? "" : " inactive")}>
+          <div key={p._id} className={"card fms-card" + (p.active ? "" : " draft")}>
             <div className="row between">
-              <h3>{p.name}</h3>
-              {!p.active && <span className="tag gray">Inactive</span>}
+              <div>
+                <h3>
+                  {p.name} {!p.active && <span className="tag gray">Draft / inactive</span>}
+                </h3>
+                {p.description && <p className="muted small clamp">{p.description}</p>}
+              </div>
+              <div className="row">
+                <Link className="btn ghost small" to={`/jobs?process=${p._id}`}>
+                  Entries ({p.jobCounter})
+                </Link>
+                {canAdd && (
+                  <button className="btn ghost small" onClick={() => duplicate(p)}>
+                    Duplicate
+                  </button>
+                )}
+                {canEdit && (
+                  <Link className="btn ghost small" to={`/processes/${p._id}`}>
+                    Edit
+                  </Link>
+                )}
+              </div>
             </div>
-            {p.description && <p className="muted small">{p.description}</p>}
-            <ol className="steps">
+            <ol className="ladder">
               {p.steps.map((s) => (
-                <li key={s._id}>
-                  <b>{s.name}</b> — {s.doer?.name} · TAT {s.tat} {s.tatUnit === "hours" ? (s.tat === 1 ? "hour" : "hours") : s.tat === 1 ? "day" : "days"}
+                <li key={s._id || s.key} className={`start-${s.start?.mode || "entry"}`}>
+                  <div className="ladder-name">
+                    <b>{s.name}</b> <span className="muted small">· {describeDoer(s.doer, nameOf)}</span>
+                  </div>
+                  <div className="small muted">
+                    {describeStart(s, p.steps)}
+                    {s.when ? ` · only if ${describeCondition(s.when, p.fields, p.steps)}` : ""} · {describePlan(s, p.steps, p.fields, p.calendar?.mode)}
+                  </div>
                 </li>
               ))}
             </ol>
-            <div className="row between">
-              <span className="muted small">
-                {p.jobCounter} jobs {p.skipSundays ? "· Sunday skip" : ""}
-              </span>
-              <button
-                className="btn ghost small"
-                onClick={() =>
-                  setEditing({
-                    ...p,
-                    steps: p.steps.map((s) => ({ ...s, doer: s.doer?._id || s.doer })),
-                  })
-                }
-              >
-                Edit
-              </button>
-            </div>
           </div>
         ))}
       </div>
     </>
-  );
-}
-
-function ProcessForm({ initial, onClose, onSaved }) {
-  const [p, setP] = useState(initial);
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const isNew = !initial._id;
-
-  const set = (patch) => setP({ ...p, ...patch });
-  const setItem = (key, i, patch) => set({ [key]: p[key].map((x, j) => (j === i ? { ...x, ...patch } : x)) });
-  const removeItem = (key, i) => set({ [key]: p[key].filter((_, j) => j !== i) });
-  const move = (key, i, d) => {
-    const arr = [...p[key]];
-    const j = i + d;
-    if (j < 0 || j >= arr.length) return;
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-    set({ [key]: arr });
-  };
-
-  async function save(e) {
-    e.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      await api(isNew ? "/processes" : `/processes/${p._id}`, { method: isNew ? "POST" : "PUT", body: p });
-      onSaved();
-    } catch (err) {
-      setError(err.message);
-      setBusy(false);
-    }
-  }
-
-  return (
-    <form onSubmit={save}>
-      <div className="page-head">
-        <h2>{isNew ? "New Process" : `Edit: ${initial.name}`}</h2>
-        <div className="row">
-          <button type="button" className="btn ghost" onClick={onClose}>
-            Back
-          </button>
-          <button className="btn primary" disabled={busy}>
-            Save
-          </button>
-        </div>
-      </div>
-      {!isNew && <p className="notice">Changes to steps and TAT apply to new entries only. Existing jobs keep their current steps.</p>}
-      {error && <div className="error">{error}</div>}
-
-      <div className="card form-grid">
-        <label className="span-2">
-          Process name (What)
-          <input value={p.name} onChange={(e) => set({ name: e.target.value })} placeholder="e.g. Vendor Payment" required />
-        </label>
-        <label className="span-2">
-          Description (How / When)
-          <input value={p.description} onChange={(e) => set({ description: e.target.value })} />
-        </label>
-        <label className="check">
-          <input type="checkbox" checked={p.skipSundays} onChange={(e) => set({ skipSundays: e.target.checked })} />
-          Skip Sundays when calculating planned dates
-        </label>
-        {!isNew && (
-          <label className="check">
-            <input type="checkbox" checked={p.active} onChange={(e) => set({ active: e.target.checked })} />
-            Process is active
-          </label>
-        )}
-      </div>
-
-      <div className="card">
-        <div className="row between">
-          <h3>Steps (Who / TAT)</h3>
-          <button type="button" className="btn ghost small" onClick={() => set({ steps: [...p.steps, { name: "", doer: "", tat: 1, tatUnit: "days", how: "" }] })}>
-            + Step
-          </button>
-        </div>
-        <p className="muted small">Step 1 is planned at entry date + TAT. Each later step is planned at the previous step's actual + TAT.</p>
-        <div className="editor">
-          {p.steps.map((s, i) => (
-            <div key={i} className="editor-row">
-              <span className="step-no">{i + 1}</span>
-              <input placeholder="Step name" value={s.name} onChange={(e) => setItem("steps", i, { name: e.target.value })} required />
-              <DoerSelect value={s.doer} onChange={(v) => setItem("steps", i, { doer: v })} required />
-              <input type="number" min="0" step="any" className="tat" value={s.tat} onChange={(e) => setItem("steps", i, { tat: e.target.value })} required />
-              <select value={s.tatUnit} onChange={(e) => setItem("steps", i, { tatUnit: e.target.value })}>
-                <option value="days">days</option>
-                <option value="hours">hours</option>
-              </select>
-              <span className="row-tools">
-                <button type="button" className="btn ghost small" onClick={() => move("steps", i, -1)}>
-                  ↑
-                </button>
-                <button type="button" className="btn ghost small" onClick={() => move("steps", i, 1)}>
-                  ↓
-                </button>
-                <button type="button" className="btn ghost small" disabled={p.steps.length < 2} onClick={() => removeItem("steps", i)}>
-                  ✕
-                </button>
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="card">
-        <div className="row between">
-          <h3>Entry fields</h3>
-          <button type="button" className="btn ghost small" onClick={() => set({ fields: [...p.fields, { label: "", type: "text", options: [], required: false }] })}>
-            + Field
-          </button>
-        </div>
-        <p className="muted small">The columns on the left of the sheet – item name, machine no., vendor, amount…</p>
-        <div className="editor">
-          {p.fields.map((f, i) => (
-            <div key={i} className="editor-row">
-              <input placeholder="Field name" value={f.label} onChange={(e) => setItem("fields", i, { label: e.target.value })} />
-              <select value={f.type} onChange={(e) => setItem("fields", i, { type: e.target.value })}>
-                <option value="text">Text</option>
-                <option value="number">Number</option>
-                <option value="date">Date</option>
-                <option value="select">Dropdown</option>
-              </select>
-              {f.type === "select" && (
-                <input
-                  placeholder="Options, comma-separated"
-                  defaultValue={(f.options || []).join(", ")}
-                  onBlur={(e) => setItem("fields", i, { options: e.target.value.split(",").map((x) => x.trim()).filter(Boolean) })}
-                />
-              )}
-              <label className="check">
-                <input type="checkbox" checked={f.required} onChange={(e) => setItem("fields", i, { required: e.target.checked })} />
-                Required
-              </label>
-              <span className="row-tools">
-                <button type="button" className="btn ghost small" onClick={() => move("fields", i, -1)}>
-                  ↑
-                </button>
-                <button type="button" className="btn ghost small" onClick={() => move("fields", i, 1)}>
-                  ↓
-                </button>
-                <button type="button" className="btn ghost small" onClick={() => removeItem("fields", i)}>
-                  ✕
-                </button>
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </form>
   );
 }

@@ -2,7 +2,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const Task = require("../models/Task");
 const { auth } = require("../middleware/auth");
-const { markDone, markNotRequired, reopen } = require("../services/workflow");
+const { markDone, markNotRequired, reopen, sweepSoon } = require("../services/workflow");
 const { todayKey } = require("../services/dates");
 const { canSeeUser } = require("../services/scope");
 const { audit } = require("../services/audit");
@@ -16,6 +16,7 @@ router.get("/", auth, async (req, res) => {
   if (String(doer) !== String(req.user._id) && !(await canSeeUser(req.user, doer))) {
     return res.status(403).json({ message: "You can only see tasks of people in your department" });
   }
+  await sweepSoon(); // start escalation steps that are due, so the list is up to date
 
   const status = req.query.status || "pending";
   const filter = { doer };
@@ -28,17 +29,27 @@ router.get("/", auth, async (req, res) => {
   const tasks = await Task.find(filter)
     .sort(sort)
     .limit(limit)
-    .populate("job", "jobNo data startDate")
-    .populate("process", "name fields")
+    .populate("job", "jobNo data startDate status closeStatus")
+    .populate({ path: "process", select: "name fields steps.key steps.name steps.how steps.videoLink steps.fields" })
     .populate("sheetLink", "name tabName spreadsheetId")
     .lean();
 
+  // Attach the step's instructions and fields (what the doer fills) instead of the whole FMS.
+  // Populated processes are shared between tasks, so each task gets its own small copy.
+  for (const t of tasks) {
+    if (!t.process) continue;
+    const { _id, name, fields, steps = [] } = t.process;
+    const key = t.stepKey || `s${(t.stepIndex ?? 0) + 1}`;
+    t.step = steps.find((s) => s.key === key) || null;
+    t.process = { _id, name, fields };
+  }
   res.json({ today: todayKey(), tasks });
 });
 
 router.post("/:id/done", auth, async (req, res) => {
-  const task = await markDone(req.params.id, req.user, req.body?.remarks || "");
-  audit(req, "task.done", { entity: "Task", entityId: task._id, summary: task.label });
+  const task = await markDone(req.params.id, req.user, { remarks: req.body?.remarks || "", values: req.body?.values });
+  const status = task.values?.status ? ` (${task.values.status})` : "";
+  audit(req, "task.done", { entity: "Task", entityId: task._id, summary: `${task.label}${status}` });
   res.json(task);
 });
 

@@ -5,21 +5,25 @@ A Flow Management System with MIS scoring for Bhaskar Silk Mills. It replaces th
 - **Backend:** Node.js, Express 5, MongoDB (Mongoose) — `backend/`
 - **Frontend:** React, Vite, glass UI — `frontend/`
 - **Design:** Figma file "FMS BSM – Glass UI" (tokens and components)
-- **Decisions:** [docs/adr](docs/adr) (ADR-001: architecture and database)
+- **Decisions:** [docs/adr](docs/adr) (ADR-001: architecture and database, ADR-002: MIDAP-aligned modules and FMS engine v2)
+- **FMS analyses:** [docs/fms](docs/fms) (Repeat Spare Part sheet: logic, formula bugs, doer table)
 
-## Features (Phase 1)
+## Features
 
 | Page | Who | What it does |
 |---|---|---|
-| My Tasks | Everyone | Overdue / due today / upcoming tasks, Done or Not Required with a remark, this week's score |
-| FMS / Jobs | Everyone | New entries and a sheet-like grid with Planned / Actual / Delay for every step |
+| My Tasks | Everyone | Overdue / due today / upcoming tasks. Done opens the step's form (Status, Remarks, Action Taken, photos…) with the How and the entry details. This week's score |
+| Master FMS | Admin (view: HOD, PC) | FMS builder: entry fields (incl. auto-calculated), steps with doer rules (fixed / from the entry / machine-wise table), start rules (sequence, escalation, parallel), conditions, TAT and TAT overrides, step forms. Templates from existing sheets (Repeat Spare Part) |
+| FMS Entries | Everyone with access | Sheet-like grid: entry columns, then Planned / Actual / Delay / Status per step. Entry panel with every step, photos, history; Status by PC (close / reopen), corrections, Excel export, live preview of who gets each step |
 | MIS Score | Everyone (doers see only their own) | Planned / Actual / Late / On time / Pending / Score by doer and step, daily breakdown, CSV export |
-| FMS Builder | Admin | Processes, steps, doers, TAT in days or hours, Sunday skip, entry fields |
+| Working Calendar | Admin | Week-offs, working hours and holidays used for TAT |
 | Sheet Links | Admin | Read-only link to existing Google Sheet FMS (replaces DataJobs + Feeder) |
 | Reminders | Admin | Daily email; click-to-send WhatsApp |
-| Users | Admin | Doers and admins, department, email, phone |
+| Users & Org | Admin, HOD | Users, bulk upload, branches, departments, roles and page permissions, audit log |
 
-**Score:** `-(50 × Late + 100 × Pending) / Planned`, where 0 is perfect. A task is late when its actual day is after its planned day and pending when it has no actual. Not Required tasks and tasks planned after today are not counted.
+**Score:** `-(50 × Late + 100 × Pending) / Planned`, where 0 is perfect. A task is late when its actual day is after its planned day and pending when it has no actual. Not Required, skipped and stopped steps, and tasks planned after today, are not counted.
+
+**How an FMS step runs:** it starts with the entry, after another step is done, as an escalation the day after another step's planned day, or together with another step. When it is due to start its condition is checked (e.g. `Repeat Frq ≥ 3`); if false the step is skipped. Planned = base (entry date, another step's planned / actual, or a date field) + TAT, counted in working time by default. The doer can be looked up from the entry (e.g. machine + item group → head fitter or wireman).
 
 ## Running locally
 
@@ -29,7 +33,7 @@ Requires Node.js 20 or later.
 cd backend
 npm install
 cp .env.example .env   # then set JWT_SECRET and ADMIN_PASSWORD
-npm run seed:demo      # optional: 5 demo doers, 2 FMS and 30 days of data
+npm run seed:demo      # optional: demo doers, Vendor Payment + Repeat Spare Part FMS, 30 days of entries
 npm start              # http://localhost:5050
 ```
 

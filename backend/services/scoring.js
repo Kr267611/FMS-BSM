@@ -43,7 +43,7 @@ function effectiveRange(from, to) {
 function baseMatch(from, to, doerId, doerIds) {
   const match = {
     plannedDay: { $gte: from, $lte: to },
-    status: { $ne: "na" },
+    status: { $in: ["pending", "done"] }, // Not Required and skipped steps are not scored
   };
   const oid = (id) => new mongoose.Types.ObjectId(String(id));
   if (doerId) match.doer = oid(doerId);

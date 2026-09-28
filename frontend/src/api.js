@@ -48,6 +48,8 @@ export const ROLE_LABELS = { admin: "Admin", hod: "HOD", pc: "PC", auditor: "Aud
 // ---- date helpers (IST) ----
 const dayFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" });
 export const todayKey = () => dayFmt.format(new Date());
+// Date -> "YYYY-MM-DD" in IST
+export const istDay = (d) => (d ? dayFmt.format(new Date(d)) : "");
 
 export function addDays(key, n) {
   const d = new Date(key + "T00:00:00Z");

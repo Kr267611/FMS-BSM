@@ -7,6 +7,8 @@ import ResetPassword from "./pages/ResetPassword";
 import MyTasks from "./pages/MyTasks";
 import Jobs from "./pages/Jobs";
 import Processes from "./pages/Processes";
+import FmsBuilder from "./pages/FmsBuilder";
+import CalendarSettings from "./pages/CalendarSettings";
 import SheetLinks from "./pages/SheetLinks";
 import Mis from "./pages/Mis";
 import Reminders from "./pages/Reminders";
@@ -86,6 +88,7 @@ function menuFor(user) {
     {
       title: "Settings",
       items: [
+        { to: "/calendar", label: "Working Calendar", show: can(user, "settings") || can(user, "fms") },
         { to: "/sheets", label: "Sheet Links", show: can(user, "settings", "edit") },
         { to: "/reminders", label: "Reminders", show: can(user, "settings") },
         { to: "/audit", label: "Audit Log", show: can(user, "audit") },
@@ -173,6 +176,9 @@ function Shell() {
             <Route path="/jobs" element={guard(can(user, "fmsEntries"), <Jobs />)} />
             <Route path="/mis" element={guard(can(user, "reports"), <Mis />)} />
             <Route path="/processes" element={guard(can(user, "fms"), <Processes />)} />
+            <Route path="/processes/new" element={guard(can(user, "fms", "add"), <FmsBuilder />)} />
+            <Route path="/processes/:id" element={guard(can(user, "fms", "edit"), <FmsBuilder />)} />
+            <Route path="/calendar" element={guard(can(user, "settings") || can(user, "fms"), <CalendarSettings />)} />
             <Route path="/users" element={guard(can(user, "users"), <Users />)} />
             <Route path="/users/bulk" element={guard(can(user, "users", "add"), <BulkUsers />)} />
             <Route path="/org" element={guard(can(user, "org"), <Org />)} />

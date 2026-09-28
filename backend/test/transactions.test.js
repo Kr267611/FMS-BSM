@@ -17,28 +17,31 @@ test.after(async () => {
   await rs?.stop();
 });
 
-test("create job, done, not required and reopen all commit inside transactions", async () => {
+test("create entry, done, not required, reopen and PC close all commit inside transactions", async () => {
   const User = require("../models/User");
   const Process = require("../models/Process");
   const Task = require("../models/Task");
   const Job = require("../models/Job");
-  const { createJob, markDone, markNotRequired, reopen } = require("../services/workflow");
-  await Promise.all([User.init(), Process.init(), Task.init(), Job.init()]); // collections must exist before transactions
+  const Setting = require("../models/Setting");
+  const { createJob, markDone, markNotRequired, reopen, closeJob } = require("../services/workflow");
+  await Promise.all([User.init(), Process.init(), Task.init(), Job.init(), Setting.init()]); // collections must exist before transactions
 
   const doer = await User.create({ name: "D", username: "d", password: "x", role: "doer" });
   const admin = await User.create({ name: "A", username: "a", password: "x", role: "admin" });
+  const fixed = { mode: "fixed", user: doer._id };
   const p = await Process.create({
     name: "Tx FMS",
     steps: [
-      { name: "One", doer: doer._id, tat: 1 },
-      { name: "Two", doer: doer._id, tat: 1 },
-      { name: "Three", doer: doer._id, tat: 1 },
+      { key: "s1", name: "One", doer: fixed, tat: 1, start: { mode: "entry" } },
+      { key: "s2", name: "Two", doer: fixed, tat: 1, start: { mode: "afterDone", step: "s1" } },
+      { key: "s3", name: "Three", doer: fixed, tat: 1, start: { mode: "afterDone", step: "s2" } },
     ],
   });
 
   const job = await createJob({ processId: p._id, data: {}, user: admin });
   const [t1, t2, t3] = await Task.find({ job: job._id }).sort({ stepIndex: 1 });
   assert.strictEqual(t1.status, "pending");
+  assert.strictEqual(String(t1.doer), String(doer._id));
 
   await markDone(t1._id, doer);
   assert.strictEqual((await Task.findById(t2._id)).status, "pending");
@@ -54,4 +57,9 @@ test("create job, done, not required and reopen all commit inside transactions",
   // A failing step (not pending) changes nothing
   await assert.rejects(markDone(t3._id, doer), /cannot be marked done/);
   assert.strictEqual((await Job.findById(job._id)).status, "open");
+
+  await closeJob(job._id, admin, { status: "Closed" });
+  assert.strictEqual((await Task.findById(t2._id)).autoClosed, true);
+  assert.strictEqual((await Task.findById(t3._id)).status, "skipped");
+  assert.strictEqual((await Job.findById(job._id)).status, "closed");
 });

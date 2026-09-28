@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { addDays, api, can, showDay, showDateTime, todayKey } from "../api";
 import { useAuth } from "../App";
 import DoerSelect from "../components/DoerSelect";
+import StepForm from "../components/StepForm";
+import { FieldValue } from "../components/FieldInput";
 
 export default function MyTasks() {
   const { user } = useAuth();
@@ -131,8 +133,9 @@ function jobSummary(task) {
   const fields = task.process?.fields || [];
   const d = task.job?.data || {};
   return fields
+    .filter((f) => !["photo", "link", "longtext"].includes(f.type))
     .slice(0, 3)
-    .map((f) => d[f.key])
+    .map((f) => (f.type === "date" ? showDay(d[f.key]) : d[f.key]))
     .filter((v) => v !== undefined && v !== "")
     .join(" · ");
 }
@@ -141,9 +144,44 @@ function daysBetween(a, b) {
   return Math.round((new Date(b + "T00:00:00Z") - new Date(a + "T00:00:00Z")) / 86400000);
 }
 
+// Entry details and the step's instructions, so the doer does not need the sheet
+function Details({ task }) {
+  const fields = task.process?.fields || [];
+  const d = task.job?.data || {};
+  const step = task.step;
+  return (
+    <div className="task-details">
+      {step?.how && (
+        <div className="how">
+          <b>How:</b> {step.how}
+          {step.videoLink && (
+            <>
+              {" "}
+              <a href={step.videoLink} target="_blank" rel="noreferrer">
+                Watch video ↗
+              </a>
+            </>
+          )}
+        </div>
+      )}
+      <dl className="kv small">
+        {fields.map((f) => (
+          <div key={f.key}>
+            <dt>{f.label}</dt>
+            <dd>
+              <FieldValue field={f} value={d[f.key]} />
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
 function TaskCard({ task, today, isAdmin, onChange }) {
   const [mode, setMode] = useState(null); // "done" | "na"
   const [remarks, setRemarks] = useState("");
+  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -163,6 +201,8 @@ function TaskCard({ task, today, isAdmin, onChange }) {
 
   const isSheet = task.kind === "sheet";
   const sheetUrl = isSheet && task.sheetLink ? `https://docs.google.com/spreadsheets/d/${task.sheetLink.spreadsheetId}` : null;
+  const stepFields = task.step?.fields || [];
+  const shownValues = stepFields.filter((f) => task.values?.[f.key] !== undefined);
 
   return (
     <div className="card task">
@@ -172,24 +212,48 @@ function TaskCard({ task, today, isAdmin, onChange }) {
           {isSheet && <span className="tag">Google Sheet</span>}
         </div>
         <div className="muted small">
-          {isSheet ? `Tab "${task.sheetLink?.tabName}" · Row ${task.sheetRow}` : `Job #${task.job?.jobNo} ${jobSummary(task) ? "· " + jobSummary(task) : ""}`}
+          {isSheet ? `Tab "${task.sheetLink?.tabName}" · Row ${task.sheetRow}` : `Entry #${task.job?.jobNo} ${jobSummary(task) ? "· " + jobSummary(task) : ""}`}
         </div>
         <div className="task-dates small">
-          <span>Planned: <b>{showDay(task.plannedDay)}</b></span>
-          {task.actual && <span>Actual: <b>{showDateTime(task.actual)}</b></span>}
+          <span>
+            Planned: <b>{task.planned ? showDateTime(task.planned) : showDay(task.plannedDay)}</b>
+          </span>
+          {task.actual && (
+            <span>
+              Actual: <b>{showDateTime(task.actual)}</b>
+            </span>
+          )}
           {task.status === "na" && <span className="tag gray">Not Required</span>}
+          {task.autoClosed && <span className="tag gray">Closed by PC</span>}
           {late > 0 && task.status !== "na" && <span className="tag red">{late}d late</span>}
           {task.status === "pending" && late === 0 && <span className="tag amber">Today</span>}
           {task.status === "pending" && late < 0 && <span className="tag">in {-late}d</span>}
           {task.status === "done" && late <= 0 && <span className="tag green">On time</span>}
+          {!isSheet && (
+            <button type="button" className="link-btn" onClick={() => setOpen(!open)}>
+              {open ? "Hide details" : "Details"}
+            </button>
+          )}
         </div>
+        {shownValues.length > 0 && (
+          <dl className="kv small">
+            {shownValues.map((f) => (
+              <div key={f.key}>
+                <dt>{f.label}</dt>
+                <dd>
+                  <FieldValue field={f} value={task.values[f.key]} />
+                </dd>
+              </div>
+            ))}
+          </dl>
+        )}
         {task.remarks && <div className="small remark">“{task.remarks}”</div>}
       </div>
 
       <div className="task-actions">
         {task.status === "pending" && !isSheet && !mode && (
           <>
-            <button className="btn primary" onClick={() => setMode("done")}>
+            <button className="btn primary" onClick={() => (setMode("done"), setOpen(true))}>
               Done
             </button>
             <button className="btn ghost small" onClick={() => setMode("na")}>
@@ -202,14 +266,17 @@ function TaskCard({ task, today, isAdmin, onChange }) {
             Update in sheet ↗
           </a>
         )}
-        {isAdmin && !isSheet && ["done", "na"].includes(task.status) && (
+        {isAdmin && !isSheet && ["done", "na"].includes(task.status) && !task.autoClosed && (
           <button className="btn ghost small" disabled={busy} onClick={() => act("reopen")}>
             Reopen
           </button>
         )}
       </div>
 
-      {mode && (
+      {open && !isSheet && <Details task={task} />}
+
+      {mode === "done" && stepFields.length > 0 && <StepForm task={task} step={task.step} onDone={onChange} onCancel={() => setMode(null)} />}
+      {((mode === "done" && !stepFields.length) || mode === "na") && (
         <div className="task-confirm">
           <input
             placeholder={mode === "na" ? "Why is it not required? (remark)" : "Remark (optional)"}

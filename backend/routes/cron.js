@@ -1,6 +1,7 @@
 const express = require("express");
 const { syncAll } = require("../services/sheetSync");
 const { sendDailyReminders } = require("../services/reminders");
+const { sweepDue } = require("../services/workflow");
 
 // Called by Vercel Cron (see vercel.json). Vercel sends "Authorization: Bearer <CRON_SECRET>".
 const router = express.Router();
@@ -14,10 +15,12 @@ router.use((req, res, next) => {
 });
 
 router.get("/sync", async (req, res) => {
-  res.json(await syncAll());
+  const escalated = await sweepDue();
+  res.json({ escalated, sheets: await syncAll() });
 });
 
 router.get("/reminders", async (req, res) => {
+  await sweepDue(); // escalations due today are part of the reminder
   res.json(await sendDailyReminders());
 });
 

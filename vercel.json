@@ -12,11 +12,15 @@
       "destination": "https://fms-bsm.onrender.com/api/:path*"
     },
     {
-      "source": "/(login|forgot-password|reset-password|jobs|mis|processes|sheets|reminders|users|org|audit|account)",
+      "source": "/(login|forgot-password|reset-password|jobs|mis|processes|sheets|reminders|users|org|audit|account|calendar)",
       "destination": "/index.html"
     },
     {
       "source": "/users/:rest*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/processes/:rest*",
       "destination": "/index.html"
     },
     {

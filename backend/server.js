@@ -21,7 +21,9 @@ app.use((req, res, next) => {
   res.setHeader("Referrer-Policy", "same-origin");
   next();
 });
-app.use(express.json({ limit: "1mb" }));
+// Photos (/api/files) have their own, larger body limit
+const jsonBody = express.json({ limit: "1mb" });
+app.use((req, res, next) => (req.path.startsWith("/api/files") ? next() : jsonBody(req, res, next)));
 
 // Connect once per process. On Vercel each cold start runs this on its first request;
 // locally start() has already done it before listening.
@@ -61,6 +63,8 @@ app.use("/api/reminders", require("./routes/reminders"));
 app.use("/api/cron", require("./routes/cron"));
 app.use("/api/org", require("./routes/org"));
 app.use("/api/audit", require("./routes/audit"));
+app.use("/api/settings", require("./routes/settings"));
+app.use("/api/files", require("./routes/files"));
 app.get("/api/health", (req, res) => res.json({ ok: true }));
 app.use("/api", (req, res) => res.status(404).json({ message: "API route not found" }));
 

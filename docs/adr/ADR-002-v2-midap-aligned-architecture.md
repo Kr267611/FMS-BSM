@@ -1,6 +1,6 @@
 # ADR-002: FMS BSM v2 — MIDAP-aligned modules on one task engine
 
-**Status:** Accepted (2026-09-28) — Milestone 1 delivered
+**Status:** Accepted (2026-09-28) — Milestones 1 and 2 delivered
 **Date:** 2026-09-28
 **Deciders:** Deepak Mishra, management sponsor
 **Builds on:** ADR-001 (Node.js + MongoDB modular monolith — unchanged)
@@ -84,6 +84,19 @@ The exact column layout of MIDAP's Weekly MIS Score page is to be confirmed by r
 
 Transactions for every multi-document change; audit log (who changed what); persistent job queue (Agenda on MongoDB) for checklist generation, reminders and sheet sync; per-module folders in the backend; paid, always-on hosting and Atlas backups before company-wide rollout.
 
+### 3a. FMS engine v2 — as built (Milestone 2)
+
+- **Pure engine** (`backend/services/fms/engine.js`, `conditions.js`, `doers.js`) works on plain objects; `workflow.js` loads an entry, applies one change and lets the engine move the other steps in one transaction. The unit tests reproduce the Repeat Spare sheet's own dates.
+- **Step start:** `entry` · `afterDone` (sequence) · `afterDue` (escalation, the day after step X's planned day) · `withStart` (parallel). Steps may only refer to earlier steps, so evaluation is one ordered pass.
+- **Conditions:** nested all/any groups over entry fields, step values and step status. Three-valued evaluation skips a step as soon as its condition can no longer be true, and stops a started step that is no longer needed (the sheet's Planned going blank). Skipped, stopped and Not Required steps are never scored.
+- **Planned = base + TAT:** base = entry date, a step's planned / actual / actual-or-planned, a date field (T − X, negative TAT) or the start moment. TAT in minutes / hours / days, with **TAT overrides** by condition. Counted in working time (company calendar: week-offs, 9:00–18:00, holidays), in calendar days that skip off days (v1), or in plain calendar time.
+- **Doer rules:** fixed · the person in an entry field · lookup table on one or two fields (machine + item group) with name matching and a fallback.
+- **Entry fields** include auto-calculated ones (days between dates, + − × ÷). **Step fields** (select, yes/no, text, number, date, link, photo) have required checks. Photos are compressed in the browser and stored in MongoDB GridFS.
+- **Status by PC** closes an entry: open steps count as done at that moment and the others are skipped. A closed entry can be reopened. Correcting entry values re-checks skipped steps.
+- **Escalation sweep** runs every 5 minutes, from cron, and before task lists / entries / MIS are shown. A sleeping free server therefore still starts escalations, with the right planned dates.
+- **Templates:** Repeat Spare Part (`backend/templates/repeatSpare.js`) with the 192-row machine-wise doer table. Analysis of the sheet: `docs/fms/repeat-spare-part.md`.
+- **Upgrade:** v1 FMS migrate on start (fixed doers, sequential steps, calendar mode kept).
+
 ## Options Considered
 
 ### A: Keep v1 and add features one by one
@@ -123,7 +136,7 @@ Rejected: we match concepts and navigation, with our own design and code.
 | # | Milestone | Scope | Estimate |
 |---|---|---|---|
 | 1 | Foundation v2 | Sidebar UI; branches, departments, roles, permissions; bulk user upload; audit log; transactions; module folders | 1.5 weeks |
-| 2 | FMS engine v2 | Form fields incl. computed; steps with How, doer rules, TAT rules, step fields, run conditions; engine + tests; FMS grid; sheet import. Rebuild *Repeat Spare Part* exactly as the sheet | 2.5 weeks |
+| 2 | FMS engine v2 ✅ | Form fields incl. computed; steps with How, doer rules, TAT rules, step fields, run conditions; engine + tests; FMS grid; Repeat Spare Part template. Still open: import of old sheet rows | 2.5 weeks |
 | 3 | Checklist + Delegation | Recurrence scheduler, holidays, auto-close, groups, bulk upload; import MIDAP's 67 checklists | 1.5 weeks |
 | 4 | MIS v2 + Dashboard | Weekly MIS Score (MIDAP-style), department roll-up, current vs previous week, export, weekly send | 1 week |
 | 5 | Automation | Auto complete, reminders, WhatsApp, help ticket | later |
@@ -134,5 +147,7 @@ Each milestone ends with a demo on real data (Repeat Spare Part first).
 
 1. [ ] Management approves this ADR (replaces the v1 FMS Builder and MIS page).
 2. [ ] Admin signs in to MIDAP in Chrome once so the Weekly MIS Score, List FMS Tasks and Add Checklist pages can be read for exact columns.
-3. [ ] Collect for *Repeat Spare Part*: TAT per step and the exact escalation rule (which `Repeat Frq` reaches which step).
-4. [ ] Start Milestone 1.
+3. [x] Collect for *Repeat Spare Part*: TAT per step and the exact escalation rule – read from the sheet formulas (`docs/fms/repeat-spare-part.md`).
+4. [x] Start Milestone 1.
+5. [ ] Management decides the NOTES-vs-sheet differences (Bhavesh / Saurav, count 2 vs 3, the Rs 3000 rule).
+6. [ ] Import the open rows of the Repeat Spare sheet (CSV) so the sheet can be retired.

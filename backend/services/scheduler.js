@@ -1,5 +1,6 @@
 const { syncAll } = require("./sheetSync");
 const { sendDailyReminders } = require("./reminders");
+const { sweepDue } = require("./workflow");
 const { TZ } = require("./dates");
 
 const timeFmt = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: false });
@@ -19,6 +20,16 @@ async function runSync() {
   }
 }
 
+// Escalation steps ("if Step 2 is not permanently solved by its planned day…") start on time
+async function runSweep() {
+  try {
+    const n = await sweepDue();
+    if (n) console.log(`FMS: updated ${n} entr${n === 1 ? "y" : "ies"} with due escalations`);
+  } catch (err) {
+    console.error("FMS sweep error:", err.message);
+  }
+}
+
 // Sends the reminder email once a day, after REMINDER_TIME (IST)
 async function maybeSendReminders() {
   const at = process.env.REMINDER_TIME || "09:00";
@@ -29,9 +40,11 @@ async function maybeSendReminders() {
 
 function startScheduler() {
   const minutes = Number(process.env.SHEET_SYNC_MINUTES) || 30;
+  setTimeout(runSweep, 5 * 1000);
+  setInterval(runSweep, 5 * 60 * 1000);
   setTimeout(runSync, 10 * 1000);
   setInterval(runSync, minutes * 60 * 1000);
   setInterval(() => maybeSendReminders().catch((e) => console.error("Reminder error:", e.message)), 60 * 1000);
 }
 
-module.exports = { startScheduler, runSync };
+module.exports = { startScheduler, runSync, runSweep };
