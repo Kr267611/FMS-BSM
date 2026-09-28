@@ -76,6 +76,17 @@ REMINDER_TIME=09:00
 
 To create an app password: Google Account → Security → turn on 2-Step Verification → App passwords. Add each doer's email address on the Users page.
 
+## Deploying on Vercel
+
+`vercel.json` defines two services — `frontend/` (Vite) and `backend/` (Express, served under `/api`) — plus two daily cron jobs.
+
+1. **MongoDB Atlas:** create a free cluster, a database user and a network access rule for `0.0.0.0/0`, then copy the connection string.
+2. **Vercel → Add New → Project**, import the GitHub repo and keep the **Services** preset (it reads `vercel.json`).
+3. Add environment variables: `MONGO_URI`, `JWT_SECRET`, `ADMIN_PASSWORD`, `CRON_SECRET` (any long random string), and optionally `GOOGLE_SERVICE_ACCOUNT_JSON` (the key file JSON on one line) and the SMTP values.
+4. Deploy. Sign in as `admin` with `ADMIN_PASSWORD`.
+
+On the Hobby plan, cron jobs run once a day: sheet sync around 08:00 IST and email reminders around 09:00 IST. Use the **Sync** button on Sheet Links for an immediate sync.
+
 ## Deploying (Render + MongoDB Atlas)
 
 1. **MongoDB Atlas:** create a free cluster, a database user and a network access rule (`0.0.0.0/0` for Render), then copy the connection string.

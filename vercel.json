@@ -1,0 +1,25 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "frontend": {
+      "root": "frontend/",
+      "framework": "vite"
+    },
+    "backend": {
+      "root": "backend/",
+      "framework": "express"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": { "service": "backend" } },
+    {
+      "source": "/(login|jobs|mis|processes|sheets|reminders|users|account)",
+      "destination": { "service": "frontend", "path": "/index.html" }
+    },
+    { "source": "/(.*)", "destination": { "service": "frontend" } }
+  ],
+  "crons": [
+    { "path": "/api/cron/sync", "schedule": "30 2 * * *" },
+    { "path": "/api/cron/reminders", "schedule": "30 3 * * *" }
+  ]
+}

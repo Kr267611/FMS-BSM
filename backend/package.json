@@ -21,7 +21,7 @@
     "nodemailer": "^10.0.11"
   },
   "devDependencies": {
-    "mongodb-memory-server": "^11.3.0",
+    "mongodb-memory-server-core": "^11.3.0",
     "nodemon": "^3.1.14"
   }
 }

@@ -8,11 +8,16 @@ let localServer = null;
 async function connectDB() {
   let uri = process.env.MONGO_URI;
 
+  if (!uri && process.env.VERCEL) {
+    throw new Error("MONGO_URI is not set. Add your MongoDB Atlas connection string in the Vercel project settings.");
+  }
+
   if (!uri) {
     const fs = require("fs");
     // Use the binary cached under backend/node_modules wherever the process starts from, so it is not downloaded again
     process.env.MONGOMS_DOWNLOAD_DIR ||= path.join(__dirname, "..", "node_modules", ".cache", "mongodb-memory-server");
-    const { MongoMemoryServer } = require("mongodb-memory-server");
+    // "-core" has no install-time download, so production installs stay small
+    const { MongoMemoryServer } = require("mongodb-memory-server-core");
     const dbPath = path.join(__dirname, "..", ".localdb");
     fs.mkdirSync(dbPath, { recursive: true });
     localServer = await MongoMemoryServer.create({
