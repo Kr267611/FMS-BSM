@@ -1,0 +1,6 @@
+node_modules/
+.env
+.localdb/
+dist/
+*.log
+google-key*.json
