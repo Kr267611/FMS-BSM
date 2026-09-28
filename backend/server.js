@@ -3,14 +3,24 @@ const fs = require("fs");
 require("dotenv").config({ path: path.join(__dirname, ".env") });
 
 const express = require("express");
-const cors = require("cors");
 const bcrypt = require("bcryptjs");
 const connectDB = require("./config/db");
 const User = require("./models/User");
 const { startScheduler } = require("./services/scheduler");
+const { runMigrations } = require("./services/migrations");
 
 const app = express();
-app.use(cors());
+// Behind Vercel's rewrite and Render's proxy: take the client IP from X-Forwarded-For (used by rate limits)
+app.set("trust proxy", true);
+app.disable("x-powered-by");
+// No CORS: the browser only talks to the app's own URL (Vercel forwards /api here),
+// so other sites cannot call the API with a user's session cookie.
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "same-origin");
+  next();
+});
 app.use(express.json({ limit: "1mb" }));
 
 // Connect once per process. On Vercel each cold start runs this on its first request;
@@ -21,6 +31,7 @@ function ready() {
     readyPromise = (async () => {
       if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is not set. See backend/.env.example.");
       await connectDB();
+      await runMigrations();
       await ensureAdmin();
     })().catch((err) => {
       readyPromise = null; // retry on the next request
@@ -48,6 +59,8 @@ app.use("/api/sheets", require("./routes/sheets"));
 app.use("/api/mis", require("./routes/mis"));
 app.use("/api/reminders", require("./routes/reminders"));
 app.use("/api/cron", require("./routes/cron"));
+app.use("/api/org", require("./routes/org"));
+app.use("/api/audit", require("./routes/audit"));
 app.get("/api/health", (req, res) => res.json({ ok: true }));
 app.use("/api", (req, res) => res.status(404).json({ message: "API route not found" }));
 

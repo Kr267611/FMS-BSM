@@ -7,15 +7,33 @@
     }
   },
   "rewrites": [
-    { "source": "/api/:path*", "destination": "https://fms-bsm.onrender.com/api/:path*" },
     {
-      "source": "/(login|forgot-password|reset-password|jobs|mis|processes|sheets|reminders|users|account)",
+      "source": "/api/:path*",
+      "destination": "https://fms-bsm.onrender.com/api/:path*"
+    },
+    {
+      "source": "/(login|forgot-password|reset-password|jobs|mis|processes|sheets|reminders|users|org|audit|account)",
       "destination": "/index.html"
     },
-    { "source": "/(.*)", "destination": { "service": "frontend" } }
+    {
+      "source": "/users/:rest*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "frontend"
+      }
+    }
   ],
   "crons": [
-    { "path": "/api/cron/sync", "schedule": "30 2 * * *" },
-    { "path": "/api/cron/reminders", "schedule": "30 3 * * *" }
+    {
+      "path": "/api/cron/sync",
+      "schedule": "30 2 * * *"
+    },
+    {
+      "path": "/api/cron/reminders",
+      "schedule": "30 3 * * *"
+    }
   ]
 }

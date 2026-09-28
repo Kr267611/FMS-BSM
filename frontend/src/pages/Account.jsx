@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api, setToken } from "../api";
+import { ROLE_LABELS, api } from "../api";
 import { useAuth } from "../App";
 
 export default function Account() {
@@ -13,7 +13,6 @@ export default function Account() {
     setMsg(null);
     try {
       const r = await api("/auth/change-password", { method: "POST", body: { oldPassword, newPassword } });
-      setToken(r.token); // keep this device signed in; other devices are signed out
       setMsg({ ok: true, text: r.message });
       setOld("");
       setNew("");
@@ -29,7 +28,7 @@ export default function Account() {
       </div>
       <div className="card narrow">
         <p>
-          <b>{user.name}</b> ({user.email || user.username}) · {user.role === "admin" ? "Admin" : "Doer"}
+          <b>{user.name}</b> ({user.email || user.username}) · {ROLE_LABELS[user.role] || user.role}{user.department ? ` · ${user.department}` : ""}
         </p>
         <form className="stack" onSubmit={save}>
           <label>

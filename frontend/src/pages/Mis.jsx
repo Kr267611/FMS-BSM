@@ -25,7 +25,7 @@ function scoreClass(s) {
 
 export default function Mis() {
   const { user } = useAuth();
-  const isAdmin = user.role === "admin";
+  const isAdmin = user.role !== "doer"; // doers only ever see their own row
   const ps = presets();
   const [range, setRange] = useState({ key: "month", from: ps.month[1], to: ps.month[2] });
   const [data, setData] = useState(null);

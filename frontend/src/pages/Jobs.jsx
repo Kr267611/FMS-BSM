@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, showDay, showDateTime, todayKey } from "../api";
+import { api, can, showDay, showDateTime, todayKey } from "../api";
 import { useAuth } from "../App";
 
 export default function Jobs() {
@@ -63,7 +63,7 @@ export default function Jobs() {
   if (processes && !processes.length) {
     return (
       <div className="card empty">
-        No FMS processes yet. {user.role === "admin" ? "Create the first one in FMS Builder." : "Ask an admin to create one."}
+        No FMS processes yet. {can(user, "fms", "add") ? "Create the first one in Master FMS." : "Ask an admin to create one."}
       </div>
     );
   }
@@ -127,7 +127,7 @@ export default function Jobs() {
                       </div>
                     </th>
                   ))}
-                  {user.role === "admin" && <th rowSpan={2}></th>}
+                  {can(user, "fmsEntries", "delete") && <th rowSpan={2}></th>}
                 </tr>
                 <tr>
                   {process.steps.map((s) => (
@@ -146,7 +146,7 @@ export default function Jobs() {
                     {process.steps.map((s, i) => (
                       <StepCells key={s._id} task={job.tasks.find((t) => t.stepIndex === i)} />
                     ))}
-                    {user.role === "admin" && (
+                    {can(user, "fmsEntries", "delete") && (
                       <td>
                         <button className="btn ghost small" onClick={() => remove(job)} title="Delete">
                           ✕

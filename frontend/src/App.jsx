@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { NavLink, Navigate, Route, Routes, useNavigate } from "react-router-dom";
-import { api, getToken, setToken } from "./api";
+import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { ROLE_LABELS, api, can } from "./api";
 import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
@@ -11,6 +11,9 @@ import SheetLinks from "./pages/SheetLinks";
 import Mis from "./pages/Mis";
 import Reminders from "./pages/Reminders";
 import Users from "./pages/Users";
+import BulkUsers from "./pages/BulkUsers";
+import Org from "./pages/Org";
+import Audit from "./pages/Audit";
 import Account from "./pages/Account";
 
 const AuthContext = createContext(null);
@@ -21,26 +24,22 @@ export default function App() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (!getToken()) return setReady(true);
     api("/auth/me")
       .then(setUser)
-      .catch(() => setToken(null))
+      .catch(() => setUser(null))
       .finally(() => setReady(true));
   }, []);
 
   if (!ready) return <div className="center muted">Loading…</div>;
 
-  const login = (token, u) => {
-    setToken(token);
-    setUser(u);
-  };
-  const logout = () => {
-    setToken(null);
+  const login = (u) => setUser(u);
+  const logout = async () => {
+    await api("/auth/logout", { method: "POST" }).catch(() => {});
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, login, logout, setUser }}>
       <Routes>
         <Route path="/login" element={user ? <Navigate to="/" /> : <Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -51,80 +50,139 @@ export default function App() {
   );
 }
 
+// Menu grouped the way MIDAP users know it. `soon` items are planned milestones.
+function menuFor(user) {
+  const groups = [
+    { title: "My Work", items: [{ to: "/", label: "My Tasks", end: true }] },
+    {
+      title: "Master Tasks",
+      items: [
+        { label: "Checklists", soon: true, show: can(user, "checklist") },
+        { label: "Delegations", soon: true, show: can(user, "delegation") },
+      ],
+    },
+    {
+      title: "FMS Manager",
+      items: [
+        { to: "/processes", label: "Master FMS", show: can(user, "fms") },
+        { to: "/jobs", label: "FMS Entries", show: can(user, "fmsEntries") },
+      ],
+    },
+    {
+      title: "PC Reports",
+      items: [
+        { to: "/mis", label: "MIS Score", show: can(user, "reports") },
+        { label: "Weekly MIS Score", soon: true, show: can(user, "reports") },
+      ],
+    },
+    {
+      title: "Users & Org",
+      items: [
+        { to: "/users", label: "Users", show: can(user, "users") },
+        { to: "/users/bulk", label: "Bulk Upload", show: can(user, "users", "add") },
+        { to: "/org", label: "Branches & Departments", show: can(user, "org") },
+      ],
+    },
+    {
+      title: "Settings",
+      items: [
+        { to: "/sheets", label: "Sheet Links", show: can(user, "settings", "edit") },
+        { to: "/reminders", label: "Reminders", show: can(user, "settings") },
+        { to: "/audit", label: "Audit Log", show: can(user, "audit") },
+      ],
+    },
+  ];
+  return groups
+    .map((g) => ({ ...g, items: g.items.filter((i) => i.show !== false) }))
+    .filter((g) => g.items.length);
+}
+
+const initials = (name) =>
+  name
+    .split(/\s+/)
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
 function Shell() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [menuOpen, setMenuOpen] = useState(false);
-  const isAdmin = user.role === "admin";
+  const location = useLocation();
+  const [open, setOpen] = useState(false);
+  useEffect(() => setOpen(false), [location.pathname]);
 
-  const links = [
-    ["/", "My Tasks"],
-    ["/jobs", "FMS / Jobs"],
-    ["/mis", "MIS Score"],
-    ...(isAdmin
-      ? [
-          ["/processes", "FMS Builder"],
-          ["/sheets", "Sheet Links"],
-          ["/reminders", "Reminders"],
-          ["/users", "Users"],
-        ]
-      : []),
-  ];
+  const groups = menuFor(user);
+  const guard = (ok, el) => (ok ? el : <Navigate to="/" />);
 
   return (
-    <div className="shell">
-      <header className="topbar">
-        <button className="menu-btn" onClick={() => setMenuOpen(!menuOpen)} aria-label="Menu">
-          ☰
-        </button>
+    <div className={open ? "app menu-open" : "app"}>
+      <aside className="sidebar">
         <div className="brand">FMS BSM</div>
-        <nav className={menuOpen ? "nav open" : "nav"} onClick={() => setMenuOpen(false)}>
-          {links.map(([to, label]) => (
-            <NavLink key={to} to={to} end={to === "/"}>
-              {label}
-            </NavLink>
+        <nav className="side-nav">
+          {groups.map((g) => (
+            <div key={g.title} className="side-group">
+              <div className="side-title">{g.title}</div>
+              {g.items.map((i) =>
+                i.soon ? (
+                  <span key={i.label} className="side-link soon" title="Coming in the next milestone">
+                    {i.label} <em>soon</em>
+                  </span>
+                ) : (
+                  <NavLink key={i.to} to={i.to} end={i.end} className="side-link">
+                    {i.label}
+                  </NavLink>
+                )
+              )}
+            </div>
           ))}
         </nav>
-        <div className="who">
+      </aside>
+      <div className="scrim" onClick={() => setOpen(false)} />
+
+      <div className="main-col">
+        <header className="topbar">
+          <button className="menu-btn" onClick={() => setOpen(!open)} aria-label="Menu">
+            ☰
+          </button>
+          <div className="topbar-spacer" />
           <NavLink to="/account" className="who-name" title="My account">
-            <b className="avatar">
-              {user.name
-                .split(/\s+/)
-                .map((w) => w[0])
-                .slice(0, 2)
-                .join("")
-                .toUpperCase()}
-            </b>
-            <span>{user.name}</span>
+            <b className="avatar">{initials(user.name)}</b>
+            <span>
+              {user.name}
+              <small>
+                {ROLE_LABELS[user.role] || user.role}
+                {user.department ? ` · ${user.department}` : ""}
+              </small>
+            </span>
           </NavLink>
           <button
             className="btn ghost small"
-            onClick={() => {
-              logout();
+            onClick={async () => {
+              await logout();
               navigate("/login");
             }}
           >
             Logout
           </button>
-        </div>
-      </header>
-      <main className="page">
-        <Routes>
-          <Route path="/" element={<MyTasks />} />
-          <Route path="/jobs" element={<Jobs />} />
-          <Route path="/mis" element={<Mis />} />
-          <Route path="/account" element={<Account />} />
-          {isAdmin && (
-            <>
-              <Route path="/processes" element={<Processes />} />
-              <Route path="/sheets" element={<SheetLinks />} />
-              <Route path="/reminders" element={<Reminders />} />
-              <Route path="/users" element={<Users />} />
-            </>
-          )}
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
-      </main>
+        </header>
+        <main className="page">
+          <Routes>
+            <Route path="/" element={<MyTasks />} />
+            <Route path="/account" element={<Account />} />
+            <Route path="/jobs" element={guard(can(user, "fmsEntries"), <Jobs />)} />
+            <Route path="/mis" element={guard(can(user, "reports"), <Mis />)} />
+            <Route path="/processes" element={guard(can(user, "fms"), <Processes />)} />
+            <Route path="/users" element={guard(can(user, "users"), <Users />)} />
+            <Route path="/users/bulk" element={guard(can(user, "users", "add"), <BulkUsers />)} />
+            <Route path="/org" element={guard(can(user, "org"), <Org />)} />
+            <Route path="/sheets" element={guard(can(user, "settings", "edit"), <SheetLinks />)} />
+            <Route path="/reminders" element={guard(can(user, "settings"), <Reminders />)} />
+            <Route path="/audit" element={guard(can(user, "audit"), <Audit />)} />
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </main>
+      </div>
     </div>
   );
 }

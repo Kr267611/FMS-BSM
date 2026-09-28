@@ -39,21 +39,24 @@ function effectiveRange(from, to) {
   return { from, to: to > today ? today : to };
 }
 
-function baseMatch(from, to, doerId) {
+// doerId: one doer; doerIds: the doers a HOD / PC may see (null = everyone)
+function baseMatch(from, to, doerId, doerIds) {
   const match = {
     plannedDay: { $gte: from, $lte: to },
     status: { $ne: "na" },
   };
-  if (doerId) match.doer = new mongoose.Types.ObjectId(String(doerId));
+  const oid = (id) => new mongoose.Types.ObjectId(String(id));
+  if (doerId) match.doer = oid(doerId);
+  else if (Array.isArray(doerIds)) match.doer = { $in: doerIds.map(oid) };
   return match;
 }
 
 // Task Count + MIS Summary: every step (label) per doer, plus the doer's total
-async function misReport({ from, to, doerId }) {
+async function misReport({ from, to, doerId, doerIds }) {
   const range = effectiveRange(from, to);
   const tasks = range.from > range.to
     ? []
-    : await Task.find(baseMatch(range.from, range.to, doerId))
+    : await Task.find(baseMatch(range.from, range.to, doerId, doerIds))
         .select("doer label plannedDay actualDay kind")
         .lean();
 
@@ -67,11 +70,11 @@ async function misReport({ from, to, doerId }) {
     addTask(d.total, t);
   }
 
-  const users = await User.find({ _id: { $in: [...doers.keys()] } }).select("name department").lean();
+  const users = await User.find({ _id: { $in: [...doers.keys()] } }).select("name department").populate("department", "name").lean();
   const nameOf = new Map(users.map((u) => [String(u._id), u]));
 
   const result = [...doers.entries()].map(([id, d]) => ({
-    doer: { _id: id, name: nameOf.get(id)?.name || "?", department: nameOf.get(id)?.department || "" },
+    doer: { _id: id, name: nameOf.get(id)?.name || "?", department: nameOf.get(id)?.department?.name || "" },
     total: finish(d.total),
     rows: [...d.rows.values()].map(finish).sort((a, b) => a.label.localeCompare(b.label)),
   }));

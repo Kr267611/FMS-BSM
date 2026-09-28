@@ -62,9 +62,19 @@ Example (Vendor Payment – Colour Chemical): tab `Colour Chemical`, first data 
 
 Links sync automatically every `SHEET_SYNC_MINUTES` minutes (default 30), or immediately with the **Sync** button.
 
+## Roles, departments and permissions
+
+- Roles: **Admin**, **HOD**, **PC** (process coordinator), **Auditor**, **Doer**. Each user belongs to a branch and department and can have a team leader.
+- HOD and PC see only their own department, the extra departments they oversee, and their team members — in task lists, MIS and Users.
+- Each role has default page permissions (view / add / edit / delete per module); an admin can override them per user.
+- **Users → Bulk upload** creates many users from a CSV (template on the page) and returns temporary passwords to hand out.
+- **Audit log** records sign-ins, failed attempts, lockouts and every change to users, departments, FMS and tasks.
+- See [ADR-002](docs/adr/ADR-002-v2-midap-aligned-architecture.md) for the full v2 plan (Checklist, Delegation, FMS engine v2, Weekly MIS).
+
 ## Sign-in and password reset
 
 - Users sign in with their **email address** (or username). Emails are unique per user.
+- The session lives in an httpOnly, SameSite cookie (7 days with "Remember me", otherwise until the browser closes). Five wrong passwords lock the account for 15 minutes; sign-in and reset requests are rate-limited per IP.
 - The first admin is created from `ADMIN_USERNAME` / `ADMIN_PASSWORD` / `ADMIN_EMAIL`. Setting `ADMIN_EMAIL` later also attaches it to an existing admin that has no email.
 - **Forgot password?** on the sign-in page emails a one-time link, valid for 30 minutes. It needs the SMTP settings below and `APP_URL` (the public app URL used in the link). Only a hash of the link token is stored.
 - **Lost admin password:** set `ADMIN_RESET_PASSWORD` to a new password, redeploy, sign in with it, then delete the variable. It works without a server shell (Render free plan) and ends the admin's other sessions.

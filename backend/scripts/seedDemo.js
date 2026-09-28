@@ -8,6 +8,7 @@ const User = require("../models/User");
 const Process = require("../models/Process");
 const Job = require("../models/Job");
 const Task = require("../models/Task");
+const { Department } = require("../models/Org");
 const { addTat, dayKey } = require("../services/dates");
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -34,10 +35,12 @@ async function main() {
     ["Alka", "alka", "Accounts"],
   ];
   const u = {};
-  for (const [name, username, department] of people) {
+  const dept = {};
+  for (const [, , d] of people) dept[d] ||= (await Department.findOne({ name: d })) || (await Department.create({ name: d }));
+  for (const [name, username, d] of people) {
     u[username] =
       (await User.findOne({ username })) ||
-      (await User.create({ name, username, password: hash, role: "doer", department }));
+      (await User.create({ name, username, password: hash, role: "doer", department: dept[d]._id }));
   }
 
   const processes = [

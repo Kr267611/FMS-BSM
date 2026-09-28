@@ -2,13 +2,14 @@ const express = require("express");
 const mongoose = require("mongoose");
 const Job = require("../models/Job");
 const Task = require("../models/Task");
-const { auth, adminOnly } = require("../middleware/auth");
+const { auth, permit } = require("../middleware/auth");
+const { audit } = require("../services/audit");
 const { createJob } = require("../services/workflow");
 
 const router = express.Router();
 
 // Sheet-like view: each job with all of its steps
-router.get("/", auth, async (req, res) => {
+router.get("/", auth, permit("fmsEntries", "view"), async (req, res) => {
   const { process: processId, status } = req.query;
   if (!mongoose.isValidObjectId(processId)) return res.status(400).json({ message: "Choose a process" });
 
@@ -35,16 +36,18 @@ router.get("/", auth, async (req, res) => {
   res.json({ total, page, limit, jobs: jobs.map((j) => ({ ...j, tasks: byJob.get(String(j._id)) || [] })) });
 });
 
-router.post("/", auth, async (req, res) => {
+router.post("/", auth, permit("fmsEntries", "add"), async (req, res) => {
   const { process: processId, data, startDate } = req.body || {};
   const job = await createJob({ processId, data, startDate, user: req.user });
+  audit(req, "job.create", { entity: "Job", entityId: job._id, summary: `Job #${job.jobNo}` });
   res.status(201).json(job);
 });
 
-router.delete("/:id", auth, adminOnly, async (req, res) => {
+router.delete("/:id", auth, permit("fmsEntries", "delete"), async (req, res) => {
   const job = await Job.findByIdAndDelete(req.params.id);
   if (!job) return res.status(404).json({ message: "Job not found" });
   await Task.deleteMany({ job: job._id });
+  audit(req, "job.delete", { entity: "Job", entityId: job._id, summary: `Job #${job.jobNo}` });
   res.json({ message: "Job deleted" });
 });
 

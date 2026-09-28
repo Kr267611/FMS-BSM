@@ -4,14 +4,18 @@ const Task = require("../models/Task");
 const { auth } = require("../middleware/auth");
 const { markDone, markNotRequired, reopen } = require("../services/workflow");
 const { todayKey } = require("../services/dates");
+const { canSeeUser } = require("../services/scope");
+const { audit } = require("../services/audit");
 
 const router = express.Router();
 
-// A doer's task list. Admins can pass ?doer= to see anyone's.
+// A doer's task list. HOD / PC / admin can pass ?doer= for someone they oversee.
 router.get("/", auth, async (req, res) => {
-  const isAdmin = req.user.role === "admin";
-  const doer = isAdmin && req.query.doer ? req.query.doer : req.user._id;
+  const doer = req.query.doer || req.user._id;
   if (!mongoose.isValidObjectId(doer)) return res.status(400).json({ message: "Invalid doer" });
+  if (String(doer) !== String(req.user._id) && !(await canSeeUser(req.user, doer))) {
+    return res.status(403).json({ message: "You can only see tasks of people in your department" });
+  }
 
   const status = req.query.status || "pending";
   const filter = { doer };
@@ -33,15 +37,21 @@ router.get("/", auth, async (req, res) => {
 });
 
 router.post("/:id/done", auth, async (req, res) => {
-  res.json(await markDone(req.params.id, req.user, req.body?.remarks || ""));
+  const task = await markDone(req.params.id, req.user, req.body?.remarks || "");
+  audit(req, "task.done", { entity: "Task", entityId: task._id, summary: task.label });
+  res.json(task);
 });
 
 router.post("/:id/not-required", auth, async (req, res) => {
-  res.json(await markNotRequired(req.params.id, req.user, req.body?.remarks || ""));
+  const task = await markNotRequired(req.params.id, req.user, req.body?.remarks || "");
+  audit(req, "task.not_required", { entity: "Task", entityId: task._id, summary: `${task.label}: ${task.remarks}` });
+  res.json(task);
 });
 
 router.post("/:id/reopen", auth, async (req, res) => {
-  res.json(await reopen(req.params.id, req.user));
+  const task = await reopen(req.params.id, req.user);
+  audit(req, "task.reopen", { entity: "Task", entityId: task._id, summary: task.label });
+  res.json(task);
 });
 
 module.exports = router;

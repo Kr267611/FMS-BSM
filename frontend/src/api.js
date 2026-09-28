@@ -1,21 +1,12 @@
-const TOKEN_KEY = "fms_bsm_token";
-
-export function getToken() {
-  try {
-    return localStorage.getItem(TOKEN_KEY);
-  } catch {
-    return null;
-  }
+// The session is an httpOnly cookie set by the server, so no token is stored in the browser.
+// Clean up the token that older versions kept in localStorage.
+try {
+  localStorage.removeItem("fms_bsm_token");
+} catch {
+  /* private window */
 }
 
-export function setToken(token) {
-  try {
-    if (token) localStorage.setItem(TOKEN_KEY, token);
-    else localStorage.removeItem(TOKEN_KEY);
-  } catch {
-    /* private window */
-  }
-}
+const AUTH_PAGES = ["/login", "/forgot-password", "/reset-password"];
 
 export async function api(path, { method = "GET", body, query } = {}) {
   let url = "/api" + path;
@@ -23,13 +14,15 @@ export async function api(path, { method = "GET", body, query } = {}) {
     const qs = new URLSearchParams(Object.entries(query).filter(([, v]) => v !== undefined && v !== null && v !== ""));
     if ([...qs].length) url += "?" + qs;
   }
-  const headers = { "Content-Type": "application/json" };
-  const token = getToken();
-  if (token) headers.Authorization = "Bearer " + token;
 
   let res;
   try {
-    res = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined });
+    res = await fetch(url, {
+      method,
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined,
+    });
   } catch {
     throw new Error("Could not reach the server. Check your connection and try again.");
   }
@@ -37,13 +30,20 @@ export async function api(path, { method = "GET", body, query } = {}) {
     throw new Error("The server is not available right now. Please refresh in a moment.");
   }
   const data = await res.json().catch(() => ({}));
-  if (res.status === 401 && token) {
-    setToken(null);
+  // Session ended (expired, password changed, deactivated): back to sign-in, except on the sign-in pages themselves
+  if (res.status === 401 && path !== "/auth/me" && !AUTH_PAGES.includes(window.location.pathname)) {
     window.location.href = "/login";
   }
   if (!res.ok) throw new Error(data.message || "Something went wrong. Please try again.");
   return data;
 }
+
+// Permission check for showing menu items and buttons (the server enforces the same rules)
+export function can(user, module, action = "view") {
+  return Boolean(user?.permissions?.[module]?.includes(action));
+}
+
+export const ROLE_LABELS = { admin: "Admin", hod: "HOD", pc: "PC", auditor: "Auditor", doer: "Doer" };
 
 // ---- date helpers (IST) ----
 const dayFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" });

@@ -2,35 +2,93 @@ const express = require("express");
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const User = require("../models/User");
-const { auth, issueToken } = require("../middleware/auth");
+const { auth } = require("../middleware/auth");
 const { mailer, fromAddress } = require("../services/mailer");
 const { passwordProblem } = require("../services/passwords");
+const { startSession, endSession, rateLimit } = require("../services/session");
+const { Department } = require("../models/Org");
+const { permissionsFor } = require("../services/permissions");
+const { audit } = require("../services/audit");
 
 const router = express.Router();
 
+const MAX_FAILED = 5;
+const LOCK_MIN = 15;
 const RESET_TTL_MIN = 30;
 const RESET_COOLDOWN_SEC = 60;
 
-function publicUser(u) {
-  return { _id: u._id, name: u.name, username: u.username, email: u.email, role: u.role, department: u.department };
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: "Too many sign-in attempts from this network. Please wait 15 minutes.",
+});
+const resetLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: "Too many password reset requests. Please wait 15 minutes.",
+});
+
+// What the app needs about the signed-in user, including effective permissions for the menu
+async function publicUser(u) {
+  const dept = u.department ? await Department.findById(u.department).select("name").lean() : null;
+  return {
+    _id: u._id,
+    name: u.name,
+    username: u.username,
+    email: u.email,
+    role: u.role,
+    department: dept?.name || "",
+    permissions: permissionsFor(u),
+  };
 }
 
 const hashToken = (token) => crypto.createHash("sha256").update(token).digest("hex");
+const minutesLeft = (date) => Math.max(1, Math.ceil((date.getTime() - Date.now()) / 60000));
 
 // Sign in with an email address or a username
-router.post("/login", async (req, res) => {
-  const { username, password } = req.body || {};
+router.post("/login", loginLimiter, async (req, res) => {
+  const { username, password, remember } = req.body || {};
   const id = String(username || "").toLowerCase().trim();
   if (!id || !password) return res.status(400).json({ message: "Enter your email and password" });
 
-  const user = await User.findOne({ $or: [{ email: id }, { username: id }] }).select("+password");
-  if (!user || !user.active || !(await bcrypt.compare(String(password), user.password))) {
+  const user = await User.findOne({ $or: [{ email: id }, { username: id }] }).select("+password +failedLogins +lockUntil");
+  if (user?.lockUntil && user.lockUntil > new Date()) {
+    return res.status(423).json({
+      message: `This account is locked after too many wrong passwords. Try again in ${minutesLeft(user.lockUntil)} minute(s), or reset your password.`,
+    });
+  }
+
+  const ok = user && user.active && (await bcrypt.compare(String(password), user.password));
+  if (!ok) {
+    if (user) {
+      user.failedLogins = (user.failedLogins || 0) + 1;
+      if (user.failedLogins >= MAX_FAILED) {
+        user.failedLogins = 0;
+        user.lockUntil = new Date(Date.now() + LOCK_MIN * 60 * 1000);
+        audit(req, "auth.locked", { entity: "User", entityId: user._id, summary: `${user.name} locked after ${MAX_FAILED} wrong passwords`, actor: user });
+      }
+      await user.save();
+      audit(req, "auth.login_failed", { entity: "User", entityId: user._id, summary: user.name, actor: user });
+    }
     return res.status(401).json({ message: "Incorrect email or password" });
   }
-  res.json({ token: issueToken(user), user: publicUser(user) });
+
+  user.failedLogins = 0;
+  user.lockUntil = undefined;
+  user.lastLoginAt = new Date();
+  user.lastLoginIp = req.ip;
+  await user.save();
+  startSession(res, user, Boolean(remember));
+  audit(req, "auth.login", { entity: "User", entityId: user._id, summary: user.name, actor: user });
+  res.json({ user: await publicUser(user) });
 });
 
-router.get("/me", auth, (req, res) => res.json(publicUser(req.user)));
+router.post("/logout", (req, res) => {
+  endSession(res);
+  res.json({ message: "Signed out" });
+});
+
+router.get("/me", auth, async (req, res) => res.json(await publicUser(req.user)));
 
 router.post("/change-password", auth, async (req, res) => {
   const { oldPassword, newPassword } = req.body || {};
@@ -44,14 +102,16 @@ router.post("/change-password", auth, async (req, res) => {
   user.password = await bcrypt.hash(String(newPassword), 10);
   user.tokenVersion = (user.tokenVersion || 0) + 1; // signs out other devices
   await user.save();
-  res.json({ message: "Password updated. Other devices have been signed out.", token: issueToken(user) });
+  startSession(res, user, Boolean(req.session?.r)); // keep this device signed in
+  audit(req, "auth.password_changed", { entity: "User", entityId: user._id, summary: user.name });
+  res.json({ message: "Password updated. Other devices have been signed out." });
 });
 
 // Always answers the same way, so the form cannot be used to find out which emails exist
-router.post("/forgot-password", async (req, res) => {
+router.post("/forgot-password", resetLimiter, async (req, res) => {
   const email = String(req.body?.email || "").toLowerCase().trim();
-  const generic = { message: `If an account uses ${email || "that email"}, a reset link has been sent. It is valid for ${RESET_TTL_MIN} minutes.` };
   if (!email) return res.status(400).json({ message: "Enter your email address" });
+  const generic = { message: `If an account uses ${email}, a reset link has been sent. It is valid for ${RESET_TTL_MIN} minutes.` };
 
   const transport = mailer();
   const appUrl = String(process.env.APP_URL || "").replace(/\/+$/, "");
@@ -91,7 +151,7 @@ router.post("/forgot-password", async (req, res) => {
   res.json(generic);
 });
 
-router.post("/reset-password", async (req, res) => {
+router.post("/reset-password", resetLimiter, async (req, res) => {
   const { token, password } = req.body || {};
   if (!token || !/^[a-f0-9]{64}$/.test(String(token))) {
     return res.status(400).json({ message: "This reset link is invalid. Request a new one." });
@@ -110,7 +170,10 @@ router.post("/reset-password", async (req, res) => {
   user.tokenVersion = (user.tokenVersion || 0) + 1; // sign out everywhere
   user.resetTokenHash = undefined;
   user.resetTokenExpires = undefined;
+  user.failedLogins = 0;
+  user.lockUntil = undefined; // a reset also unlocks the account
   await user.save();
+  audit(req, "auth.password_reset", { entity: "User", entityId: user._id, summary: user.name, actor: user });
   res.json({ message: "Your password has been reset. You can now sign in." });
 });
 

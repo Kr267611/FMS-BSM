@@ -1,7 +1,9 @@
 const express = require("express");
 const Process = require("../models/Process");
 const User = require("../models/User");
-const { auth, adminOnly } = require("../middleware/auth");
+const { auth, permit } = require("../middleware/auth");
+const { can } = require("../services/permissions");
+const { audit } = require("../services/audit");
 
 const router = express.Router();
 
@@ -60,7 +62,7 @@ async function cleanBody(body) {
 }
 
 router.get("/", auth, async (req, res) => {
-  const filter = req.query.all === "1" && req.user.role === "admin" ? {} : { active: true };
+  const filter = req.query.all === "1" && can(req.user, "fms", "edit") ? {} : { active: true };
   res.json(await Process.find(filter).populate("steps.doer", "name").sort({ name: 1 }).lean());
 });
 
@@ -70,18 +72,20 @@ router.get("/:id", auth, async (req, res) => {
   res.json(p);
 });
 
-router.post("/", auth, adminOnly, async (req, res) => {
+router.post("/", auth, permit("fms", "add"), async (req, res) => {
   try {
     const data = await cleanBody(req.body);
     if (await Process.exists({ name: data.name })) return res.status(400).json({ message: "A process with this name already exists" });
-    res.status(201).json(await Process.create(data));
+    const p = await Process.create(data);
+    audit(req, "fms.create", { entity: "Process", entityId: p._id, summary: p.name });
+    res.status(201).json(p);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 });
 
 // Changes apply to NEW jobs only - existing jobs keep the doer/TAT copied into their tasks
-router.put("/:id", auth, adminOnly, async (req, res) => {
+router.put("/:id", auth, permit("fms", "edit"), async (req, res) => {
   try {
     const data = await cleanBody(req.body);
     const p = await Process.findById(req.params.id);
@@ -92,6 +96,7 @@ router.put("/:id", auth, adminOnly, async (req, res) => {
     if (req.body.active !== undefined) p.active = Boolean(req.body.active);
     Object.assign(p, data);
     await p.save();
+    audit(req, "fms.update", { entity: "Process", entityId: p._id, summary: p.name });
     res.json(p);
   } catch (err) {
     res.status(400).json({ message: err.message });

@@ -2,11 +2,11 @@ const express = require("express");
 const SheetLink = require("../models/SheetLink");
 const Task = require("../models/Task");
 const User = require("../models/User");
-const { auth, adminOnly } = require("../middleware/auth");
+const { auth, permit } = require("../middleware/auth");
 const { syncLink, syncAll, extractSpreadsheetId, isColumn, serviceAccountEmail } = require("../services/sheetSync");
 
 const router = express.Router();
-router.use(auth, adminOnly);
+router.use(auth, permit("settings", "edit"));
 
 async function cleanBody(body) {
   const b = body || {};

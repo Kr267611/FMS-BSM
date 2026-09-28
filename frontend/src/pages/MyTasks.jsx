@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { addDays, api, showDay, showDateTime, todayKey } from "../api";
+import { addDays, api, can, showDay, showDateTime, todayKey } from "../api";
 import { useAuth } from "../App";
 import DoerSelect from "../components/DoerSelect";
 
 export default function MyTasks() {
   const { user } = useAuth();
-  const isAdmin = user.role === "admin";
+  // Admin / HOD / PC can look at the tasks of the people they oversee
+  const isAdmin = can(user, "users");
+  const canReopen = can(user, "fmsEntries", "edit");
   const [tab, setTab] = useState("pending");
   const [doer, setDoer] = useState("");
   const [data, setData] = useState(null);
@@ -97,7 +99,7 @@ export default function MyTasks() {
               </h3>
               <div className="task-list">
                 {list.map((t) => (
-                  <TaskCard key={t._id} task={t} today={today} isAdmin={isAdmin} onChange={load} />
+                  <TaskCard key={t._id} task={t} today={today} isAdmin={canReopen} onChange={load} />
                 ))}
               </div>
             </section>
