@@ -85,10 +85,10 @@ To create an app password: Google Account → Security → turn on 2-Step Verifi
 
 ## Deploying (Vercel frontend + Render backend)
 
-The React app runs on Vercel and the Express API runs on Render. `vercel.json` forwards every `/api/*` request to `https://fms-bsm-api.onrender.com`, so the browser only talks to the Vercel URL and no CORS setup is needed.
+The React app runs on Vercel and the Express API runs on Render. `vercel.json` forwards every `/api/*` request to `https://fms-bsm.onrender.com`, so the browser only talks to the Vercel URL and no CORS setup is needed.
 
 1. **MongoDB Atlas:** create a free cluster, a database user and a network access rule for `0.0.0.0/0`, then copy the connection string.
-2. **Render → New → Web Service** (name `fms-bsm-api`, Singapore region), repo `Kr267611/FMS-BSM`, branch `main`:
+2. **Render → New → Web Service** (Singapore region; ours is `https://fms-bsm.onrender.com`), repo `Kr267611/FMS-BSM`, branch `main`:
    - Build command: `cd backend && npm install`
    - Start command: `node backend/server.js`
    - Environment: `MONGO_URI`, `JWT_SECRET`, `ADMIN_PASSWORD`, `CRON_SECRET`, and optionally `GOOGLE_SERVICE_ACCOUNT_JSON` (the key file JSON on one line) and the SMTP values.
