@@ -78,6 +78,7 @@ async function ensureAdmin() {
       const r = await User.updateOne({ username, role: "admin", email: "" }, { email });
       if (r.modifiedCount) console.log(`Admin "${username}" can now sign in with ${email}`);
     }
+    await resetAdminPasswordFromEnv(username, email);
     return;
   }
   if (await User.exists({ username })) {
@@ -89,6 +90,24 @@ async function ensureAdmin() {
   }
   await User.create({ name: "Admin", username, email, password: await bcrypt.hash(password, 10), role: "admin" });
   console.log(`Created admin user "${username}"${email ? ` (${email})` : ""}`);
+}
+
+// Recovery for a lost admin password on hosts without a shell (e.g. Render free plan):
+// set ADMIN_RESET_PASSWORD, redeploy, sign in, then delete the variable.
+async function resetAdminPasswordFromEnv(username, email) {
+  const newPassword = process.env.ADMIN_RESET_PASSWORD;
+  if (!newPassword) return;
+  const who = [{ username }, ...(email ? [{ email }] : [])];
+  const admin =
+    (await User.findOne({ role: "admin", $or: who }).select("+password")) ||
+    (await User.findOne({ role: "admin" }).sort({ createdAt: 1 }).select("+password"));
+  if (!admin) return;
+  // Only when it differs, so a forgotten variable doesn't sign everyone out on every restart
+  if (await bcrypt.compare(newPassword, admin.password)) return;
+  admin.password = await bcrypt.hash(newPassword, 10);
+  admin.tokenVersion = (admin.tokenVersion || 0) + 1;
+  await admin.save();
+  console.warn(`Password for admin "${admin.username}" was reset from ADMIN_RESET_PASSWORD. Delete that variable now.`);
 }
 
 // Long-running server (local / Render). On Vercel this file is imported instead,

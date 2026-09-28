@@ -96,6 +96,22 @@ test("an existing admin without email gets ADMIN_EMAIL on the next start", async
   delete process.env.ADMIN_USERNAME;
 });
 
+test("ADMIN_RESET_PASSWORD recovers a forgotten admin password once", async () => {
+  const before = (await login("mis@example.com", "Changed123")).data.token;
+  process.env.ADMIN_RESET_PASSWORD = "Recover123";
+  const { ensureAdmin } = require("../server");
+  await ensureAdmin();
+  assert.strictEqual((await login("mis@example.com", "Recover123")).status, 200);
+  assert.strictEqual((await login("admin", "Recover123")).status, 200);
+  assert.strictEqual((await call("/auth/me", { token: before })).status, 401); // old sessions ended
+  const after = (await login("admin", "Recover123")).data.token;
+  await ensureAdmin(); // variable still set: same password, so nobody is signed out again
+  assert.strictEqual((await call("/auth/me", { token: after })).status, 200);
+  delete process.env.ADMIN_RESET_PASSWORD;
+  // put the password back for the next test
+  await call("/auth/change-password", { token: after, method: "POST", body: { oldPassword: "Recover123", newPassword: "Changed123" } });
+});
+
 test("users: email must be valid and unique, passwords need 8+ chars with letters and numbers", async () => {
   const t = (await login("admin", "Changed123")).data.token;
   const make = (body) => call("/users", { token: t, method: "POST", body: { name: "Doer", password: "Doer12345", ...body } });
