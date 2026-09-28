@@ -2,7 +2,7 @@ const Task = require("../models/Task");
 const User = require("../models/User");
 const { todayKey } = require("./dates");
 
-// Har doer ke aaj tak due pending tasks (overdue + aaj ke)
+// Each doer's pending tasks due up to today (overdue + due today)
 async function pendingByDoer() {
   const today = todayKey();
   const tasks = await Task.find({ status: "pending", plannedDay: { $lte: today } })
@@ -40,13 +40,13 @@ function messageFor(entry) {
     const where = t.kind === "sheet" ? ` (sheet row ${t.sheetRow})` : "";
     return `- ${t.label}${where} | Planned: ${showDay(t.plannedDay)}`;
   });
-  const more = entry.tasks.length > 30 ? `\n...aur ${entry.tasks.length - 30} task` : "";
+  const more = entry.tasks.length > 30 ? `\n...and ${entry.tasks.length - 30} more` : "";
   return (
-    `Namaste ${entry.doer.name},\n\n` +
-    `Aapke ${entry.tasks.length} task pending hain (${entry.overdue} overdue, ${entry.dueToday} aaj ke):\n` +
+    `Hello ${entry.doer.name},\n\n` +
+    `You have ${entry.tasks.length} pending task(s) (${entry.overdue} overdue, ${entry.dueToday} due today):\n` +
     lines.join("\n") +
     more +
-    `\n\nKripya jaldi complete karein.\n- FMS BSM`
+    `\n\nPlease complete them as soon as possible.\n- FMS BSM`
   );
 }
 
@@ -64,7 +64,7 @@ function mailer() {
 
 async function sendEmailReminders() {
   const transport = mailer();
-  if (!transport) return { sent: 0, skipped: 0, error: "Email (SMTP) set nahi hai - backend/.env dekhein" };
+  if (!transport) return { sent: 0, skipped: 0, error: "Email (SMTP) is not configured - see backend/.env" };
 
   const entries = await pendingByDoer();
   let sent = 0;
@@ -79,7 +79,7 @@ async function sendEmailReminders() {
       await transport.sendMail({
         from: process.env.MAIL_FROM || process.env.SMTP_USER,
         to: e.doer.email,
-        subject: `FMS: ${e.tasks.length} task pending (${e.overdue} overdue)`,
+        subject: `FMS: ${e.tasks.length} pending task(s), ${e.overdue} overdue`,
         text: messageFor(e),
       });
       sent++;

@@ -1,10 +1,10 @@
 const mongoose = require("mongoose");
 
-// DataJobs ki ek row: kis Google Sheet ke kis step ko kis doer ke score me lena hai.
-// Software sheet ko sirf PADHTA hai, kabhi edit nahi karta.
+// One DataJobs row: which Google Sheet step feeds which doer's score.
+// The software only READS the sheet and never edits it.
 const sheetLinkSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true, trim: true }, // Task Count row ka naam
+    name: { type: String, required: true, trim: true }, // Row name in the MIS
     doer: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     spreadsheetId: { type: String, required: true },
     tabName: { type: String, required: true },
@@ -12,7 +12,7 @@ const sheetLinkSchema = new mongoose.Schema(
     plannedCol: { type: String, required: true, uppercase: true, trim: true },
     actualCol: { type: String, required: true, uppercase: true, trim: true },
     filterCol: { type: String, uppercase: true, trim: true, default: "" },
-    filterValues: [String], // khaali = sab rows (sirf Planned != "")
+    filterValues: [String], // empty = all rows (only Planned != "")
     active: { type: Boolean, default: true },
 
     lastSyncAt: Date,

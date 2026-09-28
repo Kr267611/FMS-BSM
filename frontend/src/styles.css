@@ -1,4 +1,4 @@
-/* FMS BSM – Glass UI (Figma file "FMS BSM – Glass UI" ke tokens) */
+/* FMS BSM – Glass UI (tokens from the Figma file "FMS BSM – Glass UI") */
 :root {
   --bg-deep: #0b1026;
   --bg-violet: #3b1e7a;
@@ -49,7 +49,7 @@ body {
   background: linear-gradient(135deg, #0b1026 0%, #1c174d 55%, #0f2147 100%) fixed;
 }
 
-/* Rangin roshni ke gole – glass inke upar blur hota hai */
+/* Coloured light blobs that the glass surfaces blur over */
 body::before,
 body::after {
   content: "";
@@ -495,13 +495,13 @@ pre.msg {
   overflow: auto;
 }
 
-/* Blur support nahi (purane browser) -> thoda solid glass */
+/* No backdrop blur support (older browsers) -> more opaque glass */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .card, .topbar, .tabs, .modal { background: rgba(28, 32, 72, 0.92); }
 }
 
 /* ---------- mobile ---------- */
-/* Menu ko ☰ me daalo jab 7 links ek line me na aayein */
+/* Collapse the menu into ☰ when the links no longer fit on one line */
 @media (max-width: 1180px) {
   .menu-btn { display: block; }
   .topbar { padding: 0 16px; gap: 10px; }
@@ -513,7 +513,7 @@ pre.msg {
     left: 0;
     right: 0;
     flex-direction: column;
-    /* topbar ke andar backdrop blur nahi chalta, isliye lagbhag solid */
+    /* backdrop blur does not work inside the top bar, so use a nearly solid fill */
     background: rgba(22, 24, 64, 0.98);
     border-bottom: 1px solid var(--stroke-14);
     box-shadow: var(--shadow);

@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-// Ek FMS = ek Process. Header block ka What/Who/When/How yahan aata hai.
+// One FMS = one Process: the What / Who / When / How header block of the sheet.
 const fieldSchema = new mongoose.Schema({
   key: { type: String, required: true },
   label: { type: String, required: true },

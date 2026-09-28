@@ -1,5 +1,5 @@
-// Demo data: kuch doers + 2 FMS process + pichhle 30 din ke jobs.
-// Chalayein: npm run seed:demo   (sirf ek baar; dobara chalane par kuch nahi karta)
+// Demo data: a few doers, 2 FMS processes and jobs for the last 30 days.
+// Run: npm run seed:demo   (runs once; does nothing if the demo data exists)
 const path = require("path");
 require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 const bcrypt = require("bcryptjs");
@@ -12,18 +12,18 @@ const { addTat, dayKey } = require("../services/dates");
 
 const DAY = 24 * 60 * 60 * 1000;
 
-// Chhota deterministic random - har baar same demo data
+// Small deterministic PRNG - the same demo data every run
 let seed = 42;
 const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 
 async function main() {
   await connectDB();
   if (await Process.exists({ name: "Vendor Payment" })) {
-    console.log("Demo data pehle se hai - kuch nahi kiya.");
+    console.log("Demo data already exists - nothing to do.");
     return;
   }
   const password = process.env.DEMO_PASSWORD;
-  if (!password) throw new Error("backend/.env me DEMO_PASSWORD daalein");
+  if (!password) throw new Error("Set DEMO_PASSWORD in backend/.env");
   const hash = await bcrypt.hash(password, 10);
 
   const people = [
@@ -43,7 +43,7 @@ async function main() {
   const processes = [
     await Process.create({
       name: "Vendor Payment",
-      description: "Colour Chemical / Coal / Maintenance vendor ka payment",
+      description: "Vendor payments for Colour Chemical, Coal and Maintenance",
       fields: [
         { key: "vendor", label: "Vendor Name", type: "text", required: true },
         { key: "category", label: "Category", type: "select", options: ["Colour Chemical", "Coal", "Maintenance"] },
@@ -57,7 +57,7 @@ async function main() {
     }),
     await Process.create({
       name: "Repeat Spare Part",
-      description: "6 mahine me dobara lagne wale spare part ki jaanch",
+      description: "Review of spare parts replaced again within 6 months",
       skipSundays: true,
       fields: [
         { key: "item", label: "Item Name", type: "text", required: true },
@@ -115,7 +115,7 @@ async function main() {
           if (!open && base) {
             t.planned = addTat(base, step.tat, step.tatUnit, proc.skipSundays);
             t.plannedDay = dayKey(t.planned);
-            // kuch time pe, kuch late, kuch abhi pending
+            // some on time, some late, some still pending
             const offset = (rand() < 0.7 ? -rand() * step.tat : rand() * 3) * DAY;
             const actual = new Date(t.planned.getTime() + offset);
             if (actual.getTime() < now && rand() > 0.08) {
@@ -137,8 +137,8 @@ async function main() {
     await proc.save();
   }
 
-  console.log(`Demo data ban gaya: ${people.length} doers, ${processes.length} process, ${jobs} jobs.`);
-  console.log("Doers ka username: ayush, mukesh, naveen, vinod, alka  (password = backend/.env ka DEMO_PASSWORD)");
+  console.log(`Demo data created: ${people.length} doers, ${processes.length} processes, ${jobs} jobs.`);
+  console.log("Doer usernames: ayush, mukesh, naveen, vinod, alka  (password = DEMO_PASSWORD in backend/.env)");
 }
 
 main()

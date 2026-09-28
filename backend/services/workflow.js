@@ -16,23 +16,23 @@ function setPlanned(task, base) {
   task.status = "pending";
 }
 
-// Nayi job: har step ka Task banta hai. Pehle step ka Planned = start date + TAT,
-// baaki steps "waiting" rehte hain jab tak pichhla step Done na ho.
+// A new job creates one Task per step. Step 1 is planned at start date + TAT;
+// later steps stay "waiting" until the previous step is done.
 async function createJob({ processId, data = {}, startDate, user }) {
   const found = await Process.findOne({ _id: processId, active: true }).lean();
-  if (!found) throw new WorkflowError("Process nahi mila", 404);
-  if (!found.steps.length) throw new WorkflowError("Is process me koi step nahi hai");
+  if (!found) throw new WorkflowError("Process not found", 404);
+  if (!found.steps.length) throw new WorkflowError("This process has no steps");
 
   for (const f of found.fields) {
     if (f.required && (data[f.key] === undefined || data[f.key] === "")) {
-      throw new WorkflowError(`"${f.label}" bharna zaroori hai`);
+      throw new WorkflowError(`"${f.label}" is required`);
     }
   }
 
   const start = startDate ? new Date(startDate) : new Date();
-  if (isNaN(start)) throw new WorkflowError("Start date galat hai");
+  if (isNaN(start)) throw new WorkflowError("Invalid start date");
 
-  // Sab sahi hone ke baad hi job number aage badhao (galat entry number na khaye)
+  // Take the next job number only once the entry is valid, so rejected entries leave no gaps
   const process = await Process.findByIdAndUpdate(found._id, { $inc: { jobCounter: 1 } }, { new: true });
 
   const job = await Job.create({
@@ -67,10 +67,10 @@ async function createJob({ processId, data = {}, startDate, user }) {
 
 async function loadAppTask(taskId, user) {
   const task = await Task.findById(taskId);
-  if (!task || task.kind !== "app") throw new WorkflowError("Task nahi mila", 404);
+  if (!task || task.kind !== "app") throw new WorkflowError("Task not found", 404);
   const isOwner = String(task.doer) === String(user._id);
   if (!isOwner && user.role !== "admin") {
-    throw new WorkflowError("Ye task aapka nahi hai", 403);
+    throw new WorkflowError("This task is assigned to someone else", 403);
   }
   return task;
 }
@@ -86,10 +86,10 @@ async function activateNext(task, base) {
   return next;
 }
 
-// Doer "Done" karta hai: Actual = abhi, agla step Planned = Actual + TAT
+// Done: Actual = now, and the next step is planned at Actual + its TAT
 async function markDone(taskId, user, remarks = "") {
   const task = await loadAppTask(taskId, user);
-  if (task.status !== "pending") throw new WorkflowError("Ye task abhi Done nahi ho sakta");
+  if (task.status !== "pending") throw new WorkflowError("This task cannot be marked done right now");
 
   task.actual = new Date();
   task.actualDay = dayKey(task.actual);
@@ -102,10 +102,10 @@ async function markDone(taskId, user, remarks = "") {
   return task;
 }
 
-// "Not Required" - score me nahi gina jata (sheet ke "No Req" jaisa)
+// Not Required: excluded from the score, like "No Req" in the sheets
 async function markNotRequired(taskId, user, remarks = "") {
   const task = await loadAppTask(taskId, user);
-  if (task.status !== "pending") throw new WorkflowError("Sirf pending task Not Required ho sakta hai");
+  if (task.status !== "pending") throw new WorkflowError("Only a pending task can be marked Not Required");
 
   task.status = "na";
   task.remarks = remarks;
@@ -116,15 +116,15 @@ async function markNotRequired(taskId, user, remarks = "") {
   return task;
 }
 
-// Admin galti se Done hua task wapas khol sakta hai (jab tak agla step shuru na hua ho)
+// An admin can reopen a completed task, as long as the next step has not been completed
 async function reopen(taskId, user) {
-  if (user.role !== "admin") throw new WorkflowError("Sirf admin task reopen kar sakta hai", 403);
+  if (user.role !== "admin") throw new WorkflowError("Only an admin can reopen a task", 403);
   const task = await loadAppTask(taskId, user);
-  if (!["done", "na"].includes(task.status)) throw new WorkflowError("Ye task pehle se khula hai");
+  if (!["done", "na"].includes(task.status)) throw new WorkflowError("This task is already open");
 
   const next = await Task.findOne({ job: task.job, stepIndex: task.stepIndex + 1 });
   if (next && ["done", "na"].includes(next.status)) {
-    throw new WorkflowError("Agla step already complete hai - pehle usse reopen karein");
+    throw new WorkflowError("The next step is already complete. Reopen that step first.");
   }
   if (next) {
     next.status = "waiting";

@@ -38,23 +38,23 @@ export default function Processes() {
       <div className="page-head">
         <h2>FMS Builder</h2>
         <button className="btn primary" onClick={() => setEditing(blank())}>
-          + Naya Process
+          + New Process
         </button>
       </div>
-      <p className="muted">Har process = ek FMS. Steps me Doer aur TAT fix karein – baaki software khud sambhalega.</p>
+      <p className="muted">Each process is one FMS. Set the doer and TAT for every step, and the software handles the rest.</p>
       {!list && <p className="muted">Loading…</p>}
       <div className="cards">
         {(list || []).map((p) => (
           <div key={p._id} className={"card process-card" + (p.active ? "" : " inactive")}>
             <div className="row between">
               <h3>{p.name}</h3>
-              {!p.active && <span className="tag gray">Band</span>}
+              {!p.active && <span className="tag gray">Inactive</span>}
             </div>
             {p.description && <p className="muted small">{p.description}</p>}
             <ol className="steps">
               {p.steps.map((s) => (
                 <li key={s._id}>
-                  <b>{s.name}</b> — {s.doer?.name} · TAT {s.tat} {s.tatUnit === "hours" ? "ghante" : "din"}
+                  <b>{s.name}</b> — {s.doer?.name} · TAT {s.tat} {s.tatUnit === "hours" ? (s.tat === 1 ? "hour" : "hours") : s.tat === 1 ? "day" : "days"}
                 </li>
               ))}
             </ol>
@@ -114,23 +114,23 @@ function ProcessForm({ initial, onClose, onSaved }) {
   return (
     <form onSubmit={save}>
       <div className="page-head">
-        <h2>{isNew ? "Naya Process" : `Edit: ${initial.name}`}</h2>
+        <h2>{isNew ? "New Process" : `Edit: ${initial.name}`}</h2>
         <div className="row">
           <button type="button" className="btn ghost" onClick={onClose}>
-            Wapas
+            Back
           </button>
           <button className="btn primary" disabled={busy}>
             Save
           </button>
         </div>
       </div>
-      {!isNew && <p className="notice">Steps/TAT ka badlav sirf NAYI entries par lagega. Purani jobs jaisi hain waisi rahengi.</p>}
+      {!isNew && <p className="notice">Changes to steps and TAT apply to new entries only. Existing jobs keep their current steps.</p>}
       {error && <div className="error">{error}</div>}
 
       <div className="card form-grid">
         <label className="span-2">
-          Process ka naam (What)
-          <input value={p.name} onChange={(e) => set({ name: e.target.value })} placeholder="jaise Vendor Payment" required />
+          Process name (What)
+          <input value={p.name} onChange={(e) => set({ name: e.target.value })} placeholder="e.g. Vendor Payment" required />
         </label>
         <label className="span-2">
           Description (How / When)
@@ -138,12 +138,12 @@ function ProcessForm({ initial, onClose, onSaved }) {
         </label>
         <label className="check">
           <input type="checkbox" checked={p.skipSundays} onChange={(e) => set({ skipSundays: e.target.checked })} />
-          Planned date me Sunday skip karein
+          Skip Sundays when calculating planned dates
         </label>
         {!isNew && (
           <label className="check">
             <input type="checkbox" checked={p.active} onChange={(e) => set({ active: e.target.checked })} />
-            Process chalu hai
+            Process is active
           </label>
         )}
       </div>
@@ -155,17 +155,17 @@ function ProcessForm({ initial, onClose, onSaved }) {
             + Step
           </button>
         </div>
-        <p className="muted small">Step 1 ka Planned = entry date + TAT. Baaki ka Planned = pichhle step ka Actual + TAT.</p>
+        <p className="muted small">Step 1 is planned at entry date + TAT. Each later step is planned at the previous step's actual + TAT.</p>
         <div className="editor">
           {p.steps.map((s, i) => (
             <div key={i} className="editor-row">
               <span className="step-no">{i + 1}</span>
-              <input placeholder="Step ka naam" value={s.name} onChange={(e) => setItem("steps", i, { name: e.target.value })} required />
+              <input placeholder="Step name" value={s.name} onChange={(e) => setItem("steps", i, { name: e.target.value })} required />
               <DoerSelect value={s.doer} onChange={(v) => setItem("steps", i, { doer: v })} required />
               <input type="number" min="0" step="any" className="tat" value={s.tat} onChange={(e) => setItem("steps", i, { tat: e.target.value })} required />
               <select value={s.tatUnit} onChange={(e) => setItem("steps", i, { tatUnit: e.target.value })}>
-                <option value="days">din</option>
-                <option value="hours">ghante</option>
+                <option value="days">days</option>
+                <option value="hours">hours</option>
               </select>
               <span className="row-tools">
                 <button type="button" className="btn ghost small" onClick={() => move("steps", i, -1)}>
@@ -185,16 +185,16 @@ function ProcessForm({ initial, onClose, onSaved }) {
 
       <div className="card">
         <div className="row between">
-          <h3>Entry ke fields</h3>
+          <h3>Entry fields</h3>
           <button type="button" className="btn ghost small" onClick={() => set({ fields: [...p.fields, { label: "", type: "text", options: [], required: false }] })}>
             + Field
           </button>
         </div>
-        <p className="muted small">Sheet ke left side wale columns – Item name, Machine no, Vendor, Amount…</p>
+        <p className="muted small">The columns on the left of the sheet – item name, machine no., vendor, amount…</p>
         <div className="editor">
           {p.fields.map((f, i) => (
             <div key={i} className="editor-row">
-              <input placeholder="Field ka naam" value={f.label} onChange={(e) => setItem("fields", i, { label: e.target.value })} />
+              <input placeholder="Field name" value={f.label} onChange={(e) => setItem("fields", i, { label: e.target.value })} />
               <select value={f.type} onChange={(e) => setItem("fields", i, { type: e.target.value })}>
                 <option value="text">Text</option>
                 <option value="number">Number</option>
@@ -203,14 +203,14 @@ function ProcessForm({ initial, onClose, onSaved }) {
               </select>
               {f.type === "select" && (
                 <input
-                  placeholder="Options, comma se alag"
+                  placeholder="Options, comma-separated"
                   defaultValue={(f.options || []).join(", ")}
                   onBlur={(e) => setItem("fields", i, { options: e.target.value.split(",").map((x) => x.trim()).filter(Boolean) })}
                 />
               )}
               <label className="check">
                 <input type="checkbox" checked={f.required} onChange={(e) => setItem("fields", i, { required: e.target.checked })} />
-                Zaroori
+                Required
               </label>
               <span className="row-tools">
                 <button type="button" className="btn ghost small" onClick={() => move("fields", i, -1)}>

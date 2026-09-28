@@ -1,12 +1,12 @@
 const mongoose = require("mongoose");
 
-// Ek Task = ek step ka Planned / Actual / Status / Remarks block.
-// App ke jobs aur Google Sheet se aaye rows - dono yahin aate hain,
-// isliye scoring ek hi jagah se hoti hai (Feeder + Performance-daily ki jagah).
+// One Task = one step's Planned / Actual / Status / Remarks block.
+// App jobs and rows synced from Google Sheets both land here,
+// so all scoring reads one collection (replacing Feeder + Performance-daily).
 const taskSchema = new mongoose.Schema(
   {
     kind: { type: String, enum: ["app", "sheet"], required: true },
-    label: { type: String, required: true }, // Task Count ki row ka naam, e.g. "Vendor Payment – Payment"
+    label: { type: String, required: true }, // Row name in the MIS, e.g. "Vendor Payment – Payment"
     doer: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
 
     // app tasks
@@ -14,7 +14,7 @@ const taskSchema = new mongoose.Schema(
     job: { type: mongoose.Schema.Types.ObjectId, ref: "Job", index: true },
     stepIndex: Number,
     stepName: String,
-    tat: Number, // job bante waqt step ka TAT copy - baad me process badle to purane jobs na badlein
+    tat: Number, // Copied from the step when the job is created, so later process edits don't change old jobs
     tatUnit: { type: String, enum: ["days", "hours"] },
     skipSundays: Boolean,
 

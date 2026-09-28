@@ -20,7 +20,7 @@ export default function MyTasks() {
 
   useEffect(load, [load]);
 
-  // Is hafte (Somvar se aaj tak) ka score
+  // This week's score (Monday to today)
   const [score, setScore] = useState(null);
   useEffect(() => {
     const t = todayKey();
@@ -37,10 +37,10 @@ export default function MyTasks() {
     tab === "pending"
       ? [
           ["Overdue", tasks.filter((t) => t.plannedDay < today), "late"],
-          ["Aaj ke", tasks.filter((t) => t.plannedDay === today), "today"],
-          ["Aage ke", tasks.filter((t) => t.plannedDay > today), "later"],
+          ["Due today", tasks.filter((t) => t.plannedDay === today), "today"],
+          ["Upcoming", tasks.filter((t) => t.plannedDay > today), "later"],
         ]
-      : [["Complete", tasks, "done"]];
+      : [["Completed", tasks, "done"]];
 
   const counts = {
     overdue: tasks.filter((t) => t.plannedDay < today).length,
@@ -52,32 +52,32 @@ export default function MyTasks() {
     <>
       <div className="page-head">
         <div>
-          <h2>{isAdmin && doer ? "Doer ke Tasks" : "Mere Tasks"}</h2>
+          <h2>{isAdmin && doer ? "Doer tasks" : "My Tasks"}</h2>
           <div className="muted">
             {longDate}
             {data && tab === "pending" && ` · ${tasks.length} pending, ${counts.overdue} overdue`}
           </div>
         </div>
         <div className="row">
-          {isAdmin && <DoerSelect value={doer} onChange={setDoer} placeholder="Mere tasks" />}
+          {isAdmin && <DoerSelect value={doer} onChange={setDoer} placeholder="My tasks" />}
           <div className="tabs">
             <button className={tab === "pending" ? "active" : ""} onClick={() => setTab("pending")}>
               Pending
             </button>
             <button className={tab === "done" ? "active" : ""} onClick={() => setTab("done")}>
-              Complete
+              Completed
             </button>
           </div>
         </div>
       </div>
       {data && tab === "pending" && (
         <div className="stats">
-          <Stat tone="bad" label="Overdue" value={counts.overdue} note="turant karein" />
-          <Stat tone="warn" label="Aaj ke" value={counts.today} note="shaam tak" />
-          <Stat label="Aage ke" value={counts.later} note="aane wale" />
+          <Stat tone="bad" label="Overdue" value={counts.overdue} note="needs action now" />
+          <Stat tone="warn" label="Due today" value={counts.today} note="by end of day" />
+          <Stat label="Upcoming" value={counts.later} note="scheduled" />
           <Stat
             tone={score === null ? "" : score >= -10 ? "good" : score >= -30 ? "warn" : "bad"}
-            label="Score (is hafte)"
+            label="Score (this week)"
             value={score ?? "—"}
             note="0 = perfect"
           />
@@ -86,7 +86,7 @@ export default function MyTasks() {
       {error && <div className="error">{error}</div>}
       {!data && !error && <p className="muted">Loading…</p>}
       {data && !tasks.length && (
-        <div className="card empty">{tab === "pending" ? "Koi pending task nahi hai 🎉" : "Abhi koi complete task nahi."}</div>
+        <div className="card empty">{tab === "pending" ? "You are all caught up. No pending tasks." : "No completed tasks yet."}</div>
       )}
       {groups.map(
         ([title, list, tone]) =>
@@ -176,9 +176,9 @@ function TaskCard({ task, today, isAdmin, onChange }) {
           <span>Planned: <b>{showDay(task.plannedDay)}</b></span>
           {task.actual && <span>Actual: <b>{showDateTime(task.actual)}</b></span>}
           {task.status === "na" && <span className="tag gray">Not Required</span>}
-          {late > 0 && task.status !== "na" && <span className="tag red">{late} din late</span>}
-          {task.status === "pending" && late === 0 && <span className="tag amber">Aaj</span>}
-          {task.status === "pending" && late < 0 && <span className="tag">{-late} din baad</span>}
+          {late > 0 && task.status !== "na" && <span className="tag red">{late}d late</span>}
+          {task.status === "pending" && late === 0 && <span className="tag amber">Today</span>}
+          {task.status === "pending" && late < 0 && <span className="tag">in {-late}d</span>}
           {task.status === "done" && late <= 0 && <span className="tag green">On time</span>}
         </div>
         {task.remarks && <div className="small remark">“{task.remarks}”</div>}
@@ -197,7 +197,7 @@ function TaskCard({ task, today, isAdmin, onChange }) {
         )}
         {task.status === "pending" && isSheet && (
           <a className="btn ghost small" href={sheetUrl} target="_blank" rel="noreferrer">
-            Sheet me update karein ↗
+            Update in sheet ↗
           </a>
         )}
         {isAdmin && !isSheet && ["done", "na"].includes(task.status) && (
@@ -210,7 +210,7 @@ function TaskCard({ task, today, isAdmin, onChange }) {
       {mode && (
         <div className="task-confirm">
           <input
-            placeholder={mode === "na" ? "Kyun zaroori nahi? (remark)" : "Remark (optional)"}
+            placeholder={mode === "na" ? "Why is it not required? (remark)" : "Remark (optional)"}
             value={remarks}
             onChange={(e) => setRemarks(e.target.value)}
             autoFocus

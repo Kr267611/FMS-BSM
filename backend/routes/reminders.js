@@ -5,7 +5,7 @@ const { pendingByDoer, messageFor, sendEmailReminders } = require("../services/r
 const router = express.Router();
 router.use(auth, adminOnly);
 
-// Har doer ke pending tasks + WhatsApp/email ka message text
+// Each doer's pending tasks plus the WhatsApp / email message text
 router.get("/", async (req, res) => {
   const entries = await pendingByDoer();
   res.json(

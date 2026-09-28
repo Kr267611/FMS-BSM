@@ -3,16 +3,16 @@ const Task = require("../models/Task");
 const User = require("../models/User");
 const { todayKey } = require("./dates");
 
-// Aapka formula: Score = -(50*Late + 100*Pending) / Planned. 0 = perfect.
+// MIS formula: Score = -(50*Late + 100*Pending) / Planned. 0 = perfect.
 function score({ planned, late, pending }) {
   if (!planned) return 0;
-  return Math.round((-(50 * late + 100 * pending) / planned) * 100) / 100 + 0; // +0: -0 ko 0 banata hai
+  return Math.round((-(50 * late + 100 * pending) / planned) * 100) / 100 + 0; // +0 turns -0 into 0
 }
 
-// Ek task ko classify karo - Performance-daily ke COUNTIFS jaisa:
-//   Late    : Actual din > Planned din
-//   On time : Actual din <= Planned din
-//   Pending : Actual khaali
+// Classify a task, matching the Performance-daily COUNTIFS:
+//   Late    : actual day > planned day
+//   On time : actual day <= planned day
+//   Pending : no actual
 function classify(t) {
   if (!t.actualDay) return "pending";
   return t.actualDay > t.plannedDay ? "late" : "onTime";
@@ -33,7 +33,7 @@ function finish(row) {
   return row;
 }
 
-// Range ka "to" aaj se aage nahi jata - jo task abhi due hi nahi, woh pending nahi gina jata.
+// The range never extends past today - a task that is not due yet is not counted as pending.
 function effectiveRange(from, to) {
   const today = todayKey();
   return { from, to: to > today ? today : to };
@@ -48,7 +48,7 @@ function baseMatch(from, to, doerId) {
   return match;
 }
 
-// Task Count + MIS Summary: har doer ka har step (label) + doer ka total
+// Task Count + MIS Summary: every step (label) per doer, plus the doer's total
 async function misReport({ from, to, doerId }) {
   const range = effectiveRange(from, to);
   const tasks = range.from > range.to
@@ -80,7 +80,7 @@ async function misReport({ from, to, doerId }) {
   return { from: range.from, to: range.to, doers: result };
 }
 
-// Performance-daily: ek doer ke har din ki counts
+// Performance-daily: a doer's counts for each day
 async function dailyReport({ from, to, doerId, label }) {
   const range = effectiveRange(from, to);
   if (range.from > range.to) return { from: range.from, to: range.to, days: [] };

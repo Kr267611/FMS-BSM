@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-// Ek Job = FMS sheet ki ek row (left side ka entry data).
+// One Job = one FMS sheet row (the entry data on the left side).
 const jobSchema = new mongoose.Schema(
   {
     process: { type: mongoose.Schema.Types.ObjectId, ref: "Process", required: true, index: true },

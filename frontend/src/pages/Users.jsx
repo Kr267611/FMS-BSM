@@ -18,7 +18,7 @@ export default function Users() {
       <div className="page-head">
         <h2>Users</h2>
         <button className="btn primary" onClick={() => setEditing({ ...blank })}>
-          + Naya User
+          + New User
         </button>
       </div>
       {editing && (
@@ -37,7 +37,7 @@ export default function Users() {
           <table className="grid">
             <thead>
               <tr>
-                <th>Naam</th>
+                <th>Name</th>
                 <th>Username</th>
                 <th>Role</th>
                 <th>Department</th>
@@ -50,7 +50,7 @@ export default function Users() {
               {(list || []).map((u) => (
                 <tr key={u._id} className={u.active ? "" : "inactive"}>
                   <td>
-                    {u.name} {!u.active && <span className="tag gray">Band</span>}
+                    {u.name} {!u.active && <span className="tag gray">Inactive</span>}
                   </td>
                   <td>{u.username}</td>
                   <td>{u.role === "admin" ? "Admin" : "Doer"}</td>
@@ -94,9 +94,9 @@ function UserForm({ initial, onClose, onSaved }) {
 
   return (
     <form className="card form-grid" onSubmit={save}>
-      <h3 className="span-all">{isNew ? "Naya User" : `Edit: ${initial.name}`}</h3>
+      <h3 className="span-all">{isNew ? "New User" : `Edit: ${initial.name}`}</h3>
       <label>
-        Naam
+        Name
         <input value={v.name} onChange={(e) => set({ name: e.target.value })} required />
       </label>
       <label>
@@ -104,7 +104,7 @@ function UserForm({ initial, onClose, onSaved }) {
         <input value={v.username} onChange={(e) => set({ username: e.target.value })} required disabled={!isNew} />
       </label>
       <label>
-        {isNew ? "Password" : "Naya password (khaali = same)"}
+        {isNew ? "Password" : "New password (leave blank to keep)"}
         <input type="password" value={v.password} onChange={(e) => set({ password: e.target.value })} required={isNew} minLength={6} autoComplete="new-password" />
       </label>
       <label>
@@ -119,7 +119,7 @@ function UserForm({ initial, onClose, onSaved }) {
         <input value={v.department} onChange={(e) => set({ department: e.target.value })} />
       </label>
       <label>
-        Email (reminder ke liye)
+        Email (for reminders)
         <input type="email" value={v.email} onChange={(e) => set({ email: e.target.value })} />
       </label>
       <label>

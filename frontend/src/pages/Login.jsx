@@ -27,7 +27,7 @@ export default function Login() {
     <div className="login-wrap">
       <form className="card login" onSubmit={submit}>
         <h1>FMS BSM</h1>
-        <p className="muted">Flow Management System – login karein</p>
+        <p className="muted">Flow Management System — sign in to continue</p>
         <label>
           Username
           <input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus autoComplete="username" />
@@ -38,7 +38,7 @@ export default function Login() {
         </label>
         {error && <div className="error">{error}</div>}
         <button className="btn primary" disabled={busy}>
-          {busy ? "…" : "Login"}
+          {busy ? "Signing in…" : "Sign in"}
         </button>
       </form>
     </div>

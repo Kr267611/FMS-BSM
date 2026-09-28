@@ -4,7 +4,7 @@ const SheetLink = require("../models/SheetLink");
 const Task = require("../models/Task");
 const { dayKey, parseSheetDate } = require("./dates");
 
-// URL ya seedha ID - dono chalte hain (smart chip wala "Invalid URL" jhanjhat nahi)
+// Accepts the sheet URL or the bare ID
 function extractSpreadsheetId(input) {
   const text = String(input || "").trim();
   const m = text.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
@@ -41,13 +41,13 @@ function getSheets() {
   const credentials = serviceAccountCredentials();
   if (!credentials) {
     throw new Error(
-      "Google Service Account set nahi hai. backend/.env me GOOGLE_SERVICE_ACCOUNT_FILE daalein (README dekhein)."
+      "Google service account is not configured. Set GOOGLE_SERVICE_ACCOUNT_FILE in backend/.env (see README)."
     );
   }
   const { google } = require("googleapis");
   const auth = new google.auth.GoogleAuth({
     credentials,
-    // sirf padhne ki permission - software sheet edit kar hi nahi sakta
+    // Read-only scope - the software cannot edit a sheet
     scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
   });
   sheetsClient = google.sheets({ version: "v4", auth });
@@ -58,7 +58,7 @@ function quoteTab(tab) {
   return `'${String(tab).replace(/'/g, "''")}'`;
 }
 
-// Sheet ke column values -> task rows. Pure function (test me use hota hai).
+// Sheet column values -> task rows. Pure function (covered by tests).
 // columns = { planned: [[v],[v]...], actual: [...], filter: [...] }
 function buildRows(link, columns) {
   const filterSet = new Set(
@@ -69,7 +69,7 @@ function buildRows(link, columns) {
 
   for (let i = 0; i < planned.length; i++) {
     const plannedDate = parseSheetDate(planned[i]?.[0]);
-    if (!plannedDate) continue; // Planned khaali / "No Req" -> skip (P!="" jaisa)
+    if (!plannedDate) continue; // Blank or "No Req" Planned -> skip (like P!="")
 
     if (link.filterCol && filterSet.size) {
       const fv = String(columns.filter?.[i]?.[0] ?? "").trim().toUpperCase();
@@ -111,17 +111,17 @@ async function fetchColumns(link) {
 
 function friendlyError(err) {
   const msg = err?.errors?.[0]?.message || err?.message || String(err);
-  if (/Unable to parse range/i.test(msg)) return `Tab "${msg.split(":").pop().trim()}" nahi mila - tab ka naam check karein`;
+  if (/Unable to parse range/i.test(msg)) return `Tab "${msg.split(":").pop().trim()}" not found - check the tab name`;
   if (err?.code === 403 || /permission/i.test(msg)) {
-    return `Sheet padhne ki permission nahi hai - sheet ko ${serviceAccountEmail() || "service account"} ke saath Viewer share karein`;
+    return `No permission to read the sheet - share it as Viewer with ${serviceAccountEmail() || "the service account"}`;
   }
-  if (err?.code === 404) return "Sheet nahi mili - URL check karein";
+  if (err?.code === 404) return "Sheet not found - check the URL";
   return msg;
 }
 
 async function syncLink(linkOrId) {
   const link = linkOrId instanceof SheetLink ? linkOrId : await SheetLink.findById(linkOrId);
-  if (!link) throw new Error("Sheet link nahi mila");
+  if (!link) throw new Error("Sheet link not found");
 
   try {
     const columns = await fetchColumns(link);

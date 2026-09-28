@@ -24,7 +24,7 @@ export default function Account() {
   return (
     <>
       <div className="page-head">
-        <h2>Mera Account</h2>
+        <h2>My Account</h2>
       </div>
       <div className="card narrow">
         <p>
@@ -32,15 +32,15 @@ export default function Account() {
         </p>
         <form className="stack" onSubmit={save}>
           <label>
-            Purana password
+            Current password
             <input type="password" value={oldPassword} onChange={(e) => setOld(e.target.value)} required autoComplete="current-password" />
           </label>
           <label>
-            Naya password
+            New password
             <input type="password" value={newPassword} onChange={(e) => setNew(e.target.value)} required minLength={6} autoComplete="new-password" />
           </label>
           {msg && <div className={msg.ok ? "notice" : "error"}>{msg.text}</div>}
-          <button className="btn primary">Password badlein</button>
+          <button className="btn primary">Change password</button>
         </form>
       </div>
     </>

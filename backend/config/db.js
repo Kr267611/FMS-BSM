@@ -3,14 +3,14 @@ const mongoose = require("mongoose");
 
 let localServer = null;
 
-// MONGO_URI set ho to wahi (Atlas). Warna local dev ke liye ek chhota
-// MongoDB khud chala lete hain jiska data backend/.localdb me save rehta hai.
+// Uses MONGO_URI (Atlas) when set. Otherwise starts a local MongoDB for development,
+// with its data kept in backend/.localdb.
 async function connectDB() {
   let uri = process.env.MONGO_URI;
 
   if (!uri) {
     const fs = require("fs");
-    // Kahin se bhi chalayein, MongoDB binary backend ke cache se hi le (dobara download na ho)
+    // Use the binary cached under backend/node_modules wherever the process starts from, so it is not downloaded again
     process.env.MONGOMS_DOWNLOAD_DIR ||= path.join(__dirname, "..", "node_modules", ".cache", "mongodb-memory-server");
     const { MongoMemoryServer } = require("mongodb-memory-server");
     const dbPath = path.join(__dirname, "..", ".localdb");
@@ -19,18 +19,18 @@ async function connectDB() {
       instance: { dbPath, storageEngine: "wiredTiger", port: 27027 },
     });
     uri = localServer.getUri();
-    console.log("MONGO_URI nahi mila - local dev database chal raha hai:", dbPath);
+    console.log("MONGO_URI not set - using local development database:", dbPath);
   }
 
   await mongoose.connect(uri, { dbName: process.env.DB_NAME || "fms_bsm" });
   console.log("MongoDB connected");
 }
 
-// Local database ko araam se band karo, taaki aakhri writes disk par pahunch jayein.
-// (Achanak band karne par pichhle kuch second ka data kho jata tha.)
+// Close the local database cleanly so the last writes reach disk
+// (a hard stop lost the most recent writes).
 async function closeDB() {
   if (localServer && mongoose.connection.readyState === 1) {
-    // Windows par mongod achanak band hota hai - pehle sab kuch disk par likhwa lo
+    // On Windows mongod is stopped abruptly, so flush everything to disk first
     await mongoose.connection.db.admin().command({ fsync: 1 });
   }
   await mongoose.disconnect();

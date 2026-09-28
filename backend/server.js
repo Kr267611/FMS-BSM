@@ -10,7 +10,7 @@ const User = require("./models/User");
 const { startScheduler } = require("./services/scheduler");
 
 if (!process.env.JWT_SECRET) {
-  console.error("backend/.env me JWT_SECRET nahi hai. .env.example dekhein.");
+  console.error("JWT_SECRET is missing in backend/.env. See .env.example.");
   process.exit(1);
 }
 
@@ -27,9 +27,9 @@ app.use("/api/sheets", require("./routes/sheets"));
 app.use("/api/mis", require("./routes/mis"));
 app.use("/api/reminders", require("./routes/reminders"));
 app.get("/api/health", (req, res) => res.json({ ok: true }));
-app.use("/api", (req, res) => res.status(404).json({ message: "API nahi mili" }));
+app.use("/api", (req, res) => res.status(404).json({ message: "API route not found" }));
 
-// Production me React ka build bhi yahi server deta hai (ek hi deploy)
+// In production this server also serves the React build (single deploy)
 const dist = path.join(__dirname, "..", "frontend", "dist");
 if (fs.existsSync(dist)) {
   app.use(express.static(dist));
@@ -39,27 +39,27 @@ if (fs.existsSync(dist)) {
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
   if (err.status) return res.status(err.status).json({ message: err.message });
-  if (err.name === "CastError") return res.status(400).json({ message: "ID galat hai" });
+  if (err.name === "CastError") return res.status(400).json({ message: "Invalid ID" });
   if (err.name === "ValidationError") return res.status(400).json({ message: err.message });
   console.error(err);
   res.status(500).json({ message: "Server error" });
 });
 
-// Pehli baar: koi admin nahi hai to .env ke ADMIN_USERNAME / ADMIN_PASSWORD se admin banao
+// First run: if there is no admin, create one from ADMIN_USERNAME / ADMIN_PASSWORD in .env
 async function ensureAdmin() {
   if (await User.exists({ role: "admin" })) return;
   const username = process.env.ADMIN_USERNAME || "admin";
   if (await User.exists({ username })) {
-    console.error(`Koi admin nahi hai aur "${username}" username pehle se doer hai. .env me ADMIN_USERNAME badlein.`);
+    console.error(`No admin exists and the username "${username}" belongs to a doer. Change ADMIN_USERNAME in .env.`);
     process.exit(1);
   }
   const password = process.env.ADMIN_PASSWORD;
   if (!password) {
-    console.error("Pehla admin banane ke liye backend/.env me ADMIN_PASSWORD daalein.");
+    console.error("Set ADMIN_PASSWORD in backend/.env to create the first admin.");
     process.exit(1);
   }
   await User.create({ name: "Admin", username, password: await bcrypt.hash(password, 10), role: "admin" });
-  console.log(`Admin user "${username}" bana diya (password backend/.env me hai)`);
+  console.log(`Created admin user "${username}" (password is in backend/.env)`);
 }
 
 async function start() {
@@ -69,7 +69,7 @@ async function start() {
   const server = app.listen(port, () => console.log(`FMS BSM server: http://localhost:${port}`));
   if (process.env.DISABLE_SCHEDULER !== "1") startScheduler();
 
-  // Band karte waqt database ko araam se band karo (local dev data save rahe)
+  // Close the database cleanly on shutdown so local dev data is saved
   let stopping = false;
   const shutdown = async () => {
     if (stopping) return;

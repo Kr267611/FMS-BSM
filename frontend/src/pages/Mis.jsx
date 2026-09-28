@@ -10,10 +10,10 @@ function presets() {
   const monthStart = t.slice(0, 8) + "01";
   const lastMonthEnd = addDays(monthStart, -1);
   return {
-    week: ["Is hafte", weekStart, t],
-    lastWeek: ["Pichhla hafta", addDays(weekStart, -7), addDays(weekStart, -1)],
-    month: ["Is mahine", monthStart, t],
-    lastMonth: ["Pichhla mahina", lastMonthEnd.slice(0, 8) + "01", lastMonthEnd],
+    week: ["This week", weekStart, t],
+    lastWeek: ["Last week", addDays(weekStart, -7), addDays(weekStart, -1)],
+    month: ["This month", monthStart, t],
+    lastMonth: ["Last month", lastMonthEnd.slice(0, 8) + "01", lastMonthEnd],
   };
 }
 
@@ -85,12 +85,12 @@ export default function Mis() {
         </div>
       </div>
       <p className="muted small">
-        Score = −(50 × Late + 100 × Pending) ÷ Planned. 0 = perfect. Aaj ke baad ke tasks nahi gine jaate.
-        {data && data.to !== range.to && ` (Range ${showDay(data.to)} tak gini gayi)`}
+        Score = −(50 × Late + 100 × Pending) ÷ Planned. 0 = perfect. Tasks planned after today are not counted.
+        {data && data.to !== range.to && ` (counted up to ${showDay(data.to)})`}
       </p>
       {error && <div className="error">{error}</div>}
       {!data && !error && <p className="muted">Loading…</p>}
-      {data && !data.doers.length && <div className="card empty">Is range me koi planned task nahi hai.</div>}
+      {data && !data.doers.length && <div className="card empty">No planned tasks in this date range.</div>}
 
       {data && data.doers.length > 0 && (
         <div className="card table-card">
@@ -192,7 +192,7 @@ function Daily({ doer, label, from, to, onClose }) {
           </button>
         </div>
         {!data && <p className="muted">Loading…</p>}
-        {data && !data.days.length && <p className="muted">Koi data nahi</p>}
+        {data && !data.days.length && <p className="muted">No data</p>}
         {data && data.days.length > 0 && (
           <div className="table-scroll">
             <table className="grid">

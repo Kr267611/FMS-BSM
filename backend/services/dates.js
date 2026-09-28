@@ -1,5 +1,5 @@
-// Saari "din" wali calculation IST (Asia/Kolkata) me hoti hai.
-// Din ko "YYYY-MM-DD" string me rakhte hain - Feeder ke clean date column jaisa.
+// All day-level calculations use IST (Asia/Kolkata).
+// A day is stored as a "YYYY-MM-DD" string, like the clean date columns in the Feeder sheet.
 
 const TZ = "Asia/Kolkata";
 const IST_OFFSET_MS = 330 * 60 * 1000;
@@ -24,7 +24,7 @@ function todayKey() {
   return dayKey(new Date());
 }
 
-// "2026-09-28" + n din
+// "2026-09-28" + n days
 function addDaysKey(key, n) {
   const d = new Date(key + "T00:00:00Z");
   d.setUTCDate(d.getUTCDate() + n);
@@ -36,9 +36,9 @@ function istWeekday(date) {
   return new Date(date.getTime() + IST_OFFSET_MS).getUTCDay();
 }
 
-// Planned = base + TAT. unit "days" ya "hours".
-// skipSundays = true ho to din gin-te waqt Sunday chhod dete hain,
-// aur agar result Sunday par gira to Monday par khisak jata hai.
+// Planned = base + TAT, in "days" or "hours".
+// With skipSundays, Sundays are not counted as days, and a result that
+// lands on a Sunday moves to Monday.
 function addTat(base, tat, unit = "days", skipSundays = false) {
   const start = new Date(base);
   const amount = Number(tat) || 0;
@@ -65,15 +65,15 @@ function addTat(base, tat, unit = "days", skipSundays = false) {
   return result;
 }
 
-// Google Sheets ka serial number (1899-12-30 se din) -> Date.
-// Sheet ka time IST wall-clock hota hai, isliye 5:30 ghante minus karte hain.
+// Google Sheets serial number (days since 1899-12-30) -> Date.
+// Sheet times are IST wall-clock, so subtract 5:30.
 function sheetSerialToDate(serial) {
   const wallClockUtc = Date.UTC(1899, 11, 30) + serial * DAY_MS;
   return new Date(wallClockUtc - IST_OFFSET_MS);
 }
 
-// Sheet cell ki value -> Date ya null.
-// "No Req" / "Not Required" jaisa text null ban jata hai (clean-pair ka ISNUMBER jaisa).
+// Sheet cell value -> Date or null.
+// Text such as "No Req" / "Not Required" becomes null (like the ISNUMBER clean-pair formula).
 function parseSheetDate(value) {
   if (value === null || value === undefined || value === "") return null;
   if (typeof value === "number") {

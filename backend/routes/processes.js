@@ -11,14 +11,14 @@ function slug(label) {
 
 async function cleanBody(body) {
   const { name, description, skipSundays, fields = [], steps = [] } = body || {};
-  if (!name || !String(name).trim()) throw new Error("Process ka naam daalein");
-  if (!Array.isArray(steps) || !steps.length) throw new Error("Kam se kam ek step daalein");
+  if (!name || !String(name).trim()) throw new Error("Enter a process name");
+  if (!Array.isArray(steps) || !steps.length) throw new Error("Add at least one step");
 
   const cleanSteps = steps.map((s, i) => {
-    if (!s.name || !String(s.name).trim()) throw new Error(`Step ${i + 1} ka naam daalein`);
-    if (!s.doer) throw new Error(`Step "${s.name}" ka doer chunein`);
+    if (!s.name || !String(s.name).trim()) throw new Error(`Enter a name for step ${i + 1}`);
+    if (!s.doer) throw new Error(`Choose a doer for step "${s.name}"`);
     const tat = Number(s.tat);
-    if (!(tat >= 0)) throw new Error(`Step "${s.name}" ka TAT sahi daalein`);
+    if (!(tat >= 0)) throw new Error(`Enter a valid TAT for step "${s.name}"`);
     return {
       _id: s._id,
       name: String(s.name).trim(),
@@ -31,7 +31,7 @@ async function cleanBody(body) {
 
   const doerIds = [...new Set(cleanSteps.map((s) => String(s.doer)))];
   const found = await User.countDocuments({ _id: { $in: doerIds }, active: true });
-  if (found !== doerIds.length) throw new Error("Koi doer galat ya band hai");
+  if (found !== doerIds.length) throw new Error("One of the doers is invalid or inactive");
 
   const seen = new Set();
   const cleanFields = fields
@@ -66,28 +66,28 @@ router.get("/", auth, async (req, res) => {
 
 router.get("/:id", auth, async (req, res) => {
   const p = await Process.findById(req.params.id).populate("steps.doer", "name").lean();
-  if (!p) return res.status(404).json({ message: "Process nahi mila" });
+  if (!p) return res.status(404).json({ message: "Process not found" });
   res.json(p);
 });
 
 router.post("/", auth, adminOnly, async (req, res) => {
   try {
     const data = await cleanBody(req.body);
-    if (await Process.exists({ name: data.name })) return res.status(400).json({ message: "Is naam ka process pehle se hai" });
+    if (await Process.exists({ name: data.name })) return res.status(400).json({ message: "A process with this name already exists" });
     res.status(201).json(await Process.create(data));
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 });
 
-// Badlav sirf NAYE jobs par lagta hai - purane jobs ke tasks me doer/TAT copy ho chuka hai
+// Changes apply to NEW jobs only - existing jobs keep the doer/TAT copied into their tasks
 router.put("/:id", auth, adminOnly, async (req, res) => {
   try {
     const data = await cleanBody(req.body);
     const p = await Process.findById(req.params.id);
-    if (!p) return res.status(404).json({ message: "Process nahi mila" });
+    if (!p) return res.status(404).json({ message: "Process not found" });
     if (await Process.exists({ name: data.name, _id: { $ne: p._id } })) {
-      return res.status(400).json({ message: "Is naam ka process pehle se hai" });
+      return res.status(400).json({ message: "A process with this name already exists" });
     }
     if (req.body.active !== undefined) p.active = Boolean(req.body.active);
     Object.assign(p, data);

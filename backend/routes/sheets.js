@@ -10,16 +10,16 @@ router.use(auth, adminOnly);
 
 async function cleanBody(body) {
   const b = body || {};
-  if (!b.name || !String(b.name).trim()) throw new Error("Naam daalein (Task Count me yahi dikhega)");
+  if (!b.name || !String(b.name).trim()) throw new Error("Enter a name (shown as the row name in the MIS)");
   const spreadsheetId = extractSpreadsheetId(b.sheetUrl || b.spreadsheetId);
-  if (!spreadsheetId) throw new Error("Google Sheet ka URL sahi nahi hai - plain link paste karein");
-  if (!b.tabName || !String(b.tabName).trim()) throw new Error("Tab ka naam daalein");
+  if (!spreadsheetId) throw new Error("Invalid Google Sheet URL. Paste the plain link.");
+  if (!b.tabName || !String(b.tabName).trim()) throw new Error("Enter the tab name");
   const firstDataRow = Number(b.firstDataRow);
-  if (!(firstDataRow >= 1)) throw new Error("Pehli data row ka number daalein (header row + 1)");
-  if (!isColumn(b.plannedCol)) throw new Error("Planned column sahi daalein (jaise P)");
-  if (!isColumn(b.actualCol)) throw new Error("Actual column sahi daalein (jaise Q)");
-  if (b.filterCol && !isColumn(b.filterCol)) throw new Error("Filter column sahi daalein (jaise K)");
-  if (!b.doer || !(await User.exists({ _id: b.doer, active: true }))) throw new Error("Doer chunein");
+  if (!(firstDataRow >= 1)) throw new Error("Enter the first data row (header row + 1)");
+  if (!isColumn(b.plannedCol)) throw new Error("Enter a valid Planned column (e.g. P)");
+  if (!isColumn(b.actualCol)) throw new Error("Enter a valid Actual column (e.g. Q)");
+  if (b.filterCol && !isColumn(b.filterCol)) throw new Error("Enter a valid filter column (e.g. K)");
+  if (!b.doer || !(await User.exists({ _id: b.doer, active: true }))) throw new Error("Choose a doer");
 
   const filterValues = (Array.isArray(b.filterValues) ? b.filterValues : String(b.filterValues || "").split(","))
     .map((v) => String(v).trim())
@@ -57,10 +57,10 @@ router.post("/", async (req, res) => {
 router.put("/:id", async (req, res) => {
   try {
     const link = await SheetLink.findById(req.params.id);
-    if (!link) return res.status(404).json({ message: "Sheet link nahi mila" });
+    if (!link) return res.status(404).json({ message: "Sheet link not found" });
     Object.assign(link, await cleanBody(req.body));
     await link.save();
-    // doer ya naam badla ho to purane tasks hata kar dobara sync
+    // Drop the old tasks and resync, in case the doer or name changed
     await Task.deleteMany({ sheetLink: link._id });
     const result = link.active ? await syncLink(link) : { ok: true, count: 0 };
     res.json({ link, result });
@@ -71,9 +71,9 @@ router.put("/:id", async (req, res) => {
 
 router.delete("/:id", async (req, res) => {
   const link = await SheetLink.findByIdAndDelete(req.params.id);
-  if (!link) return res.status(404).json({ message: "Sheet link nahi mila" });
+  if (!link) return res.status(404).json({ message: "Sheet link not found" });
   await Task.deleteMany({ sheetLink: link._id });
-  res.json({ message: "Sheet link hata diya" });
+  res.json({ message: "Sheet link removed" });
 });
 
 router.post("/sync-all", async (req, res) => {

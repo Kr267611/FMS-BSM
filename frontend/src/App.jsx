@@ -54,7 +54,7 @@ function Shell() {
   const isAdmin = user.role === "admin";
 
   const links = [
-    ["/", "Mere Tasks"],
+    ["/", "My Tasks"],
     ["/jobs", "FMS / Jobs"],
     ["/mis", "MIS Score"],
     ...(isAdmin
@@ -82,7 +82,7 @@ function Shell() {
           ))}
         </nav>
         <div className="who">
-          <NavLink to="/account" className="who-name" title="Mera account">
+          <NavLink to="/account" className="who-name" title="My account">
             <b className="avatar">
               {user.name
                 .split(/\s+/)

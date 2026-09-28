@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 
-// Indian number ko wa.me format me: 98xxxxxxxx -> 9198xxxxxxxx
+// Indian number in wa.me format: 98xxxxxxxx -> 9198xxxxxxxx
 function waNumber(phone) {
   const digits = String(phone || "").replace(/\D/g, "");
   if (digits.length === 10) return "91" + digits;
@@ -35,29 +35,29 @@ export default function Reminders() {
       <div className="page-head">
         <h2>Reminders</h2>
         <button className="btn primary" onClick={sendEmails} disabled={busy || !list?.length}>
-          {busy ? "Bhej rahe hain…" : "Sabko Email abhi bhejein"}
+          {busy ? "Sending…" : "Email everyone now"}
         </button>
       </div>
       <p className="muted">
-        Roz subah (backend/.env ka REMINDER_TIME) har doer ko uske overdue + aaj ke tasks ka email apne aap jata hai. WhatsApp button se message seedha WhatsApp
-        me khulta hai – bas Send dabana hai.
+        Every morning (REMINDER_TIME in backend/.env) each doer is emailed their overdue and due-today tasks. The WhatsApp button opens the message
+        in WhatsApp, ready to send.
       </p>
       {error && <div className="error">{error}</div>}
       {result && (
         <div className={result.error ? "error" : "notice"}>
-          {result.error || `${result.sent} email gaye, ${result.skipped} doers ka email nahi hai.`}
-          {result.failed?.length > 0 && <div>Fail: {result.failed.join("; ")}</div>}
+          {result.error || `${result.sent} email(s) sent; ${result.skipped} doer(s) have no email address.`}
+          {result.failed?.length > 0 && <div>Failed: {result.failed.join("; ")}</div>}
         </div>
       )}
       {!list && !error && <p className="muted">Loading…</p>}
-      {list && !list.length && <div className="card empty">Kisi ka koi task due nahi hai 🎉</div>}
+      {list && !list.length && <div className="card empty">Nobody has tasks due. Everyone is on track.</div>}
       <div className="cards">
         {(list || []).map((e) => (
           <div key={e.doer._id} className="card">
             <div className="row between">
               <h3>{e.doer.name}</h3>
               <span>
-                {e.overdue > 0 && <span className="tag red">{e.overdue} overdue</span>} {e.dueToday > 0 && <span className="tag">{e.dueToday} aaj</span>}
+                {e.overdue > 0 && <span className="tag red">{e.overdue} overdue</span>} {e.dueToday > 0 && <span className="tag">{e.dueToday} today</span>}
               </span>
             </div>
             <pre className="msg">{e.message}</pre>
@@ -67,7 +67,7 @@ export default function Reminders() {
                   WhatsApp
                 </a>
               ) : (
-                <span className="muted small">Phone number nahi hai (Users me daalein)</span>
+                <span className="muted small">No phone number (add it under Users)</span>
               )}
               <button className="btn ghost small" onClick={() => navigator.clipboard?.writeText(e.message)}>
                 Copy

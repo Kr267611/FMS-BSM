@@ -37,7 +37,7 @@ export default function SheetLinks() {
   }
 
   async function remove(link) {
-    if (!window.confirm(`"${link.name}" hata dein? Iske saare tasks score se nikal jayenge. (Google Sheet par koi asar nahi)`)) return;
+    if (!window.confirm(`Remove "${link.name}"? Its tasks will be removed from the score. The Google Sheet is not affected.`)) return;
     await api(`/sheets/${link._id}`, { method: "DELETE" });
     load();
   }
@@ -48,26 +48,26 @@ export default function SheetLinks() {
         <h2>Sheet Links</h2>
         <div className="row">
           <button className="btn ghost" onClick={() => sync("all")} disabled={busyId === "all" || !data?.links.length}>
-            {busyId === "all" ? "Sync ho raha hai…" : "Sab Sync karein"}
+            {busyId === "all" ? "Syncing…" : "Sync all"}
           </button>
           <button className="btn primary" onClick={() => setEditing({ ...blank })}>
-            + Naya Link
+            + New Link
           </button>
         </div>
       </div>
       <p className="muted">
-        Ye DataJobs + Feeder ki jagah hai. Purane Google Sheet wale FMS ke step yahan jodein – software har 30 minute me sheet <b>sirf padhta</b> hai aur
-        doer ke score me jod deta hai. Sheet kabhi edit nahi hoti.
+        Replaces DataJobs + Feeder. Link a step from an existing Google Sheet FMS: every 30 minutes the software <b>reads</b> the sheet and
+        adds it to the doer's score. The sheet is never edited.
       </p>
 
       {data && (
         <div className={data.serviceAccountEmail ? "notice" : "error"}>
           {data.serviceAccountEmail ? (
             <>
-              Har FMS sheet ko is email ke saath <b>Viewer</b> share karein: <code>{data.serviceAccountEmail}</code>
+              Share each FMS sheet as <b>Viewer</b> with: <code>{data.serviceAccountEmail}</code>
             </>
           ) : (
-            <>Google Service Account abhi set nahi hai – README ka “Google Sheets jodna” step dekhein. Tab tak sync nahi hoga.</>
+            <>The Google service account is not configured yet – see “Connecting Google Sheets” in the README. Sync is off until then.</>
           )}
         </div>
       )}
@@ -89,7 +89,7 @@ export default function SheetLinks() {
           <table className="grid">
             <thead>
               <tr>
-                <th>Naam (Task Count row)</th>
+                <th>Name (MIS row)</th>
                 <th>Doer</th>
                 <th>Tab</th>
                 <th>Range</th>
@@ -139,7 +139,7 @@ export default function SheetLinks() {
               {data && !data.links.length && (
                 <tr>
                   <td colSpan={8} className="muted center">
-                    Abhi koi sheet link nahi
+                    No sheet links yet
                   </td>
                 </tr>
               )}
@@ -186,25 +186,25 @@ function LinkForm({ initial, onClose, onSaved }) {
 
   return (
     <form className="card form-grid" onSubmit={save}>
-      <h3 className="span-all">{isNew ? "Naya Sheet Link" : "Sheet Link Edit"}</h3>
+      <h3 className="span-all">{isNew ? "New Sheet Link" : "Edit Sheet Link"}</h3>
       <label className="span-2">
-        Naam (Task Count me yahi dikhega)
+        Name (shown as the MIS row)
         <input value={v.name} onChange={(e) => set({ name: e.target.value })} placeholder="Vendor Payment – Colour Chemical" required />
       </label>
       <label className="span-2">
-        Doer (kiske score me jaye)
+        Doer (whose score it counts towards)
         <DoerSelect value={v.doer} onChange={(d) => set({ doer: d })} required />
       </label>
       <label className="span-all">
-        Google Sheet ka URL (Donor Sheet)
+        Google Sheet URL (donor sheet)
         <input value={v.sheetUrl} onChange={(e) => set({ sheetUrl: e.target.value })} placeholder="https://docs.google.com/spreadsheets/d/…" required />
       </label>
       <label>
-        Tab ka naam
+        Tab name
         <input value={v.tabName} onChange={(e) => set({ tabName: e.target.value })} placeholder="Colour Chemical" required />
       </label>
       <label>
-        Pehli data row
+        First data row
         <input type="number" min="1" value={v.firstDataRow} onChange={(e) => set({ firstDataRow: e.target.value })} required />
       </label>
       <label>
@@ -220,7 +220,7 @@ function LinkForm({ initial, onClose, onSaved }) {
         <input value={v.filterCol} onChange={(e) => set({ filterCol: e.target.value.toUpperCase() })} placeholder="K" />
       </label>
       <label className="span-2">
-        Filter values (comma se alag)
+        Filter values (comma-separated)
         <input
           value={v.filterValues}
           onChange={(e) => set({ filterValues: e.target.value })}
@@ -230,17 +230,17 @@ function LinkForm({ initial, onClose, onSaved }) {
       </label>
       <label className="check">
         <input type="checkbox" checked={v.active} onChange={(e) => set({ active: e.target.checked })} />
-        Chalu
+        Active
       </label>
       <p className="muted small span-all">
-        Jin rows me Planned khaali ya “No Req” hai woh apne aap chhoot jaati hain. Time Delay column ki zaroorat nahi – software khud nikalta hai.
+        Rows with a blank or “No Req” Planned value are skipped automatically. No Time Delay column is needed – the software calculates it.
       </p>
       {error && <div className="error span-all">{error}</div>}
       {result && (
         <div className="error span-all">
-          Link save ho gaya, par sync nahi hua: {result.error}
+          The link was saved, but the sync failed: {result.error}
           <button type="button" className="btn ghost small" onClick={onSaved}>
-            Theek hai
+            OK
           </button>
         </div>
       )}

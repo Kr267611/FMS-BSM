@@ -51,7 +51,7 @@ export default function Jobs() {
   }
 
   async function remove(job) {
-    if (!window.confirm(`Job #${job.jobNo} aur uske saare steps delete karein?`)) return;
+    if (!window.confirm(`Delete job #${job.jobNo} and all of its steps?`)) return;
     try {
       await api(`/jobs/${job._id}`, { method: "DELETE" });
       load();
@@ -63,7 +63,7 @@ export default function Jobs() {
   if (processes && !processes.length) {
     return (
       <div className="card empty">
-        Abhi koi FMS process nahi hai. {user.role === "admin" ? "“FMS Builder” me jaakar pehla process banayein." : "Admin se process banwayein."}
+        No FMS processes yet. {user.role === "admin" ? "Create the first one in FMS Builder." : "Ask an admin to create one."}
       </div>
     );
   }
@@ -83,12 +83,12 @@ export default function Jobs() {
             ))}
           </select>
           <select value={status} onChange={(e) => (setStatus(e.target.value), setPage(1))}>
-            <option value="">Sab jobs</option>
-            <option value="open">Chalu (open)</option>
-            <option value="closed">Complete</option>
+            <option value="">All jobs</option>
+            <option value="open">Open</option>
+            <option value="closed">Completed</option>
           </select>
           <button className="btn primary" onClick={() => setShowForm(!showForm)} disabled={!process}>
-            + Nayi Entry
+            + New Entry
           </button>
         </div>
       </div>
@@ -123,7 +123,7 @@ export default function Jobs() {
                     <th key={s._id} colSpan={3} className="step-head">
                       {s.name}
                       <div className="muted small">
-                        {s.doer?.name} · TAT {s.tat} {s.tatUnit === "hours" ? "ghante" : "din"}
+                        {s.doer?.name} · TAT {s.tat} {s.tatUnit === "hours" ? "h" : "d"}
                       </div>
                     </th>
                   ))}
@@ -158,7 +158,7 @@ export default function Jobs() {
                 {!data.jobs.length && (
                   <tr>
                     <td colSpan={99} className="muted center">
-                      Koi job nahi
+                      No jobs yet
                     </td>
                   </tr>
                 )}
@@ -168,13 +168,13 @@ export default function Jobs() {
           <div className="pager">
             <span className="muted small">{data.total} jobs</span>
             <button className="btn ghost small" disabled={page <= 1} onClick={() => setPage(page - 1)}>
-              ‹ Pichhle
+              ‹ Previous
             </button>
             <span className="small">
               {page} / {pages}
             </span>
             <button className="btn ghost small" disabled={page >= pages} onClick={() => setPage(page + 1)}>
-              Agle ›
+              Next ›
             </button>
           </div>
         </div>
@@ -258,7 +258,7 @@ function NewJobForm({ process, onDone }) {
 
   return (
     <form className="card form-grid" onSubmit={submit}>
-      <h3 className="span-all">Nayi Entry – {process.name}</h3>
+      <h3 className="span-all">New Entry – {process.name}</h3>
       {process.fields.map((f) => (
         <label key={f.key}>
           {f.label}
@@ -282,7 +282,7 @@ function NewJobForm({ process, onDone }) {
         </label>
       ))}
       <label>
-        Start date/time (khaali = abhi)
+        Start date/time (blank = now)
         <input type="datetime-local" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
       </label>
       {error && <div className="error span-all">{error}</div>}
@@ -291,7 +291,7 @@ function NewJobForm({ process, onDone }) {
           Save
         </button>
         <span className="muted small">
-          Save karte hi “{process.steps[0]?.name}” ka task {process.steps[0]?.doer?.name} ko chala jayega.
+          On save, “{process.steps[0]?.name}” is assigned to {process.steps[0]?.doer?.name}.
         </span>
       </div>
     </form>

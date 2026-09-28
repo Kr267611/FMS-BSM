@@ -31,17 +31,17 @@ export async function api(path, { method = "GET", body, query } = {}) {
   try {
     res = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined });
   } catch {
-    throw new Error("Internet ya server se connection nahi ho paya. Thodi der baad dobara try karein.");
+    throw new Error("Could not reach the server. Check your connection and try again.");
   }
   if (res.status === 502 || res.status === 503 || res.status === 504) {
-    throw new Error("Server abhi chalu nahi hai. Thodi der baad page refresh karein.");
+    throw new Error("The server is not available right now. Please refresh in a moment.");
   }
   const data = await res.json().catch(() => ({}));
   if (res.status === 401 && token) {
     setToken(null);
     window.location.href = "/login";
   }
-  if (!res.ok) throw new Error(data.message || "Kuch gadbad ho gayi");
+  if (!res.ok) throw new Error(data.message || "Something went wrong. Please try again.");
   return data;
 }
 

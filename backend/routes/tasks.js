@@ -7,11 +7,11 @@ const { todayKey } = require("../services/dates");
 
 const router = express.Router();
 
-// Doer ki task list. Admin ?doer= se kisi ki bhi dekh sakta hai.
+// A doer's task list. Admins can pass ?doer= to see anyone's.
 router.get("/", auth, async (req, res) => {
   const isAdmin = req.user.role === "admin";
   const doer = isAdmin && req.query.doer ? req.query.doer : req.user._id;
-  if (!mongoose.isValidObjectId(doer)) return res.status(400).json({ message: "Doer galat hai" });
+  if (!mongoose.isValidObjectId(doer)) return res.status(400).json({ message: "Invalid doer" });
 
   const status = req.query.status || "pending";
   const filter = { doer };

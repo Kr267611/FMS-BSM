@@ -7,10 +7,10 @@ const { createJob } = require("../services/workflow");
 
 const router = express.Router();
 
-// FMS sheet jaisa view: har job + uske saare steps
+// Sheet-like view: each job with all of its steps
 router.get("/", auth, async (req, res) => {
   const { process: processId, status } = req.query;
-  if (!mongoose.isValidObjectId(processId)) return res.status(400).json({ message: "Process chunein" });
+  if (!mongoose.isValidObjectId(processId)) return res.status(400).json({ message: "Choose a process" });
 
   const page = Math.max(1, Number(req.query.page) || 1);
   const limit = Math.min(200, Number(req.query.limit) || 50);
@@ -43,9 +43,9 @@ router.post("/", auth, async (req, res) => {
 
 router.delete("/:id", auth, adminOnly, async (req, res) => {
   const job = await Job.findByIdAndDelete(req.params.id);
-  if (!job) return res.status(404).json({ message: "Job nahi mili" });
+  if (!job) return res.status(404).json({ message: "Job not found" });
   await Task.deleteMany({ job: job._id });
-  res.json({ message: "Job delete ho gayi" });
+  res.json({ message: "Job deleted" });
 });
 
 module.exports = router;

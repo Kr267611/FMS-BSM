@@ -19,7 +19,7 @@ export function clearUsersCache() {
   cache = null;
 }
 
-export default function DoerSelect({ value, onChange, placeholder = "Doer chunein", required }) {
+export default function DoerSelect({ value, onChange, placeholder = "Select doer", required }) {
   const users = useUsers();
   return (
     <select value={value || ""} onChange={(e) => onChange(e.target.value)} required={required}>

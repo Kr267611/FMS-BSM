@@ -20,7 +20,7 @@ async function runSync() {
   }
 }
 
-// Roz REMINDER_TIME (IST) ke baad ek baar email bhejta hai
+// Sends the reminder email once a day, after REMINDER_TIME (IST)
 async function maybeSendReminders() {
   const at = process.env.REMINDER_TIME || "09:00";
   if (timeFmt.format(new Date()) < at) return;

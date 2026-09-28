@@ -4,7 +4,7 @@ const { dayKey, addTat, parseSheetDate } = require("../services/dates");
 const { score, classify } = require("../services/scoring");
 const { buildRows, extractSpreadsheetId } = require("../services/sheetSync");
 
-// 2026-09-28 10:00 IST ka Google Sheets serial number
+// Google Sheets serial number for a given IST wall-clock time
 const serial = (y, m, d, hh = 0, mm = 0) => (Date.UTC(y, m - 1, d, hh, mm) - Date.UTC(1899, 11, 30)) / 86400000;
 
 test("score formula: -(50*late + 100*pending)/planned", () => {
@@ -24,7 +24,7 @@ test("classify late / on time / pending by day", () => {
 
 test("sheet dates: serial numbers are IST wall-clock, text becomes null", () => {
   const d = parseSheetDate(serial(2026, 9, 28, 23, 30));
-  assert.strictEqual(dayKey(d), "2026-09-28"); // raat 11:30 IST bhi usi din
+  assert.strictEqual(dayKey(d), "2026-09-28"); // 11:30 PM IST stays on the same day
   assert.strictEqual(dayKey(parseSheetDate(serial(2026, 9, 28, 0, 15))), "2026-09-28");
   assert.strictEqual(dayKey(parseSheetDate("05/10/2026")), "2026-10-05");
   assert.strictEqual(dayKey(parseSheetDate("05/10/2026 18:45")), "2026-10-05");
@@ -42,7 +42,7 @@ test("TAT: days, hours, and Sunday skip", () => {
   assert.strictEqual(dayKey(addTat(sat, 24, "hours", true)), "2026-09-28");
 });
 
-test("buildRows: Planned khaali skip, filter, row numbers", () => {
+test("buildRows: skips blank Planned, applies filter, keeps row numbers", () => {
   const link = { firstDataRow: 7, filterCol: "K", filterValues: ["Manish Master", "BABLU MASTER"] };
   const columns = {
     planned: [[serial(2026, 9, 1, 10)], [""], ["No Req"], [serial(2026, 9, 2)], [serial(2026, 9, 3)]],
