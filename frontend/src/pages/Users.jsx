@@ -90,6 +90,7 @@ export default function Users() {
           meta={meta}
           org={org}
           me={user}
+          onOrgAdded={(kind, item) => setOrg((o) => ({ ...o, [kind]: [...o[kind], item].sort((a, b) => a.name.localeCompare(b.name)) }))}
           onClose={() => setEditing(null)}
           onSaved={() => {
             clearUsersCache();
@@ -174,7 +175,7 @@ export default function Users() {
   );
 }
 
-function UserForm({ initial, meta, org, me, onClose, onSaved }) {
+function UserForm({ initial, meta, org, me, onClose, onSaved, onOrgAdded }) {
   const [v, setV] = useState(initial);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -239,28 +240,25 @@ function UserForm({ initial, meta, org, me, onClose, onSaved }) {
           ))}
         </select>
       </label>
-      <label>
-        Department
-        <select value={v.department} onChange={(e) => set({ department: e.target.value })}>
-          <option value="">—</option>
-          {org.departments.map((d) => (
-            <option key={d._id} value={d._id}>
-              {d.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        Branch
-        <select value={v.branch} onChange={(e) => set({ branch: e.target.value })}>
-          <option value="">—</option>
-          {org.branches.map((b) => (
-            <option key={b._id} value={b._id}>
-              {b.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      <OrgSelect
+        label="Department"
+        path="/org/departments"
+        items={org.departments}
+        value={v.department}
+        extra={{ branch: v.branch || undefined }}
+        canAdd={can(me, "org", "add")}
+        onChange={(id) => set({ department: id })}
+        onAdded={(d) => onOrgAdded("departments", d)}
+      />
+      <OrgSelect
+        label="Branch"
+        path="/org/branches"
+        items={org.branches}
+        value={v.branch}
+        canAdd={can(me, "org", "add")}
+        onChange={(id) => set({ branch: id })}
+        onAdded={(b) => onOrgAdded("branches", b)}
+      />
       <label>
         Team leader
         <DoerSelect value={v.teamLeader} onChange={(id) => set({ teamLeader: id })} placeholder="—" />
@@ -359,5 +357,61 @@ function UserForm({ initial, meta, org, me, onClose, onSaved }) {
         </button>
       </div>
     </form>
+  );
+}
+
+// A department / branch dropdown that can create a new one on the spot
+function OrgSelect({ label, path, items, value, extra, canAdd, onChange, onAdded }) {
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState("");
+  const [error, setError] = useState("");
+  async function add() {
+    setError("");
+    try {
+      const item = await api(path, { method: "POST", body: { name, ...extra } });
+      onAdded(item);
+      onChange(item._id);
+      setAdding(false);
+      setName("");
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+  if (adding) {
+    return (
+      <label>
+        New {label.toLowerCase()}
+        <span className="row">
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), name.trim() && add())}
+            placeholder={label === "Branch" ? "e.g. Surat" : "e.g. Maintenance"}
+            autoFocus
+          />
+          <button type="button" className="btn primary small" disabled={!name.trim()} onClick={add}>
+            Add
+          </button>
+          <button type="button" className="btn ghost small" onClick={() => (setAdding(false), setError(""))}>
+            ✕
+          </button>
+        </span>
+        {error && <span className="warn-text small">{error}</span>}
+      </label>
+    );
+  }
+  return (
+    <label>
+      {label}
+      <select value={value || ""} onChange={(e) => (e.target.value === "__new" ? setAdding(true) : onChange(e.target.value))}>
+        <option value="">{items.length ? "—" : canAdd ? "— none yet —" : "—"}</option>
+        {items.map((d) => (
+          <option key={d._id} value={d._id}>
+            {d.name}
+          </option>
+        ))}
+        {canAdd && <option value="__new">+ Add new {label.toLowerCase()}…</option>}
+      </select>
+    </label>
   );
 }
