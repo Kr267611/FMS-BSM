@@ -5,8 +5,9 @@ import FieldInput from "./FieldInput";
 const filled = (v) => !(v === undefined || v === null || v === "" || (Array.isArray(v) && !v.length));
 
 // What the doer fills when marking a step done: the step's fields (Status, Action Taken, photos…) and a remark
-export default function StepForm({ task, step, onDone, onCancel }) {
-  const fields = step?.fields || [];
+// (fields: a checklist's form or a delegation's proof, instead of an FMS step's fields)
+export default function StepForm({ task, step, fields: given, onDone, onCancel }) {
+  const fields = given || step?.fields || [];
   const hasRemarksField = fields.some((f) => f.key === "remarks");
   const [values, setValues] = useState({});
   const [remarks, setRemarks] = useState("");

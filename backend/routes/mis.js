@@ -3,7 +3,7 @@ const { auth } = require("../middleware/auth");
 const { misReport, dailyReport } = require("../services/scoring");
 const { todayKey } = require("../services/dates");
 const { visibleUserIds } = require("../services/scope");
-const { sweepSoon } = require("../services/workflow");
+const { sweepSoon } = require("../services/sweep");
 
 const router = express.Router();
 
@@ -11,7 +11,7 @@ const isDay = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ""));
 
 // Admin / auditor: everyone. HOD / PC: their departments. Doer: only themselves.
 async function params(req) {
-  await sweepSoon(); // escalations that are due count in the score
+  await sweepSoon(); // due escalations and checklist tasks count in the score
   const today = todayKey();
   const from = isDay(req.query.from) ? req.query.from : today.slice(0, 8) + "01";
   const to = isDay(req.query.to) ? req.query.to : today;

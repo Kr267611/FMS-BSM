@@ -286,7 +286,8 @@ code {
 }
 .menu-btn { display: none; background: none; border: 0; color: var(--text); font-size: 22px; cursor: pointer; padding: 4px 8px; }
 
-.page { max-width: 1320px; margin: 0 auto; padding: 32px 24px 56px; }
+/* width: 100% keeps a wide table inside its own scroll box instead of stretching the page past the screen */
+.page { width: 100%; max-width: 1320px; margin: 0 auto; padding: 32px 24px 56px; }
 
 .page-head {
   display: flex;
@@ -736,3 +737,21 @@ dl.kv dd { margin: 0; overflow-wrap: anywhere; }
   .step-summary { margin-left: 0; }
   input.search { width: 100%; }
 }
+
+/* ---------- checklists & delegations ---------- */
+tr.click-row { cursor: pointer; }
+.clamp-1 { max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pre-line { white-space: pre-line; }
+.push-right { margin-left: auto; }
+.tag.wrap-tag { white-space: normal; }
+.section-title { margin: 18px 0 8px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.modal.checklist-form { max-width: 920px; }
+.modal.narrow-modal { max-width: 460px; }
+.freq-seg { flex-wrap: wrap; }
+.kind-tabs { display: flex; flex-wrap: wrap; width: fit-content; max-width: 100%; margin-bottom: 16px; }
+.tab-count { margin-left: 6px; font-size: 11px; padding: 0 7px; border-radius: 999px; background: var(--glass-10); color: var(--muted); }
+ul.recent, ul.group-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+ul.recent li, ul.group-list li { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 10px; border-radius: 10px; background: var(--glass-6); border: 1px solid var(--stroke-14); }
+ul.recent li .tag { margin-left: 0; }
+ul.group-list li span:first-child { flex: 1; font-weight: 600; }
+details summary { cursor: pointer; color: var(--primary); }

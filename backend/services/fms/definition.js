@@ -277,4 +277,4 @@ function normalizeProcess(body, { activeIds = new Set() } = {}) {
   };
 }
 
-module.exports = { normalizeProcess, cleanCondition, slug, STEP_FIELD_TYPES };
+module.exports = { normalizeProcess, cleanCondition, cleanFields, slug, STEP_FIELD_TYPES };

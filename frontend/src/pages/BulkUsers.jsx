@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import { clearUsersCache } from "../components/DoerSelect";
+import { csvCell, download, parseCsv, toObjects } from "../csv";
 
 const COLUMNS = ["name", "email", "username", "phone", "role", "department", "branch"];
 const SAMPLE = [
@@ -9,47 +10,6 @@ const SAMPLE = [
   "Ayush Tiwari,ayush@bhaskarsilkmills.in,,9876543210,hod,Account,Surat",
   "Vinod Patel,vinod@bhaskarsilkmills.in,,,doer,Maintenance Dyeing,Surat",
 ].join("\n");
-
-// Small CSV parser: commas, quoted values, "" inside quotes, CRLF
-function parseCsv(text) {
-  const rows = [];
-  let row = [];
-  let cell = "";
-  let quoted = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (quoted) {
-      if (c === '"' && text[i + 1] === '"') (cell += '"'), i++;
-      else if (c === '"') quoted = false;
-      else cell += c;
-    } else if (c === '"') quoted = true;
-    else if (c === ",") row.push(cell), (cell = "");
-    else if (c === "\n" || c === "\r") {
-      if (c === "\r" && text[i + 1] === "\n") i++;
-      row.push(cell);
-      rows.push(row);
-      row = [];
-      cell = "";
-    } else cell += c;
-  }
-  if (cell || row.length) row.push(cell), rows.push(row);
-  return rows.filter((r) => r.some((x) => x.trim()));
-}
-
-function toObjects(rows) {
-  const [header, ...body] = rows;
-  const keys = header.map((h) => h.trim().toLowerCase());
-  return body.map((r) => Object.fromEntries(keys.map((k, i) => [k, (r[i] || "").trim()])));
-}
-
-function download(name, text) {
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob(["﻿" + text], { type: "text/csv" }));
-  a.download = name;
-  a.click();
-}
-
-const csvCell = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
 
 export default function BulkUsers() {
   const [rows, setRows] = useState(null);

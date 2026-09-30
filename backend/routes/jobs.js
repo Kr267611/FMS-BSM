@@ -9,6 +9,7 @@ const { audit } = require("../services/audit");
 const { todayKey, dayKey } = require("../services/dates");
 const { startOfDay } = require("../services/calendar");
 const wf = require("../services/workflow");
+const { sweepSoon } = require("../services/sweep");
 
 const router = express.Router();
 router.use(auth);
@@ -52,7 +53,7 @@ async function withTasks(jobs) {
 
 // The FMS as a sheet: each entry with all of its steps
 router.get("/", permit("fmsEntries", "view"), async (req, res) => {
-  await wf.sweepSoon();
+  await sweepSoon();
   const filter = jobFilter(req.query);
   const page = Math.max(1, Number(req.query.page) || 1);
   const limit = Math.min(200, Number(req.query.limit) || 50);
@@ -131,7 +132,7 @@ router.post("/preview", permit("fmsEntries", "add"), async (req, res) => {
 });
 
 router.get("/:id", permit("fmsEntries", "view"), async (req, res) => {
-  await wf.sweepSoon();
+  await sweepSoon();
   const job = await Job.findById(req.params.id).populate("createdBy", "name").populate("closedBy", "name").lean();
   if (!job) return res.status(404).json({ message: "Entry not found" });
   const [withT] = await withTasks([job]);

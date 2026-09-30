@@ -12,16 +12,18 @@ A Flow Management System with MIS scoring for Bhaskar Silk Mills. It replaces th
 
 | Page | Who | What it does |
 |---|---|---|
-| My Tasks | Everyone | Overdue / due today / upcoming tasks. Done opens the step's form (Status, Remarks, Action Taken, photos…) with the How and the entry details. This week's score |
+| My Tasks | Everyone | Overdue / due today / upcoming checklist, delegation and FMS tasks (filter by type; critical and high first). Done opens the form (FMS step fields, checklist form, delegation proof photo) with the How and the details. Delegations: ask for more time before the deadline. This week's score |
+| Checklists | Admin, HOD, PC | Recurring tasks: daily, weekly on chosen days, monthly on dates (or every 2 / 3 / 6 / 12 months), every N days. Due time, show-before days, holiday rule (skip / next / previous working day), auto-close as not done, a form (reading, photo, yes/no), groups, live preview of the next due days, CSV bulk upload with a check before anything is created |
+| Delegations | Admin, HOD, PC assign; doers see their own | One-time tasks with a deadline, priority and optional photo proof. The doer may ask for a new deadline before it passes (at most twice); the assigner approves or rejects. After the deadline the doer and deadline are locked. Reopen keeps the deadline. Full history |
 | Master FMS | Admin (view: HOD, PC) | FMS builder: entry fields (incl. auto-calculated), steps with doer rules (fixed / from the entry / machine-wise table), start rules (sequence, escalation, parallel), conditions, TAT and TAT overrides, step forms. Templates from existing sheets (Repeat Spare Part) |
 | FMS Entries | Everyone with access | Sheet-like grid: entry columns, then Planned / Actual / Delay / Status per step. Entry panel with every step, photos, history; Status by PC (close / reopen), corrections, Excel export, live preview of who gets each step |
-| MIS Score | Everyone (doers see only their own) | Planned / Actual / Late / On time / Pending / Score by doer and step, daily breakdown, CSV export |
+| MIS Score | Everyone (doers see only their own) | Planned / Actual / Late / On time / Pending / Score by doer: each checklist, all delegations in one row, each FMS step; auto-closed count; daily breakdown, CSV export |
 | Working Calendar | Admin | Week-offs, working hours and holidays used for TAT |
 | Sheet Links | Admin | Read-only link to existing Google Sheet FMS (replaces DataJobs + Feeder) |
 | Reminders | Admin | Daily email; click-to-send WhatsApp |
 | Users & Org | Admin, HOD | Users, bulk upload, branches, departments, roles and page permissions, audit log |
 
-**Score:** `-(50 × Late + 100 × Pending) / Planned`, where 0 is perfect. A task is late when its actual day is after its planned day and pending when it has no actual. Not Required, skipped and stopped steps, and tasks planned after today, are not counted.
+**Score:** `-(50 × Late + 100 × Pending) / Planned`, where 0 is perfect. A task is late when its actual day is after its planned day and pending when it has no actual. Not Required, skipped and stopped steps are not counted, and a pending task counts only once its due time has passed (a task due at 6 pm is not pending at 10 am). An auto-closed checklist counts as pending.
 
 **How an FMS step runs:** it starts with the entry, after another step is done, as an escalation the day after another step's planned day, or together with another step. When it is due to start its condition is checked (e.g. `Repeat Frq ≥ 3`); if false the step is skipped. Planned = base (entry date, another step's planned / actual, or a date field) + TAT, counted in working time by default. The doer can be looked up from the entry (e.g. machine + item group → head fitter or wireman).
 
@@ -33,7 +35,7 @@ Requires Node.js 20 or later.
 cd backend
 npm install
 cp .env.example .env   # then set JWT_SECRET and ADMIN_PASSWORD
-npm run seed:demo      # optional: demo doers, Vendor Payment + Repeat Spare Part FMS, 30 days of entries
+npm run seed:demo      # optional: demo doers, Vendor Payment + Repeat Spare Part FMS, checklists and delegations, 30 days of history
 npm start              # http://localhost:5050
 ```
 

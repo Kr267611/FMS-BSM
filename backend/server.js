@@ -57,6 +57,8 @@ app.use("/api/users", require("./routes/users"));
 app.use("/api/processes", require("./routes/processes"));
 app.use("/api/jobs", require("./routes/jobs"));
 app.use("/api/tasks", require("./routes/tasks"));
+app.use("/api/checklists", require("./routes/checklists"));
+app.use("/api/delegations", require("./routes/delegations"));
 app.use("/api/sheets", require("./routes/sheets"));
 app.use("/api/mis", require("./routes/mis"));
 app.use("/api/reminders", require("./routes/reminders"));

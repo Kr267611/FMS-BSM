@@ -74,3 +74,4 @@ const processSchema = new Schema(
 
 module.exports = mongoose.model("Process", processSchema);
 module.exports.FIELD_TYPES = FIELD_TYPES;
+module.exports.fieldSchema = fieldSchema;

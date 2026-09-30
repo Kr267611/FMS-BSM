@@ -17,6 +17,9 @@ function presets() {
   };
 }
 
+const KIND_TAG = { checklist: "Checklist", delegation: "Delegation", sheet: "Sheet" };
+const KIND_NAME = { checklist: "Checklist", delegation: "Delegation", sheet: "Google Sheet", app: "FMS" };
+
 function scoreClass(s) {
   if (s >= -10) return "score good";
   if (s >= -30) return "score mid";
@@ -50,11 +53,11 @@ export default function Mis() {
   }
 
   function exportCsv() {
-    const rows = [["Doer", "Department", "FMS Step", "Planned", "Actual", "Late", "On time", "Pending", "Score"]];
+    const rows = [["Doer", "Department", "Type", "Task / FMS step", "Planned", "Actual", "Late", "On time", "Pending", "Auto-closed", "Score"]];
     for (const d of data.doers) {
-      for (const r of d.rows) rows.push([d.doer.name, d.doer.department, r.label, r.planned, r.actual, r.late, r.onTime, r.pending, r.score]);
+      for (const r of d.rows) rows.push([d.doer.name, d.doer.department, KIND_NAME[r.kind] || "", r.label, r.planned, r.actual, r.late, r.onTime, r.pending, r.autoClosed || 0, r.score]);
       const t = d.total;
-      rows.push([d.doer.name, d.doer.department, "TOTAL", t.planned, t.actual, t.late, t.onTime, t.pending, t.score]);
+      rows.push([d.doer.name, d.doer.department, "", "TOTAL", t.planned, t.actual, t.late, t.onTime, t.pending, t.autoClosed || 0, t.score]);
     }
     const csv = rows.map((r) => r.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     const a = document.createElement("a");
@@ -85,7 +88,7 @@ export default function Mis() {
         </div>
       </div>
       <p className="muted small">
-        Score = −(50 × Late + 100 × Pending) ÷ Planned. 0 = perfect. Tasks planned after today are not counted.
+        Score = −(50 × Late + 100 × Pending) ÷ Planned. 0 = perfect. A pending task counts once its due time has passed; an auto-closed checklist counts as pending.
         {data && data.to !== range.to && ` (counted up to ${showDay(data.to)})`}
       </p>
       {error && <div className="error">{error}</div>}
@@ -98,7 +101,7 @@ export default function Mis() {
             <table className="grid mis">
               <thead>
                 <tr>
-                  <th>Doer / FMS step</th>
+                  <th>Doer / task</th>
                   <th>Planned</th>
                   <th>Actual</th>
                   <th>Late</th>
@@ -134,7 +137,8 @@ export default function Mis() {
                         <tr key={r.label} className="step-row">
                           <td>
                             {r.label}
-                            {r.kind === "sheet" && <span className="tag">Sheet</span>}
+                            {KIND_TAG[r.kind] && <span className="tag gray">{KIND_TAG[r.kind]}</span>}
+                            {r.autoClosed > 0 && <span className="tag red" title="Auto-closed without being done – counted as pending">{r.autoClosed} auto-closed</span>}
                           </td>
                           <Counts r={r} />
                           <td>

@@ -308,19 +308,6 @@ async function sweepDue(now = new Date()) {
   return moved;
 }
 
-let lastSweep = 0;
-let sweeping = null;
-// At most once a minute per server; waits for a sweep already running
-function sweepSoon() {
-  if (sweeping) return sweeping;
-  if (Date.now() - lastSweep < 60 * 1000) return Promise.resolve(0);
-  lastSweep = Date.now();
-  sweeping = sweepDue()
-    .catch((err) => (console.error("FMS sweep:", err.message), 0))
-    .finally(() => (sweeping = null));
-  return sweeping;
-}
-
 // What would happen to a new entry: calculated fields, and who gets each step that starts at once
 async function previewJob({ processId, data = {}, startDate, now = new Date() }) {
   const process = await Process.findById(processId).lean();
@@ -366,7 +353,6 @@ module.exports = {
   reopenJob,
   updateJobData,
   sweepDue,
-  sweepSoon,
   touchJob,
   previewJob,
   loadCalendar,

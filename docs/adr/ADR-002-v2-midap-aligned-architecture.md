@@ -1,6 +1,6 @@
 # ADR-002: FMS BSM v2 — MIDAP-aligned modules on one task engine
 
-**Status:** Accepted (2026-09-28) — Milestones 1 and 2 delivered
+**Status:** Accepted (2026-09-28) — Milestones 1, 2 and 3 delivered (3 on 2026-09-29)
 **Date:** 2026-09-28
 **Deciders:** Deepak Mishra, management sponsor
 **Builds on:** ADR-001 (Node.js + MongoDB modular monolith — unchanged)
@@ -97,6 +97,16 @@ Transactions for every multi-document change; audit log (who changed what); pers
 - **Templates:** Repeat Spare Part (`backend/templates/repeatSpare.js`) with the 192-row machine-wise doer table. Analysis of the sheet: `docs/fms/repeat-spare-part.md`.
 - **Upgrade:** v1 FMS migrate on start (fixed doers, sequential steps, calendar mode kept).
 
+### 3b. Checklist and Delegation — as built (Milestone 3)
+
+- **One task collection:** a checklist's due day and a delegation are Tasks (`kind` checklist / delegation) next to FMS steps and sheet rows, so My Tasks, reminders and the MIS read them without changes.
+- **Checklist master** (`models/Checklist.js`): doer, PC, auditor, group, priority, How + video, a form (reading, photo, yes/no…). Schedule (`services/recurrence.js`, pure and unit-tested): daily · weekly on chosen days · monthly on dates, every 1/2/3/6/12 months (31 = last day) · every N days; start / end, due time, show-before days; a due day on a week-off or holiday is skipped or moves to the next / previous working day.
+- **Generation** (`services/checklists.js`): one Task per checklist per due day, made up to today + show-before days. A unique index (checklist + day) makes it safe to run from the scheduler, cron and before every list; a server that slept fills in at most 7 missed days. Changing a checklist remakes the later days; tasks up to today keep their doer. Switching it back on starts today, without a backlog. A checklist with history cannot be deleted, only switched off.
+- **Auto-close:** a checklist task still pending N days after its due day becomes `expired`: it leaves My Tasks and counts as pending (−100) in the score (MIDAP "Auto Close"). The MIS shows the count.
+- **Delegation rules** (`services/delegations.js`): the doer may ask for a new deadline only before it passes, at most 2 approved times; the assigner (or admin / HOD / PC over the doer) approves or rejects, never their own request. After the deadline the doer and deadline are locked and the task cannot be deleted (admin excepted). Reopen keeps the deadline, so finishing again counts as late. A delegation cannot be marked Not Required. Every change is in the task's history and the audit log.
+- **Score:** each checklist is a row in the MIS, a doer's delegations share one row. A pending task counts only once its due time has passed (finished days are unchanged).
+- **Bulk upload:** CSV (template on the page), checked row by row before anything is created; people matched by name, username or email; groups created; rows that already exist are skipped.
+
 ## Options Considered
 
 ### A: Keep v1 and add features one by one
@@ -137,7 +147,7 @@ Rejected: we match concepts and navigation, with our own design and code.
 |---|---|---|---|
 | 1 | Foundation v2 | Sidebar UI; branches, departments, roles, permissions; bulk user upload; audit log; transactions; module folders | 1.5 weeks |
 | 2 | FMS engine v2 ✅ | Form fields incl. computed; steps with How, doer rules, TAT rules, step fields, run conditions; engine + tests; FMS grid; Repeat Spare Part template. Still open: import of old sheet rows | 2.5 weeks |
-| 3 | Checklist + Delegation | Recurrence scheduler, holidays, auto-close, groups, bulk upload; import MIDAP's 67 checklists | 1.5 weeks |
+| 3 | Checklist + Delegation ✅ | Recurrence scheduler, holidays, auto-close, groups, bulk upload. Still open: importing MIDAP's 67 checklists (needs MIDAP's checklist list as CSV), switch doer, leave / buddy | 1.5 weeks |
 | 4 | MIS v2 + Dashboard | Weekly MIS Score (MIDAP-style), department roll-up, current vs previous week, export, weekly send | 1 week |
 | 5 | Automation | Auto complete, reminders, WhatsApp, help ticket | later |
 
@@ -151,3 +161,5 @@ Each milestone ends with a demo on real data (Repeat Spare Part first).
 4. [x] Start Milestone 1.
 5. [ ] Management decides the NOTES-vs-sheet differences (Bhavesh / Saurav, count 2 vs 3, the Rs 3000 rule).
 6. [ ] Import the open rows of the Repeat Spare sheet (CSV) so the sheet can be retired.
+7. [ ] Export MIDAP's checklist list to CSV and upload it on Checklists → Bulk upload.
+8. [ ] Management confirms the defaults used in Milestone 3: auto-closed = not done (−100); at most 2 deadline changes, scored from the latest approved deadline; a pending task counts once its due time has passed.

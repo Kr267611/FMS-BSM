@@ -5,6 +5,9 @@ import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import MyTasks from "./pages/MyTasks";
+import Checklists from "./pages/Checklists";
+import ChecklistBulk from "./pages/ChecklistBulk";
+import Delegations from "./pages/Delegations";
 import Jobs from "./pages/Jobs";
 import Processes from "./pages/Processes";
 import FmsBuilder from "./pages/FmsBuilder";
@@ -52,15 +55,15 @@ export default function App() {
   );
 }
 
-// Menu grouped the way MIDAP users know it. `soon` items are planned milestones.
+// Menu grouped the way MIDAP users know it. `soon` items are planned milestones, shown to admins only.
 function menuFor(user) {
   const groups = [
     { title: "My Work", items: [{ to: "/", label: "My Tasks", end: true }] },
     {
       title: "Master Tasks",
       items: [
-        { label: "Checklists", soon: true, show: can(user, "checklist") },
-        { label: "Delegations", soon: true, show: can(user, "delegation") },
+        { to: "/checklists", label: "Checklists", show: can(user, "checklist") },
+        { to: "/delegations", label: "Delegations", show: can(user, "delegation") || can(user, "delegation", "add") },
       ],
     },
     {
@@ -74,7 +77,7 @@ function menuFor(user) {
       title: "PC Reports",
       items: [
         { to: "/mis", label: "MIS Score", show: can(user, "reports") },
-        { label: "Weekly MIS Score", soon: true, show: can(user, "reports") },
+        { label: "Weekly MIS Score", soon: true, show: user.role === "admin" },
       ],
     },
     {
@@ -173,6 +176,9 @@ function Shell() {
           <Routes>
             <Route path="/" element={<MyTasks />} />
             <Route path="/account" element={<Account />} />
+            <Route path="/checklists" element={guard(can(user, "checklist"), <Checklists />)} />
+            <Route path="/checklists/bulk" element={guard(can(user, "checklist", "add"), <ChecklistBulk />)} />
+            <Route path="/delegations" element={<Delegations />} />
             <Route path="/jobs" element={guard(can(user, "fmsEntries"), <Jobs />)} />
             <Route path="/mis" element={guard(can(user, "reports"), <Mis />)} />
             <Route path="/processes" element={guard(can(user, "fms"), <Processes />)} />

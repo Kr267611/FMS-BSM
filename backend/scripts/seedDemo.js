@@ -1,6 +1,7 @@
 // Demo data for local testing: doers named as in the sheets, a Vendor Payment FMS (simple sequence)
 // and the Repeat Spare Part FMS (escalation ladder, from the template). Entries for the last 30 days
 // are played through the real engine: steps are completed at realistic times and escalations start when due.
+// Checklists get 30 days of history and there are delegations in every state (on time, late, overdue, new deadline asked).
 // Run: npm run seed:demo   (safe to run again – only what is missing is added)
 const path = require("path");
 require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
@@ -17,6 +18,13 @@ const templates = require("../templates");
 const wf = require("../services/workflow");
 const { saveImage } = require("../services/uploads");
 const { runMigrations } = require("../services/migrations");
+const Checklist = require("../models/Checklist");
+const TaskGroup = require("../models/TaskGroup");
+const checklists = require("../services/checklists");
+const taskActions = require("../services/taskActions");
+const delegations = require("../services/delegations");
+const { dayKey } = require("../services/dates");
+const { fromIst } = require("../services/calendar");
 
 const DAY = 24 * 60 * 60 * 1000;
 const PHOTO =
@@ -108,6 +116,93 @@ async function play(jobId, process, photoId, until) {
   await wf.touchJob(jobId, until);
 }
 
+// A value for each field of a checklist form
+function formValues(fields, photoId) {
+  const v = {};
+  for (const f of fields || []) {
+    if (f.type === "number") v[f.key] = Math.round(40 + rand() * 60);
+    else if (f.type === "photo") v[f.key] = [photoId];
+    else if (f.type === "yesno") v[f.key] = "Yes";
+    else if (f.type === "select") v[f.key] = f.options[0];
+    else if (f.required) v[f.key] = "OK";
+  }
+  return v;
+}
+
+// Checklists that started 30 days ago; each due day is done on time, late, not at all or marked Not Required
+async function seedChecklists(u, now, photoId) {
+  if (await Checklist.exists()) return 0;
+  const group = {};
+  for (const name of ["Maintenance", "Store", "Accounts", "Safety", "QC"]) group[name] = (await TaskGroup.findOne({ name })) || (await TaskGroup.create({ name }));
+  const start = dayKey(new Date(now.getTime() - 30 * DAY));
+  const defs = [
+    { name: "JET section oiling", doer: u.sunil, frequency: { type: "daily" }, dueTime: "11:00", group: "Maintenance", priority: "high", autoCloseDays: 1, how: "Oil every JET gearbox and write the oil level of the lowest one.", fields: [{ label: "Oil level (%)", type: "number", required: true }] },
+    { name: "Boiler pressure log", doer: u.viral, frequency: { type: "daily" }, dueTime: "10:00", group: "Maintenance", fields: [{ label: "Pressure (kg/cm²)", type: "number", required: true }] },
+    { name: "Compressor drain", doer: u.madhukar, frequency: { type: "weekly", days: [1, 4] }, dueTime: "10:30", group: "Maintenance", how: "Open the drain valve of both compressors until only air comes out." },
+    { name: "Store stock count – fast movers", doer: u.ankit, frequency: { type: "weekly", days: [6] }, dueTime: "17:00", createBefore: 1, group: "Store" },
+    { name: "Fire extinguisher check", doer: u.paresh, frequency: { type: "monthly", dates: [1], every: 1 }, dueTime: "17:00", group: "Safety", priority: "high", how: "Check the pressure gauge and the seal of every extinguisher.", fields: [{ label: "Photo", type: "photo", required: true }] },
+    { name: "Vendor ledger reconciliation", doer: u.alka, frequency: { type: "monthly", dates: [5], every: 1 }, createBefore: 2, group: "Accounts" },
+    { name: "QC lab shade-matching lamp check", doer: u.naveen, frequency: { type: "weekly", days: [2] }, dueTime: "12:00", group: "QC", fields: [{ label: "Lamp OK", type: "yesno", required: true }] },
+    { name: "Daily MIS follow-up", doer: u.vinod, frequency: { type: "daily" }, dueTime: "12:00", group: "Store" },
+  ];
+  const activeIds = new Set((await User.find({ active: true }).select("_id").lean()).map((x) => String(x._id)));
+  for (const d of defs) {
+    const body = { ...d, doer: String(d.doer._id), group: String(group[d.group]._id), start };
+    const c = await Checklist.create(checklists.cleanChecklist(body, { activeIds, today: start }));
+    // make the tasks day by day, as the scheduler would have
+    for (let day = start; day <= dayKey(now); day = dayKey(new Date(Date.parse(day + "T12:00:00+05:30") + DAY))) {
+      const at = fromIst(day, 6 * 60);
+      await checklists.generateChecklist(await Checklist.findById(c._id).lean(), { now: at < now ? at : now });
+    }
+    const tasks = await Task.find({ checklist: c._id, status: "pending", plannedDay: { $lte: dayKey(now) } }).lean();
+    for (const t of tasks) {
+      const r = rand();
+      const today = t.plannedDay === dayKey(now);
+      if (today && r < 0.5) continue; // not done yet today
+      const doer = { _id: t.doer, role: "doer" };
+      if (r < 0.06) {
+        await taskActions.markNotRequired(t._id, doer, "Machine under maintenance", { now: new Date(t.planned.getTime() - 60 * 60 * 1000) });
+      } else if (r < 0.14) {
+        continue; // forgotten
+      } else {
+        const lateBy = r > 0.84 ? (1 + Math.floor(rand() * 2)) * DAY : 0;
+        const at = new Date(t.planned.getTime() - rand() * 3 * 60 * 60 * 1000 + lateBy);
+        if (at > now) continue;
+        await taskActions.markDone(t._id, doer, { values: formValues(c.fields, photoId), remarks: rand() < 0.3 ? "Done" : "", now: at });
+      }
+    }
+  }
+  await checklists.sweepChecklists(now); // auto-close what was forgotten
+  return defs.length;
+}
+
+// Delegations in every state: done on time, done late, overdue, due soon with a new deadline asked, moved once
+async function seedDelegations(u, now, photoId) {
+  if (await Task.exists({ kind: "delegation" })) return 0;
+  const hours = (h) => new Date(now.getTime() + h * 60 * 60 * 1000);
+  const list = [
+    { by: u.ayush, to: u.alka, title: "Send the GST reconciliation for September", made: -12 * 24, due: -10 * 24, doneAt: -10.3 * 24 },
+    { by: u.bhavesh, to: u.nikunj, title: "Get 3 quotes for the JET-12 gearbox", details: "Only from approved vendors. Ask for delivery time too.", made: -6 * 24, due: -3 * 24, priority: "high" },
+    { by: u.bhavesh, to: u.pradeep, title: "Root cause report: repeat bearing failures on JET-5", details: "Four bearings in six weeks. Check alignment, lubrication and load.", made: -2 * 24, due: 2 * 24, priority: "critical", proof: true },
+    { by: u.mukesh, to: u.naveen, title: "Train the new QC helper on shade matching", made: -9 * 24, due: -6 * 24, doneAt: -4 * 24 },
+    { by: u.ayush, to: u.vinod, title: "Physical count of the coal stock", made: -1 * 24, due: 20, ask: { hours: 3 * 24, reason: "Coal yard is being unloaded until Thursday" } },
+    { by: u.bhavesh, to: u.paresh, title: "Fix the leaking steam line in the printing hall", made: -3 * 24, due: -1 * 24, doneAt: -1.2 * 24, proof: true },
+    { by: u.ayush, to: u.ankit, title: "Update the min-max levels for 20 fast movers", made: -4 * 24, due: 1 * 24, moved: { hours: 4 * 24, reason: "Waiting for last month's issue report" } },
+  ];
+  for (const d of list) {
+    const madeAt = hours(d.made);
+    const t = await delegations.createDelegation(d.by, { title: d.title, details: d.details || "", doer: String(d.to._id), planned: hours(d.due), priority: d.priority, proofRequired: d.proof }, { now: madeAt });
+    const doer = { _id: d.to._id, role: "doer" };
+    if (d.moved) {
+      await delegations.requestRevision(t._id, doer, { planned: new Date(t.planned.getTime() + d.moved.hours * 60 * 60 * 1000), reason: d.moved.reason }, { now: new Date(madeAt.getTime() + DAY) });
+      await delegations.decideRevision(t._id, d.by, true, { note: "OK" }, { now: new Date(madeAt.getTime() + DAY + 2 * 60 * 60 * 1000) });
+    }
+    if (d.ask) await delegations.requestRevision(t._id, doer, { planned: new Date(t.planned.getTime() + d.ask.hours * 60 * 60 * 1000), reason: d.ask.reason }, { now: new Date(madeAt.getTime() + 4 * 60 * 60 * 1000) });
+    if (d.doneAt) await taskActions.markDone(t._id, doer, { values: d.proof ? { proof: [photoId] } : undefined, remarks: "Done", now: hours(d.doneAt) });
+  }
+  return list.length;
+}
+
 async function main() {
   await connectDB();
   await runMigrations(); // older demo data is upgraded first
@@ -177,8 +272,12 @@ async function main() {
     }
   }
 
+  const newChecklists = await seedChecklists(u, now, photo.id);
+  const newDelegations = await seedDelegations(u, now, photo.id);
+
   const jobs = await Job.countDocuments();
   console.log(`Demo data ready: ${PEOPLE.length} doers, ${await Process.countDocuments()} FMS, ${jobs} entries (${entries} added now).`);
+  console.log(`Checklists: ${await Checklist.countDocuments()} (${newChecklists} added now), delegations: ${await Task.countDocuments({ kind: "delegation" })} (${newDelegations} added now).`);
   console.log("Doer usernames: " + PEOPLE.map((p) => p[1]).join(", ") + "  (password = DEMO_PASSWORD in backend/.env)");
 }
 

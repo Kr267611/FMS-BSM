@@ -1,6 +1,6 @@
 const { syncAll } = require("./sheetSync");
 const { sendDailyReminders } = require("./reminders");
-const { sweepDue } = require("./workflow");
+const { sweepAll } = require("./sweep");
 const { TZ } = require("./dates");
 
 const timeFmt = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: false });
@@ -20,11 +20,12 @@ async function runSync() {
   }
 }
 
-// Escalation steps ("if Step 2 is not permanently solved by its planned day…") start on time
+// Escalation steps ("if Step 2 is not permanently solved by its planned day…") start on time,
+// checklist tasks are made for the coming days and auto-close runs
 async function runSweep() {
   try {
-    const n = await sweepDue();
-    if (n) console.log(`FMS: updated ${n} entr${n === 1 ? "y" : "ies"} with due escalations`);
+    const r = await sweepAll();
+    if (r.escalated || r.checklistTasks || r.autoClosed) console.log("Sweep:", JSON.stringify(r));
   } catch (err) {
     console.error("FMS sweep error:", err.message);
   }
