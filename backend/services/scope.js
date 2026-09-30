@@ -10,6 +10,10 @@ async function visibleUserIds(user) {
     const users = await User.find({ $or: [{ department: { $in: depts } }, { teamLeader: user._id }] }).select("_id").lean();
     return [...new Set([String(user._id), ...users.map((u) => String(u._id))])];
   }
+  if (user.role === "tl") {
+    const team = await User.find({ teamLeader: user._id }).select("_id").lean();
+    return [String(user._id), ...team.map((u) => String(u._id))];
+  }
   return [String(user._id)];
 }
 

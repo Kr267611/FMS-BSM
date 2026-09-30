@@ -43,7 +43,7 @@ export function can(user, module, action = "view") {
   return Boolean(user?.permissions?.[module]?.includes(action));
 }
 
-export const ROLE_LABELS = { admin: "Admin", hod: "HOD", pc: "PC", auditor: "Auditor", doer: "Doer" };
+export const ROLE_LABELS = { admin: "Admin", hod: "HOD", pc: "PC", tl: "Team Leader", auditor: "Auditor", doer: "Doer" };
 
 // ---- date helpers (IST) ----
 const dayFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" });

@@ -35,6 +35,14 @@ const ROLE_DEFAULTS = {
     reports: ["view"],
     users: ["view"],
   },
+  // Team Leader: follows up and assigns work for the people who have them as team leader
+  tl: {
+    fmsEntries: ["view", "add", "edit"],
+    checklist: ["view", "add", "edit"],
+    delegation: ["view", "add", "edit"],
+    reports: ["view"],
+    users: ["view"],
+  },
   auditor: {
     fms: ["view"],
     fmsEntries: ["view"],
@@ -52,6 +60,7 @@ const ROLES = {
   admin: "Admin",
   hod: "HOD",
   pc: "PC (Process Coordinator)",
+  tl: "Team Leader",
   auditor: "Auditor",
   doer: "Doer",
 };

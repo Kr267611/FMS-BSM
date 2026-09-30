@@ -5,7 +5,7 @@ const userSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     username: { type: String, required: true, unique: true, lowercase: true, trim: true },
     password: { type: String, required: true, select: false },
-    role: { type: String, enum: ["admin", "hod", "pc", "auditor", "doer"], default: "doer" },
+    role: { type: String, enum: ["admin", "hod", "pc", "tl", "auditor", "doer"], default: "doer" },
     branch: { type: mongoose.Schema.Types.ObjectId, ref: "Branch" },
     department: { type: mongoose.Schema.Types.ObjectId, ref: "Department" },
     // HOD / PC: the departments they oversee (their own department is always included)

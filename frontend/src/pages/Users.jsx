@@ -264,6 +264,9 @@ function UserForm({ initial, meta, org, me, onClose, onSaved, onOrgAdded }) {
         <DoerSelect value={v.teamLeader} onChange={(id) => set({ teamLeader: id })} placeholder="—" />
       </label>
 
+      {v.role === "tl" && (
+        <div className="span-all muted small">A Team Leader sees and follows up the people who have them as Team leader (set it on each team member).</div>
+      )}
       {oversees && (
         <div className="span-all">
           <div className="muted small">Also oversees these departments (their own department is always included)</div>
@@ -297,7 +300,7 @@ function UserForm({ initial, meta, org, me, onClose, onSaved, onOrgAdded }) {
           value={v.password}
           onChange={(e) => set({ password: e.target.value })}
           required={isNew}
-          minLength={8}
+          minLength={4}
           autoComplete="new-password"
         />
       </label>

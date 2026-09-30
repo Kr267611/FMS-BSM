@@ -70,7 +70,7 @@ Links sync automatically every `SHEET_SYNC_MINUTES` minutes (default 30), or imm
 
 ## Roles, departments and permissions
 
-- Roles: **Admin**, **HOD**, **PC** (process coordinator), **Auditor**, **Doer**. Each user belongs to a branch and department and can have a team leader.
+- Roles: **Admin**, **HOD**, **PC** (process coordinator), **Team Leader** (sees and assigns work to the people who have them as team leader), **Auditor**, **Doer**. Each user belongs to a branch and department and can have a team leader.
 - HOD and PC see only their own department, the extra departments they oversee, and their team members — in task lists, MIS and Users.
 - Each role has default page permissions (view / add / edit / delete per module); an admin can override them per user.
 - **Users → Bulk upload** creates many users from a CSV (template on the page) and returns temporary passwords to hand out.
@@ -84,7 +84,7 @@ Links sync automatically every `SHEET_SYNC_MINUTES` minutes (default 30), or imm
 - The first admin is created from `ADMIN_USERNAME` / `ADMIN_PASSWORD` / `ADMIN_EMAIL`. Setting `ADMIN_EMAIL` later also attaches it to an existing admin that has no email.
 - **Forgot password?** on the sign-in page emails a one-time link, valid for 30 minutes. It needs the SMTP settings below and `APP_URL` (the public app URL used in the link). Only a hash of the link token is stored.
 - **Lost admin password:** set `ADMIN_RESET_PASSWORD` to a new password, redeploy, sign in with it, then delete the variable. It works without a server shell (Render free plan) and ends the admin's other sessions.
-- New passwords need at least 8 characters with letters and numbers. Changing or resetting a password signs the user out on every other device; an admin resetting a password or deactivating a user does the same.
+- New passwords need at least 4 characters (the admin can hand out simple ones; 5 wrong tries lock the account). Changing or resetting a password signs the user out on every other device; an admin resetting a password or deactivating a user does the same.
 
 ## Email reminders
 

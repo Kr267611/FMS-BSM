@@ -349,3 +349,15 @@ test("MIS: a pending task counts only once its due time has passed", async () =>
   assert.strictEqual(await row(new Date(due.getTime() - 60 * 60 * 1000)), undefined); // not due yet: not counted
   assert.deepStrictEqual((({ planned, pending, score }) => ({ planned, pending, score }))(await row(new Date(due.getTime() + 60 * 1000))), { planned: 1, pending: 1, score: -100 });
 });
+
+test("Team Leader sees only their team; any password of 4+ characters works", async () => {
+  const tl = await call("/users", { session: sessions.admin, method: "POST", body: { name: "Line TL", username: "linetl", password: "1234", role: "tl" } });
+  assert.strictEqual(tl.status, 201, tl.data.message);
+  assert.match((await call("/users", { session: sessions.admin, method: "POST", body: { name: "X", username: "xx", password: "123" } })).data.message, /at least 4/);
+  await call(`/users/${people.sunil}`, { session: sessions.admin, method: "PUT", body: { teamLeader: tl.data._id } });
+  const s = await login("linetl", "1234");
+  assert.strictEqual((await call(`/tasks?doer=${people.sunil}`, { session: s })).status, 200);
+  assert.strictEqual((await call(`/tasks?doer=${people.ankit}`, { session: s })).status, 403);
+  const me = await call("/auth/me", { session: s });
+  assert.ok(me.data.permissions.delegation.includes("add"));
+});

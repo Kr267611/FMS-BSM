@@ -39,13 +39,13 @@ export default function ResetPassword() {
           <>
             <label>
               New password
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus autoComplete="new-password" minLength={8} required />
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus autoComplete="new-password" minLength={4} required />
             </label>
             <label>
               Confirm new password
-              <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" minLength={8} required />
+              <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" minLength={4} required />
             </label>
-            <p className="muted small">At least 8 characters, with letters and numbers.</p>
+            <p className="muted small">At least 4 characters.</p>
             {error && <div className="error">{error}</div>}
             <button className="btn primary" disabled={busy}>
               {busy ? "Saving…" : "Reset password"}

@@ -37,7 +37,7 @@ export default function Account() {
           </label>
           <label>
             New password
-            <input type="password" value={newPassword} onChange={(e) => setNew(e.target.value)} required minLength={8} autoComplete="new-password" />
+            <input type="password" value={newPassword} onChange={(e) => setNew(e.target.value)} required minLength={4} autoComplete="new-password" />
           </label>
           {msg && <div className={msg.ok ? "notice" : "error"}>{msg.text}</div>}
           <button className="btn primary">Change password</button>

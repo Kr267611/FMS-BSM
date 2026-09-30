@@ -88,7 +88,7 @@ test("forgot + reset password: one-time link, unlocks the account, old sessions 
   assert.strictEqual(sent.length, before + 1);
   const token = sent.at(-1).text.match(/reset-password\?token=([a-f0-9]{64})/)[1];
 
-  assert.strictEqual((await call("/auth/reset-password", { method: "POST", body: { token, password: "short" } })).status, 400);
+  assert.strictEqual((await call("/auth/reset-password", { method: "POST", body: { token, password: "abc" } })).status, 400);
   assert.strictEqual((await call("/auth/reset-password", { method: "POST", body: { token, password: "NewPass123" } })).status, 200);
   assert.strictEqual((await call("/auth/reset-password", { method: "POST", body: { token, password: "Other1234" } })).status, 400);
   assert.strictEqual((await login("lockme", "NewPass123")).status, 200); // unlocked by the reset
