@@ -5,6 +5,7 @@ import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import MyTasks from "./pages/MyTasks";
+import Dashboard from "./pages/Dashboard";
 import Checklists from "./pages/Checklists";
 import ChecklistBulk from "./pages/ChecklistBulk";
 import Delegations from "./pages/Delegations";
@@ -58,7 +59,7 @@ export default function App() {
 // Menu grouped the way MIDAP users know it. `soon` items are planned milestones, shown to admins only.
 function menuFor(user) {
   const groups = [
-    { title: "My Work", items: [{ to: "/", label: "My Tasks", end: true }] },
+    { title: "My Work", items: [{ to: "/dashboard", label: "Dashboard" }, { to: "/", label: "My Tasks", end: true }] },
     {
       title: "Master Tasks",
       items: [
@@ -176,6 +177,7 @@ function Shell() {
           <Routes>
             <Route path="/" element={<MyTasks />} />
             <Route path="/account" element={<Account />} />
+            <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/checklists" element={guard(can(user, "checklist"), <Checklists />)} />
             <Route path="/checklists/bulk" element={guard(can(user, "checklist", "add"), <ChecklistBulk />)} />
             <Route path="/delegations" element={<Delegations />} />

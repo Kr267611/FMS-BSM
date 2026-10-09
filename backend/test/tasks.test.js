@@ -361,3 +361,16 @@ test("Team Leader sees only their team; any password of 4+ characters works", as
   const me = await call("/auth/me", { session: s });
   assert.ok(me.data.permissions.delegation.includes("add"));
 });
+
+test("dashboard: counts, task types and activity, scoped to the people a user may see", async () => {
+  const all = await call("/dashboard", { session: sessions.admin });
+  assert.strictEqual(all.status, 200, all.data.message);
+  for (const k of ["openEntries", "addedWeek", "pending", "overdue", "dueToday", "doneWeek"]) assert.strictEqual(typeof all.data.stats[k], "number");
+  assert.ok(all.data.stats.pending > 0);
+  assert.ok(all.data.kinds.checklist.pending > 0);
+  assert.ok(Array.isArray(all.data.workflows));
+  assert.ok(all.data.activity.some((a) => a.action === "task.done"));
+  const sunil = await call("/dashboard", { session: sessions.sunil });
+  assert.ok(sunil.data.stats.pending <= all.data.stats.pending);
+  assert.ok(sunil.data.activity.every((a) => a.actorName === "Sunil Singh"));
+});
