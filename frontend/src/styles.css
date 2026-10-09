@@ -994,3 +994,12 @@ a.disabled-link { opacity: 0.45; pointer-events: none; }
 .delay-row b.txt-bad { color: var(--bad); }
 .delay-row.on { border-color: #14877a; background: #eef7f6; }
 @media (max-width: 900px) { .sum-row { grid-template-columns: 1fr; } .delay-list { grid-template-columns: 1fr 1fr; } }
+
+/* audit */
+.stars { display: inline-flex; gap: 2px; }
+.stars button { background: none; border: 0; font-size: 20px; line-height: 1; color: #d5dce5; cursor: pointer; padding: 0 1px; transition: transform 0.1s, color 0.1s; }
+.stars button.on { color: #f59e0b; }
+.stars button:not(:disabled):hover { transform: scale(1.15); }
+.stars button:disabled { cursor: default; font-size: 15px; }
+.audit-form { display: grid; gap: 8px; justify-items: start; min-width: 220px; }
+@media (max-width: 900px) { .audit-form { grid-column: 1 / -1; } }

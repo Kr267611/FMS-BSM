@@ -219,7 +219,7 @@ function PendingCard({ kinds }) {
       <h3>Pending Task</h3>
       <div className="pills">
         {BUCKETS.map(([k, label]) => (
-          <span key={k} className="pill" title={k === "ticket" || k === "audit" ? "Coming soon" : `${kinds[k]?.overdue || 0} overdue`}>
+          <span key={k} className="pill" title={k === "ticket" ? "Coming soon" : `${kinds[k]?.overdue || 0} overdue`}>
             <span className="pill-dot">•••</span>
             {label}
             <b>

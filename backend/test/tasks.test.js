@@ -568,3 +568,28 @@ test("Doer Tasks summary: total, done, pending and overdue buckets; a bucket fil
   assert.strictEqual(late.total, s.delay["1-3"]);
   assert.ok(late.tasks.every((t) => t.status === "pending" && new Date(t.planned) < new Date()));
 });
+
+test("Audit: a done task with an auditor goes to the Audit List; OK / Not OK with rating; Not OK reopens; Auditor Report", async () => {
+  const aud = await call("/users", { session: sessions.admin, method: "POST", body: { name: "Quality Auditor", username: "qaud", password: "Pass12345", role: "auditor" } });
+  sessions.qaud = await login("qaud");
+  const d = await call("/delegations", { session: sessions.admin, method: "POST", body: { title: "Clean the dye kitchen", doer: people.ankit, auditor: aud.data._id, planned: new Date(Date.now() + 60 * 60 * 1000) } });
+  await call(`/tasks/${d.data._id}/done`, { session: sessions.ankit, method: "POST", body: { remarks: "Cleaned" } });
+  const list = await call("/audits", { session: sessions.qaud });
+  assert.strictEqual(list.data.pending, 1);
+  assert.strictEqual(list.data.tasks[0].label, "Clean the dye kitchen");
+  assert.strictEqual((await call(`/audits/${d.data._id}`, { session: sessions.sunil, method: "POST", body: { result: "ok", rating: 5 } })).status, 403);
+  assert.match((await call(`/audits/${d.data._id}`, { session: sessions.qaud, method: "POST", body: { result: "notok", rating: 2 } })).data.message, /what is wrong/);
+  const back = await call(`/audits/${d.data._id}`, { session: sessions.qaud, method: "POST", body: { result: "notok", rating: 2, remarks: "Floor still dirty" } });
+  assert.strictEqual(back.data.status, "pending");
+  assert.strictEqual(back.data.audit.status, "notok");
+  // done again -> back in the list, then OK
+  await call(`/tasks/${d.data._id}/done`, { session: sessions.ankit, method: "POST", body: { remarks: "Cleaned again" } });
+  assert.strictEqual((await call("/audits", { session: sessions.qaud })).data.pending, 1);
+  const ok = await call(`/audits/${d.data._id}`, { session: sessions.qaud, method: "POST", body: { result: "ok", rating: 4 } });
+  assert.strictEqual(ok.data.audit.rounds, 2);
+  const rep = await call(`/audits/report`, { session: sessions.admin });
+  const row = rep.data.rows.find((r) => r.name === "Quality Auditor");
+  assert.deepStrictEqual({ tasks: row.total.tasks, ok: row.total.ok, waiting: row.total.waiting, avg: row.total.avgRating, sentBack: row.total.sentBack }, { tasks: 1, ok: 1, waiting: 0, avg: 4, sentBack: 1 });
+  const byDoer = await call(`/audits/report?group=doer`, { session: sessions.admin });
+  assert.ok(byDoer.data.rows.some((r) => r.name === "Ankitbhai"));
+});

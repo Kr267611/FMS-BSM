@@ -55,6 +55,7 @@ async function markDone(taskId, user, { remarks = "", values, now = new Date() }
     remarks: String(remarks || "").trim().slice(0, 1000),
   };
   if (Object.keys(clean).length) set.values = clean;
+  if (task.auditor) Object.assign(set, { "audit.status": "pending", "audit.rating": null, "audit.remarks": "" }); // goes to the auditor's Audit List
   const update = { $set: set, $inc: { __v: 1 } }; // bumps the version so a stale edit elsewhere fails instead of overwriting
   if (task.kind === "delegation") update.$push = { log: { $each: [{ at: now, by: user._id, action: "done", note: set.remarks }], $slice: -60 } };
   const done = await Task.findOneAndUpdate({ _id: task._id, status: "pending" }, update, { returnDocument: "after" });

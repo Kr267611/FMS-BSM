@@ -105,6 +105,8 @@ router.get("/", async (req, res) => {
     .populate("doer", "name")
     .lean();
   const kinds = Object.fromEntries(byKind.map((k) => [k._id, { pending: k.n, overdue: k.late }]));
+  // tasks waiting for my audit (the Auditor bucket of the Pending Task card)
+  kinds.audit = { pending: await Task.countDocuments({ auditor: req.user._id, "audit.status": "pending" }), overdue: 0 };
 
   res.json({
     today,

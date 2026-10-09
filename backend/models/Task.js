@@ -42,6 +42,8 @@ const taskSchema = new mongoose.Schema(
       default: undefined,
     },
     reopenCount: Number,
+    // audit by the task's auditor after it is done: pending -> ok / notok (Not OK reopens the task)
+    audit: { status: { type: String, enum: ["pending", "ok", "notok"] }, rating: Number, remarks: String, by: { type: ObjectId, ref: "User" }, at: Date, rounds: Number },
     // FMS reminders sent for this task: once, or repeated up to the rule's limit
     reminders: { type: [{ _id: false, rule: { type: ObjectId, ref: "FmsReminder" }, n: Number, last: Date, ok: Boolean, note: String }], default: undefined },
     log: { type: [{ _id: false, at: Date, by: { type: ObjectId, ref: "User" }, action: String, note: String }], default: undefined },
@@ -86,6 +88,7 @@ taskSchema.index({ status: 1, triggerAt: 1 });
 taskSchema.index({ checklist: 1, plannedDay: 1 }, { unique: true, partialFilterExpression: { checklist: { $exists: true } } });
 taskSchema.index({ status: 1, closeAt: 1 });
 taskSchema.index({ assignedBy: 1, kind: 1, status: 1 });
+taskSchema.index({ auditor: 1, "audit.status": 1 });
 
 module.exports = mongoose.model("Task", taskSchema);
 module.exports.PRIORITIES = PRIORITIES;

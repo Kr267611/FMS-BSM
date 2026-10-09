@@ -60,6 +60,7 @@ app.use("/api/tasks", require("./routes/tasks"));
 app.use("/api/dashboard", require("./routes/dashboard"));
 app.use("/api/reports", require("./routes/reports"));
 app.use("/api/fms-rules", require("./routes/fmsRules"));
+app.use("/api/audits", require("./routes/audits"));
 app.use("/api/checklists", require("./routes/checklists"));
 app.use("/api/delegations", require("./routes/delegations"));
 app.use("/api/sheets", require("./routes/sheets"));
