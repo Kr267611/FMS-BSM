@@ -42,6 +42,8 @@ const taskSchema = new mongoose.Schema(
       default: undefined,
     },
     reopenCount: Number,
+    // FMS reminders sent for this task: once, or repeated up to the rule's limit
+    reminders: { type: [{ _id: false, rule: { type: ObjectId, ref: "FmsReminder" }, n: Number, last: Date, ok: Boolean, note: String }], default: undefined },
     log: { type: [{ _id: false, at: Date, by: { type: ObjectId, ref: "User" }, action: String, note: String }], default: undefined },
 
     // app tasks

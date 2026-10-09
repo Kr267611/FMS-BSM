@@ -526,3 +526,35 @@ test("Bulk delete / download: count by FMS, status and date; delete is admin onl
   assert.deepStrictEqual(del.data, { entries: 3, steps: 3 });
   assert.strictEqual((await call(`/jobs/count?${q}`, { session: sessions.admin })).data.count, 0);
 });
+
+test("FMS reminders: due / overdue with repeat and limit, overrides by condition, sent once per slot", async () => {
+  const User = require("../models/User");
+  await User.updateOne({ _id: people.sunil }, { email: "sunil@example.com" });
+  const p = await call("/processes", {
+    session: sessions.admin,
+    method: "POST",
+    body: { name: "Reminder Test", fields: [{ key: "rate", label: "Rate", type: "number" }], steps: [{ key: "s1", name: "Check", doer: { mode: "fixed", user: people.sunil }, tat: 1, tatUnit: "hours" }] },
+  });
+  const cheap = await call("/jobs", { session: sessions.admin, method: "POST", body: { process: p.data._id, data: { rate: 500 } } });
+  const costly = await call("/jobs", { session: sessions.admin, method: "POST", body: { process: p.data._id, data: { rate: 5000 } } });
+  const base = { process: p.data._id, step: "s1", timing: "overdue", hours: 0, repeatHours: 2, maxTimes: 2 };
+  assert.strictEqual((await call("/fms-rules/reminders", { session: sessions.admin, method: "POST", body: { ...base, name: "Overdue" } })).status, 201);
+  await call("/fms-rules/reminders", { session: sessions.admin, method: "POST", body: { ...base, name: "Costly overdue", when: { all: [{ src: "field", key: "rate", op: ">", value: 3000 }] }, subject: "URGENT {task}", message: "Rate {details} – {status}" } });
+
+  const { sweepReminders } = require("../services/fmsReminders");
+  const mails = [];
+  const send = async (m) => mails.push(m);
+  const planned = (await Task.findOne({ job: cheap.data._id }).lean()).planned;
+  const at = (h) => new Date(planned.getTime() + h * 60 * 60 * 1000);
+  assert.strictEqual(await sweepReminders(at(-0.5), { send }), 0); // not overdue yet
+  assert.strictEqual(await sweepReminders(at(0.1), { send }), 2); // one each: the costly entry gets the override only
+  assert.deepStrictEqual(mails.map((m) => m.subject.startsWith("URGENT")).sort(), [false, true]);
+  assert.strictEqual(await sweepReminders(at(1), { send }), 0); // repeat is every 2 hours
+  assert.strictEqual(await sweepReminders(at(2.2), { send }), 2);
+  assert.strictEqual(await sweepReminders(at(10), { send }), 0); // max 2 times
+  const t = await Task.findOne({ job: costly.data._id }).lean();
+  assert.strictEqual(t.reminders.length, 1);
+  assert.strictEqual(t.reminders[0].n, 2);
+  const list = await call("/fms-rules/reminders", { session: sessions.admin });
+  assert.ok(list.data.list.find((r) => r.name === "Overdue").stats.sent >= 2);
+});

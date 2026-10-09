@@ -3,11 +3,13 @@
 // so a server that was asleep (free hosting) catches up on the first request.
 const { sweepDue } = require("./workflow");
 const { sweepChecklists } = require("./checklists");
+const { sweepReminders } = require("./fmsReminders");
 
 async function sweepAll(now = new Date()) {
   const escalated = await sweepDue(now);
   const { created, expired } = await sweepChecklists(now);
-  return { escalated, checklistTasks: created, autoClosed: expired };
+  const reminders = await sweepReminders(now).catch((err) => (console.error("FMS reminders:", err.message), 0));
+  return { escalated, checklistTasks: created, autoClosed: expired, reminders };
 }
 
 let last = 0;
