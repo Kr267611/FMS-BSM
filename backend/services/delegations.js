@@ -74,6 +74,7 @@ async function createDelegation(user, body = {}, { now = new Date() } = {}) {
     auditor: await activeUser(body.auditor, "auditor"),
     priority,
     proofRequired: Boolean(body.proofRequired),
+    effortMinutes: ((x) => Math.min(24 * 60, Math.max(0, Math.round(Number(x) || 0))))(body.effortMinutes),
     status: "pending",
     planned,
     plannedDay: dayKey(planned),
@@ -107,6 +108,7 @@ async function updateDelegation(taskId, user, body = {}, { now = new Date() } = 
     task.priority = body.priority;
   }
   if (body.proofRequired !== undefined) task.proofRequired = Boolean(body.proofRequired);
+  if (body.effortMinutes !== undefined) task.effortMinutes = ((x) => Math.min(24 * 60, Math.max(0, Math.round(Number(x) || 0))))(body.effortMinutes);
   if (body.pc !== undefined) task.pc = await activeUser(body.pc, "PC");
   if (body.auditor !== undefined) task.auditor = await activeUser(body.auditor, "auditor");
 

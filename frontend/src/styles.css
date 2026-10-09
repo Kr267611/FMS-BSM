@@ -1003,3 +1003,4 @@ a.disabled-link { opacity: 0.45; pointer-events: none; }
 .stars button:disabled { cursor: default; font-size: 15px; }
 .audit-form { display: grid; gap: 8px; justify-items: start; min-width: 220px; }
 @media (max-width: 900px) { .audit-form { grid-column: 1 / -1; } }
+input.bad-input { border-color: var(--bad); }

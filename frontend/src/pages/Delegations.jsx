@@ -3,6 +3,7 @@ import { api, can, showDateTime } from "../api";
 import { useAuth } from "../App";
 import DoerSelect from "../components/DoerSelect";
 import StepForm from "../components/StepForm";
+import EffortInput from "../components/EffortInput";
 import { FieldValue } from "../components/FieldInput";
 import { PRIORITIES, approvedRevisions, deadlineState, joinIst, pendingRevision, priorityLabel, priorityTone, splitIst } from "../tasks";
 
@@ -152,6 +153,7 @@ function DelegationForm({ task, onClose, onSaved }) {
     time: start.time,
     priority: task?.priority || "normal",
     proofRequired: Boolean(task?.proofRequired),
+    effortMinutes: task?.effortMinutes || 0,
     pc: idOf(task?.pc),
     auditor: idOf(task?.auditor),
   });
@@ -218,6 +220,10 @@ function DelegationForm({ task, onClose, onSaved }) {
                 </option>
               ))}
             </select>
+          </label>
+          <label>
+            Effort time (H:MM)
+            <EffortInput value={f.effortMinutes} onChange={(m) => set({ effortMinutes: m })} />
           </label>
           <label>
             PC (follows up)

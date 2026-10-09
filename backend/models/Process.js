@@ -37,6 +37,7 @@ const stepSchema = new Schema({
   name: { type: String, required: true },
   how: { type: String, default: "" },
   videoLink: { type: String, default: "" },
+  effortMinutes: { type: Number, default: 0 }, // MIDAP "effort time": how long the step's work takes
   doer: { type: doerSchema, default: () => ({}) },
   // entry | afterDone | afterDue (escalation) | withStart (parallel), relative to `step`
   start: { mode: { type: String, default: "entry" }, step: String },

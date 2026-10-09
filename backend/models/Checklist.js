@@ -17,6 +17,7 @@ const checklistSchema = new mongoose.Schema(
     auditor: { type: ObjectId, ref: "User" },
     group: { type: ObjectId, ref: "TaskGroup" },
     priority: { type: String, enum: PRIORITIES, default: "normal" },
+    effortMinutes: { type: Number, default: 0 }, // MIDAP "effort time" of one occurrence
 
     // daily · weekly on `days` (0 = Sunday) · monthly on `dates` (31 = last day) every `every` months · every `every` days
     frequency: {

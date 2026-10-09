@@ -4,7 +4,10 @@ const Task = require("../models/Task");
 const User = require("../models/User");
 const Job = require("../models/Job");
 const Process = require("../models/Process");
-const { dayKey } = require("../services/dates");
+const { dayKey, todayKey, addDaysKey } = require("../services/dates");
+const Checklist = require("../models/Checklist");
+const { isOff } = require("../services/calendar");
+const { loadCalendar } = require("../services/workflow");
 const { auth, permit } = require("../middleware/auth");
 const { visibleUserIds, canSeeUser } = require("../services/scope");
 const { audit } = require("../services/audit");
@@ -219,6 +222,76 @@ router.post("/fms-tasks/planned", async (req, res) => {
   const r = await Task.updateMany({ _id: { $in: ids }, kind: "app", status: "pending" }, { $set: { planned, plannedDay: dayKey(planned) }, $inc: { __v: 1 } });
   audit(req, "task.planned_change", { entity: "Task", summary: `${r.modifiedCount} FMS step(s) → ${planned.toISOString()}: ${reason}` });
   res.json({ changed: r.modifiedCount, skipped: ids.length - r.modifiedCount });
+});
+
+// ---- List Effort Time (MIDAP): how much work each doer had and did, in hours ----
+// Effort per task: a checklist's and an FMS step's effort time (from their master, so older tasks count too);
+// a delegation's own estimate. ?from= &to= &basis=planned|actual &group=doer|department
+router.get("/effort", async (req, res) => {
+  const today = todayKey();
+  const to = isDay(req.query.to) ? req.query.to : today;
+  const from = isDay(req.query.from) ? req.query.from : to.slice(0, 8) + "01";
+  const byActual = req.query.basis === "actual";
+  const byDept = req.query.group === "department";
+  const visible = await visibleUserIds(req.user);
+  const match = byActual ? { status: "done", actualDay: { $gte: from, $lte: to } } : { status: { $in: ["pending", "done", "expired"] }, plannedDay: { $gte: from, $lte: to } };
+  if (visible !== null) match.doer = { $in: visible.map((id) => new mongoose.Types.ObjectId(id)) };
+
+  const groups = await Task.aggregate([
+    { $match: { ...match, kind: { $in: ["checklist", "delegation", "app"] } } },
+    {
+      $group: {
+        _id: { doer: "$doer", kind: "$kind", checklist: "$checklist", process: "$process", step: "$stepKey" },
+        tasks: { $sum: 1 },
+        done: { $sum: { $cond: [{ $eq: ["$status", "done"] }, 1, 0] } },
+        own: { $sum: { $ifNull: ["$effortMinutes", 0] } },
+        ownDone: { $sum: { $cond: [{ $eq: ["$status", "done"] }, { $ifNull: ["$effortMinutes", 0] }, 0] } },
+      },
+    },
+  ]);
+  const checklistIds = [...new Set(groups.filter((g) => g._id.checklist).map((g) => String(g._id.checklist)))];
+  const processIds = [...new Set(groups.filter((g) => g._id.process).map((g) => String(g._id.process)))];
+  const [checklists, processes, users, cal] = await Promise.all([
+    Checklist.find({ _id: { $in: checklistIds } }).select("effortMinutes").lean(),
+    Process.find({ _id: { $in: processIds } }).select("steps.key steps.effortMinutes").lean(),
+    User.find({ _id: { $in: [...new Set(groups.map((g) => String(g._id.doer)))] } }).select("name department").populate("department", "name").lean(),
+    loadCalendar(),
+  ]);
+  const clEffort = new Map(checklists.map((c) => [String(c._id), c.effortMinutes || 0]));
+  const stepEffort = new Map(processes.flatMap((p) => p.steps.map((st) => [`${p._id}|${st.key}`, st.effortMinutes || 0])));
+  const userOf = new Map(users.map((u) => [String(u._id), u]));
+
+  // working days in the range (week-offs and holidays of the company calendar left out)
+  let workingDays = 0;
+  for (let d = from, i = 0; d <= to && i < 400; d = addDaysKey(d, 1), i++) if (!isOff(d, cal)) workingDays++;
+
+  const TYPE = { checklist: "checklist", delegation: "delegation", app: "fms" };
+  const blank = () => ({ tasks: 0, done: 0, plannedMin: 0, doneMin: 0, byType: { checklist: 0, delegation: 0, fms: 0 }, noEffort: 0 });
+  const rows = new Map();
+  for (const g of groups) {
+    const u = userOf.get(String(g._id.doer));
+    const key = byDept ? u?.department?.name || "No department" : String(g._id.doer);
+    if (!rows.has(key)) rows.set(key, { key, name: byDept ? key : u?.name || "?", department: byDept ? "" : u?.department?.name || "", people: new Set(), ...blank() });
+    const r = rows.get(key);
+    r.people.add(String(g._id.doer));
+    const each = g._id.kind === "checklist" ? clEffort.get(String(g._id.checklist)) || 0 : g._id.kind === "app" ? stepEffort.get(`${g._id.process}|${g._id.step}`) || 0 : null;
+    const planned = each === null ? g.own : each * g.tasks;
+    const done = each === null ? g.ownDone : each * g.done;
+    r.tasks += g.tasks;
+    r.done += g.done;
+    r.plannedMin += planned;
+    r.doneMin += done;
+    r.byType[TYPE[g._id.kind]] += planned;
+    if (!planned) r.noEffort += g.tasks;
+  }
+  const total = blank();
+  const out = [...rows.values()].map((r) => {
+    for (const k of ["tasks", "done", "plannedMin", "doneMin", "noEffort"]) total[k] += r[k];
+    for (const k of Object.keys(total.byType)) total.byType[k] += r.byType[k];
+    return { ...r, people: r.people.size, avgPerDayMin: workingDays ? Math.round(r.doneMin / workingDays) : 0 };
+  });
+  out.sort((a, b) => b.plannedMin - a.plannedMin);
+  res.json({ from, to, basis: byActual ? "actual" : "planned", group: byDept ? "department" : "doer", workingDays, rows: out, total: { ...total, avgPerDayMin: workingDays ? Math.round(total.doneMin / workingDays) : 0 } });
 });
 
 module.exports = router;

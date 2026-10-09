@@ -593,3 +593,19 @@ test("Audit: a done task with an auditor goes to the Audit List; OK / Not OK wit
   const byDoer = await call(`/audits/report?group=doer`, { session: sessions.admin });
   assert.ok(byDoer.data.rows.some((r) => r.name === "Ankitbhai"));
 });
+
+test("Effort time: checklist and FMS step effort from the master, delegation effort of its own; planned / actual basis", async () => {
+  const c = await call("/checklists", { session: sessions.admin, method: "POST", body: { name: "Effort oiling", doer: people.mpc, frequency: { type: "daily" }, effortMinutes: 30 } });
+  assert.strictEqual(c.data.effortMinutes, 30);
+  const d = await call("/delegations", { session: sessions.admin, method: "POST", body: { title: "Effort quote", doer: people.mpc, planned: new Date(Date.now() + 60 * 1000), effortMinutes: 90 } });
+  assert.strictEqual(d.data.effortMinutes, 90);
+  await call(`/tasks/${d.data._id}/done`, { session: sessions.mpc, method: "POST", body: {} });
+  const planned = (await call(`/reports/effort?from=${today}&to=${today}`, { session: sessions.admin })).data;
+  const row = planned.rows.find((r) => r.name === "Maint PC");
+  assert.strictEqual(row.byType.checklist, 30);
+  assert.ok(row.plannedMin >= 120);
+  assert.strictEqual(row.doneMin >= 90, true);
+  const actual = (await call(`/reports/effort?from=${today}&to=${today}&basis=actual`, { session: sessions.admin })).data;
+  assert.strictEqual(actual.rows.find((r) => r.name === "Maint PC").doneMin, 90);
+  assert.strictEqual(typeof planned.workingDays, "number");
+});

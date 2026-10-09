@@ -5,6 +5,7 @@ import DoerSelect, { useUsers } from "../components/DoerSelect";
 import ConditionEditor from "../components/ConditionEditor";
 import DoerRuleEditor from "../components/DoerRuleEditor";
 import FieldsEditor, { OptionsInput, QUICK_FIELDS } from "../components/FieldsEditor";
+import EffortInput from "../components/EffortInput";
 import {
   CALENDAR_MODES,
   FIELD_TYPES,
@@ -143,6 +144,14 @@ function StepEditor({ step, index, steps, fields, calendarMode, open, onToggle, 
                 </button>
               </div>
             )}
+          </section>
+
+          <section>
+            <h4>Effort time</h4>
+            <div className="row wrap">
+              <EffortInput value={step.effortMinutes} onChange={(m) => set({ effortMinutes: m })} />
+              <span className="small muted">How long the work of this step takes (H:MM) – used in the Effort Time report</span>
+            </div>
           </section>
 
           <section>

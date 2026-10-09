@@ -3,6 +3,7 @@ import { api, can, showDay, todayKey } from "../api";
 import { useAuth } from "../App";
 import DoerSelect from "./DoerSelect";
 import FieldsEditor from "./FieldsEditor";
+import EffortInput from "./EffortInput";
 import { STEP_FIELD_TYPES } from "../fms";
 import { FREQUENCY_TYPES, HOLIDAY_RULES, MONTH_STEPS, PRIORITIES, WEEKDAYS, parseDates, showDates } from "../tasks";
 
@@ -180,6 +181,10 @@ export default function ChecklistForm({ id, groups, onClose, onSaved }) {
                 </option>
               ))}
             </select>
+          </label>
+          <label>
+            Effort time (H:MM)
+            <EffortInput value={c.effortMinutes} onChange={(m) => set({ effortMinutes: m })} />
           </label>
           <label className="span-2">
             How (shown to the doer)

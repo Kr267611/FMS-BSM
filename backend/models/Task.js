@@ -12,6 +12,7 @@ const taskSchema = new mongoose.Schema(
     label: { type: String, required: true }, // Row name in the MIS, e.g. "Vendor Payment – Payment"; the task name for delegations
     doer: { type: ObjectId, ref: "User", index: true }, // set once the step starts
     priority: { type: String, enum: PRIORITIES, default: undefined },
+    effortMinutes: Number, // delegations: the assigner's estimate of the work (checklists and FMS steps read it from their master)
     pc: { type: ObjectId, ref: "User" },
     auditor: { type: ObjectId, ref: "User" },
 

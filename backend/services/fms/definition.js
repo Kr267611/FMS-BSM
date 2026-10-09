@@ -237,6 +237,7 @@ function normalizeProcess(body, { activeIds = new Set() } = {}) {
       name: stepName,
       how: text(s.how, 2000),
       videoLink,
+      effortMinutes: ((x) => Math.min(24 * 60, Math.max(0, Math.round(Number(x) || 0))))(s.effortMinutes),
       doer: cleanDoer(s.doer, { fields, where, activeIds, strict }),
       start,
       when,

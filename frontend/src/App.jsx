@@ -15,6 +15,7 @@ import AutoComplete from "./pages/AutoComplete";
 import BulkFms from "./pages/BulkFms";
 import AuditList from "./pages/AuditList";
 import AuditorReport from "./pages/AuditorReport";
+import EffortReport from "./pages/EffortReport";
 import Checklists from "./pages/Checklists";
 import ChecklistBulk from "./pages/ChecklistBulk";
 import Delegations from "./pages/Delegations";
@@ -105,6 +106,7 @@ function menuFor(user) {
         { to: "/mis/weekly", label: "Weekly MIS Score", show: can(user, "reports") },
         { to: "/mis/performance", label: "Performance Score", show: can(user, "reports") },
         { to: "/reports/auditor", label: "Auditor Report", show: can(user, "reports") && user.role !== "doer" },
+        { to: "/reports/effort", label: "List Effort Time", show: can(user, "reports") },
       ],
     },
     {
@@ -248,6 +250,7 @@ function Shell() {
             <Route path="/fms/auto-complete" element={guard(can(user, "fms"), <AutoComplete />)} />
             <Route path="/fms/auto-calculate" element={guard(can(user, "fms"), <FmsRules kind="calc" />)} />
             <Route path="/audits" element={<AuditList />} />
+            <Route path="/reports/effort" element={guard(can(user, "reports"), <EffortReport />)} />
             <Route path="/reports/auditor" element={guard(can(user, "reports"), <AuditorReport />)} />
             <Route path="/reports/fms-tasks" element={guard(can(user, "reports"), <FmsTasks />)} />
             <Route path="/reports/tasks" element={guard(can(user, "reports"), <DoerTasks />)} />
