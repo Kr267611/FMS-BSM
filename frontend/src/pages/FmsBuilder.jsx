@@ -76,7 +76,7 @@ function StepEditor({ step, index, steps, fields, calendarMode, open, onToggle, 
   }
 
   return (
-    <div className={"card step-card" + (open ? " open" : "")}>
+    <div id={`step-${step.key}`} className={"card step-card" + (open ? " open" : "")}>
       <div className="step-top">
         <span className="step-no">{index + 1}</span>
         <input className="step-name" placeholder="Step name, e.g. Escalate to Paresh bhai" value={step.name} onChange={(e) => set({ name: e.target.value })} />
@@ -258,7 +258,12 @@ export default function FmsBuilder() {
         if (clean.existingId) clean.originalName = clean.name;
         if (clean.existingId) clean.name = `${clean.name} (new)`;
         setP(clean);
-        if (clean.steps.length <= 3) setOpen({ [clean.steps[0]?.key]: true });
+        // ?step=s2 (from the Doer conditions / Override TAT lists) opens that step
+        const want = params.get("step");
+        if (want && clean.steps.some((s) => s.key === want)) {
+          setOpen({ [want]: true });
+          setTimeout(() => document.getElementById(`step-${want}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 150);
+        } else if (clean.steps.length <= 3) setOpen({ [clean.steps[0]?.key]: true });
       })
       .catch((e) => setError(e.message));
   }, [id, isNew, params]);
