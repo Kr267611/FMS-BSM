@@ -125,6 +125,8 @@ const initials = (name) =>
     .join("")
     .toUpperCase();
 
+const MENU_KEY = "fms_bsm_menu";
+
 function Shell() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -135,15 +137,43 @@ function Shell() {
   const groups = menuFor(user);
   const guard = (ok, el) => (ok ? el : <Navigate to="/" />);
 
+  // Collapsible menu groups (+ / −), like MIDAP. The group of the open page is always expanded;
+  // the groups a user opened are remembered in this browser.
+  const [expanded, setExpanded] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem(MENU_KEY)) || ["My Work"];
+    } catch {
+      return ["My Work"];
+    }
+  });
+  const isHere = (i) => i.to && (i.end ? location.pathname === i.to : location.pathname === i.to || location.pathname.startsWith(i.to + "/"));
+  const activeGroup = groups.find((g) => g.items.some(isHere))?.title;
+  function toggleGroup(title) {
+    setExpanded((prev) => {
+      const next = prev.includes(title) ? prev.filter((t) => t !== title) : [...prev, title];
+      try {
+        localStorage.setItem(MENU_KEY, JSON.stringify(next));
+      } catch {
+        /* private window */
+      }
+      return next;
+    });
+  }
+
   return (
     <div className={open ? "app menu-open" : "app"}>
       <aside className="sidebar">
         <div className="brand">FMS BSM</div>
         <nav className="side-nav">
-          {groups.map((g) => (
-            <div key={g.title} className="side-group">
-              <div className="side-title">{g.title}</div>
-              {g.items.map((i) =>
+          {groups.map((g) => {
+            const isOpen = expanded.includes(g.title) || g.title === activeGroup;
+            return (
+            <div key={g.title} className={"side-group" + (isOpen ? " open" : "")}>
+              <button type="button" className="side-title" onClick={() => toggleGroup(g.title)} aria-expanded={isOpen}>
+                <span>{g.title}</span>
+                <span className="side-toggle">{isOpen ? "−" : "+"}</span>
+              </button>
+              {isOpen && g.items.map((i) =>
                 i.soon ? (
                   <span key={i.label} className="side-link soon" title="Coming in the next milestone">
                     {i.label} <em>soon</em>
@@ -155,7 +185,8 @@ function Shell() {
                 )
               )}
             </div>
-          ))}
+            );
+          })}
         </nav>
       </aside>
       <div className="scrim" onClick={() => setOpen(false)} />
