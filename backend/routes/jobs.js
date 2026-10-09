@@ -132,6 +132,11 @@ router.post("/preview", permit("fmsEntries", "add"), async (req, res) => {
   res.json(await wf.previewJob({ processId, data, startDate }));
 });
 
+// Bulk Delete / Download: how many entries match (FMS, open / closed, entry date range)
+router.get("/count", permit("fmsEntries", "view"), async (req, res) => {
+  res.json({ count: await Job.countDocuments(jobFilter(req.query)) });
+});
+
 router.get("/:id", permit("fmsEntries", "view"), async (req, res) => {
   await sweepSoon();
   const job = await Job.findById(req.params.id).populate("createdBy", "name").populate("closedBy", "name").lean();
@@ -182,6 +187,19 @@ router.post("/:id/reopen", permit("fmsEntries", "edit"), async (req, res) => {
   const job = await wf.reopenJob(req.params.id, req.user);
   audit(req, "job.reopen", { entity: "Job", entityId: job._id, summary: `Entry #${job.jobNo}` });
   res.json(job);
+});
+
+// Admin only; the body must say confirm: "DELETE". Entries and all their steps go, and leave the MIS.
+router.post("/bulk-delete", async (req, res) => {
+  if (req.user.role !== "admin") return res.status(403).json({ message: "Only an admin can delete entries in bulk" });
+  if (req.body?.confirm !== "DELETE") return res.status(400).json({ message: 'Type DELETE to confirm' });
+  const filter = jobFilter(req.body);
+  const process = await Process.findById(req.body.process).select("name").lean();
+  const ids = (await Job.find(filter).select("_id").limit(20000).lean()).map((j) => j._id);
+  const tasks = await Task.deleteMany({ job: { $in: ids } });
+  const jobs = await Job.deleteMany({ _id: { $in: ids } });
+  audit(req, "job.bulk_delete", { entity: "Process", entityId: req.body.process, summary: `${process?.name}: ${jobs.deletedCount} entries and ${tasks.deletedCount} steps deleted (${req.body.status || "all"}, ${req.body.from || "…"} – ${req.body.to || "…"})` });
+  res.json({ entries: jobs.deletedCount, steps: tasks.deletedCount });
 });
 
 router.delete("/:id", permit("fmsEntries", "delete"), async (req, res) => {

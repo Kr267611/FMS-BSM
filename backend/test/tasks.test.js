@@ -513,3 +513,16 @@ test("FMS Auto Complete: a done step creates an entry in another FMS; condition,
   assert.strictEqual(off.status, 200);
   assert.match(off.data.autoComplete[0].error, /draft/);
 });
+
+test("Bulk delete / download: count by FMS, status and date; delete is admin only and needs DELETE", async () => {
+  const p = await call("/processes", { session: sessions.admin, method: "POST", body: { name: "Bulk Test", fields: [{ key: "x", label: "X", type: "text" }], steps: [{ key: "s1", name: "Do", doer: { mode: "fixed", user: people.sunil }, tat: 1, tatUnit: "days" }] } });
+  for (let i = 0; i < 3; i++) await call("/jobs", { session: sessions.admin, method: "POST", body: { process: p.data._id, data: { x: String(i) } } });
+  const q = `process=${p.data._id}&status=open&from=${today}&to=${today}`;
+  assert.strictEqual((await call(`/jobs/count?${q}`, { session: sessions.admin })).data.count, 3);
+  const body = { process: p.data._id, status: "open", from: today, to: today };
+  assert.strictEqual((await call("/jobs/bulk-delete", { session: sessions.mpc, method: "POST", body: { ...body, confirm: "DELETE" } })).status, 403);
+  assert.match((await call("/jobs/bulk-delete", { session: sessions.admin, method: "POST", body })).data.message, /DELETE/);
+  const del = await call("/jobs/bulk-delete", { session: sessions.admin, method: "POST", body: { ...body, confirm: "DELETE" } });
+  assert.deepStrictEqual(del.data, { entries: 3, steps: 3 });
+  assert.strictEqual((await call(`/jobs/count?${q}`, { session: sessions.admin })).data.count, 0);
+});
