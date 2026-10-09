@@ -875,3 +875,5 @@ td.msg-cell { max-width: 260px; }
 @media (max-width: 760px) { .mid-row, .mid-row.second { grid-template-columns: 1fr; } .week-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .wt-cur, .wt-prev { white-space: nowrap; font-size: 16px; }
 .wt-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.txt-good { color: var(--good); font-weight: 600; }
+table.mis .total-row td { font-weight: 700; background: #f8fafc; border-top: 2px solid #e3e8ef; }

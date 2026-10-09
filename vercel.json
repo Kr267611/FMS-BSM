@@ -24,6 +24,10 @@
       "destination": "/index.html"
     },
     {
+      "source": "/mis/:rest*",
+      "destination": "/index.html"
+    },
+    {
       "source": "/reports/:rest*",
       "destination": "/index.html"
     },

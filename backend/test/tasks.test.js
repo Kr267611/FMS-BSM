@@ -406,3 +406,20 @@ test("dashboard: MIDAP week score (this vs last week), weekly chart, today's che
   assert.strictEqual(me.scope, "me");
   assert.ok(me.checklistToday.every((t) => t.doer.name === "Sunil Singh"));
 });
+
+test("weekly MIS score: doer-wise and department-wise, by type, with last week", async () => {
+  const r = await call(`/mis/weekly?week=${today}`, { session: sessions.admin });
+  assert.strictEqual(r.status, 200, r.data.message);
+  assert.strictEqual(new Date(r.data.week + "T00:00:00Z").getUTCDay(), 1);
+  const ankit = r.data.rows.find((x) => x.name === "Ankitbhai");
+  assert.ok(ankit.total.planned >= ankit.types.checklist.planned + ankit.types.delegation.planned);
+  assert.strictEqual(ankit.total.notDonePct, ankit.total.planned ? Math.round((-100 * ankit.total.pending) / ankit.total.planned * 10) / 10 + 0 : 0);
+  assert.ok("score" in ankit.last);
+  const sumPlanned = r.data.rows.reduce((a, x) => a + x.total.planned, 0);
+  assert.strictEqual(r.data.company.total.planned, sumPlanned);
+  const dept = await call(`/mis/weekly?group=department`, { session: sessions.admin });
+  assert.strictEqual(dept.data.group, "department");
+  assert.strictEqual(dept.data.rows.reduce((a, x) => a + x.total.planned, 0), dept.data.company.total.planned);
+  const mine = await call(`/mis/weekly`, { session: sessions.sunil });
+  assert.ok(mine.data.rows.every((x) => x.name === "Sunil Singh"));
+});
