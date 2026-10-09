@@ -10,6 +10,7 @@ const { todayKey, dayKey } = require("../services/dates");
 const { startOfDay } = require("../services/calendar");
 const wf = require("../services/workflow");
 const { sweepSoon } = require("../services/sweep");
+const { importEntries } = require("../services/entryImport");
 
 const router = express.Router();
 router.use(auth);
@@ -151,6 +152,18 @@ router.post("/", permit("fmsEntries", "add"), async (req, res) => {
   const job = await wf.createJob({ processId, data, startDate, user: req.user });
   audit(req, "job.create", { entity: "Job", entityId: job._id, summary: `Entry #${job.jobNo}` });
   res.status(201).json(job);
+});
+
+// CSV rows -> entries, sent in chunks by the Import page: { process, rows, dryRun, uniqueField, firstLine }
+router.post("/import", permit("fmsEntries", "add"), async (req, res) => {
+  const { process: processId, rows, dryRun, uniqueField, firstLine } = req.body || {};
+  if (!mongoose.isValidObjectId(processId)) return res.status(400).json({ message: "Choose the FMS" });
+  if (!Array.isArray(rows) || !rows.length) return res.status(400).json({ message: "The file has no rows" });
+  if (rows.length > 500) return res.status(400).json({ message: "Send at most 500 rows at a time" });
+  const r = await importEntries({ processId, rows, dryRun: dryRun !== false, uniqueField: uniqueField || null, firstLine: Number(firstLine) || 2, user: req.user });
+  const made = r.results.filter((x) => x.ok).length;
+  if (dryRun === false && made) audit(req, "job.import", { entity: "Process", entityId: processId, summary: `${made} entries imported, ${r.results.length - made} skipped` });
+  res.json(r);
 });
 
 router.put("/:id", permit("fmsEntries", "edit"), async (req, res) => {

@@ -345,6 +345,7 @@ async function previewJob({ processId, data = {}, startDate, now = new Date() })
 }
 
 module.exports = {
+  entryValues,
   createJob,
   markDone,
   markNotRequired,
