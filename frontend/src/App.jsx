@@ -6,6 +6,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import MyTasks from "./pages/MyTasks";
 import Dashboard from "./pages/Dashboard";
+import DoerTasks from "./pages/DoerTasks";
 import Checklists from "./pages/Checklists";
 import ChecklistBulk from "./pages/ChecklistBulk";
 import Delegations from "./pages/Delegations";
@@ -83,6 +84,7 @@ function menuFor(user) {
     {
       title: "PC Reports",
       items: [
+        { to: "/reports/tasks", label: "Doer Tasks", show: can(user, "reports") && user.role !== "doer" },
         { to: "/mis", label: "MIS Score", show: can(user, "reports") },
         { label: "Weekly MIS Score", soon: true, show: user.role === "admin" },
       ],
@@ -184,6 +186,7 @@ function Shell() {
             <Route path="/" element={<MyTasks />} />
             <Route path="/account" element={<Account />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/reports/tasks" element={guard(can(user, "reports"), <DoerTasks />)} />
             <Route path="/checklists" element={guard(can(user, "checklist"), <Checklists />)} />
             <Route path="/checklists/bulk" element={guard(can(user, "checklist", "add"), <ChecklistBulk />)} />
             <Route path="/delegations" element={<Delegations />} />

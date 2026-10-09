@@ -374,3 +374,22 @@ test("dashboard: counts, task types and activity, scoped to the people a user ma
   assert.ok(sunil.data.stats.pending <= all.data.stats.pending);
   assert.ok(sunil.data.activity.every((a) => a.actorName === "Sunil Singh"));
 });
+
+test("PC report: doer tasks list, switch doer (not overdue unless admin), admin-only delete", async () => {
+  const list = await call("/reports/tasks?status=pending&kind=checklist", { session: sessions.admin });
+  assert.strictEqual(list.status, 200, list.data.message);
+  assert.ok(list.data.total > 0);
+  assert.ok(list.data.tasks.every((t) => t.kind === "checklist" && t.status === "pending"));
+
+  const future = list.data.tasks.find((t) => new Date(t.planned) > new Date() && t.doer?._id !== people.ankit);
+  const r = await call("/reports/tasks/switch", { session: sessions.mpc, method: "POST", body: { ids: [future._id], doer: people.ankit } });
+  assert.strictEqual(r.status, 403); // the PC does not oversee these people
+  const ok = await call("/reports/tasks/switch", { session: sessions.admin, method: "POST", body: { ids: [future._id], doer: people.ankit } });
+  assert.strictEqual(ok.data.moved, 1);
+  assert.strictEqual(String((await Task.findById(future._id).lean()).doer), people.ankit);
+
+  assert.strictEqual((await call("/reports/tasks/delete", { session: sessions.mpc, method: "POST", body: { ids: [future._id] } })).status, 403);
+  const del = await call("/reports/tasks/delete", { session: sessions.admin, method: "POST", body: { ids: [future._id] } });
+  assert.strictEqual(del.data.deleted, 1);
+  assert.strictEqual((await call("/reports/tasks", { session: sessions.sunil })).data.tasks.every((t) => t.doer._id === people.sunil), true);
+});
