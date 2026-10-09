@@ -437,3 +437,28 @@ test("performance score: 100 + MIS score, ranked, with a weekly trend", async ()
   const dept = await call(`/mis/performance?group=department`, { session: sessions.admin });
   assert.strictEqual(dept.data.group, "department");
 });
+
+test("List FMS Tasks: steps with filters and the per-FMS widget; planned date change is admin only", async () => {
+  const p = await call("/processes", {
+    session: sessions.admin,
+    method: "POST",
+    body: { name: "QC Damage", fields: [{ key: "lot", label: "Lot", type: "text", required: true }], steps: [{ key: "s1", name: "Inspect", doer: { mode: "fixed", user: people.sunil }, tat: 1, tatUnit: "days" }] },
+  });
+  assert.strictEqual(p.status, 201, p.data.message);
+  for (const lot of ["L-100", "L-200"]) await call("/jobs", { session: sessions.admin, method: "POST", body: { process: p.data._id, data: { lot } } });
+  const all = await call(`/reports/fms-tasks?process=${p.data._id}`, { session: sessions.admin });
+  assert.strictEqual(all.data.total, 2);
+  assert.ok(all.data.perFms.some((x) => x.name === "QC Damage" && x.pending === 2));
+  assert.deepStrictEqual(all.data.tasks[0].entry.summary[0][0], "Lot");
+  const one = await call(`/reports/fms-tasks?process=${p.data._id}&field=lot&value=200`, { session: sessions.admin });
+  assert.strictEqual(one.data.total, 1);
+  const onTime = await call(`/reports/fms-tasks?process=${p.data._id}&delay=ontime`, { session: sessions.admin });
+  assert.strictEqual(onTime.data.total, 2);
+  const id = one.data.tasks[0]._id;
+  assert.strictEqual((await call("/reports/fms-tasks/planned", { session: sessions.mpc, method: "POST", body: { ids: [id], planned: new Date(), reason: "x" } })).status, 403);
+  assert.match((await call("/reports/fms-tasks/planned", { session: sessions.admin, method: "POST", body: { ids: [id], planned: new Date() } })).data.message, /why/);
+  const moved = await call("/reports/fms-tasks/planned", { session: sessions.admin, method: "POST", body: { ids: [id], planned: new Date(Date.now() - 3 * DAY), reason: "Entered late" } });
+  assert.strictEqual(moved.data.changed, 1);
+  const late = await call(`/reports/fms-tasks?process=${p.data._id}&delay=3-7`, { session: sessions.admin });
+  assert.strictEqual(late.data.total, 1);
+});

@@ -2,6 +2,9 @@ const express = require("express");
 const mongoose = require("mongoose");
 const Task = require("../models/Task");
 const User = require("../models/User");
+const Job = require("../models/Job");
+const Process = require("../models/Process");
+const { dayKey } = require("../services/dates");
 const { auth, permit } = require("../middleware/auth");
 const { visibleUserIds, canSeeUser } = require("../services/scope");
 const { audit } = require("../services/audit");
@@ -102,6 +105,93 @@ router.post("/tasks/delete", async (req, res) => {
   const r = await Task.deleteMany({ _id: { $in: ids }, kind: { $in: ["checklist", "delegation"] } });
   audit(req, "task.delete", { entity: "Task", summary: `${r.deletedCount} checklist / delegation task(s) deleted` });
   res.json({ deleted: r.deletedCount, skipped: ids.length - r.deletedCount });
+});
+
+// ---- List FMS Tasks (MIDAP): FMS steps with FMS / step / field value / status / delay filters ----
+const DAY_MS = 86400000;
+const BUCKETS = { ontime: [null, 0], "1-2": [1, 2], "3-7": [3, 7], "7+": [8, null] };
+// whole days a finished step was late: actual day vs planned day
+const doneDelay = (t) => (t.actualDay && t.plannedDay ? Math.max(0, Math.round((Date.parse(t.actualDay) - Date.parse(t.plannedDay)) / DAY_MS)) : 0);
+
+// ?process= &step= &status=pending|overdue|done|all &doer= &delay=ontime|1-2|3-7|7+ &field= &value= &from= &to= &page=
+router.get("/fms-tasks", async (req, res) => {
+  const now = new Date();
+  const visible = await visibleUserIds(req.user);
+  const filter = { kind: "app", status: { $in: ["pending", "done"] } };
+  if (visible !== null) filter.doer = { $in: visible.map((id) => new mongoose.Types.ObjectId(id)) };
+  if (req.query.doer && mongoose.isValidObjectId(req.query.doer)) {
+    if (visible !== null && !visible.includes(String(req.query.doer))) throw fail("You can only see tasks of people in your department", 403);
+    filter.doer = new mongoose.Types.ObjectId(req.query.doer);
+  }
+  if (mongoose.isValidObjectId(req.query.process)) filter.process = new mongoose.Types.ObjectId(req.query.process);
+  if (req.query.step && filter.process) filter.stepKey = String(req.query.step);
+  const status = req.query.status || "pending";
+  if (status === "pending") filter.status = "pending";
+  else if (status === "overdue") Object.assign(filter, { status: "pending", planned: { $lt: now } });
+  else if (status === "done") filter.status = "done";
+  if (isDay(req.query.from) || isDay(req.query.to)) {
+    filter.plannedDay = {};
+    if (isDay(req.query.from)) filter.plannedDay.$gte = req.query.from;
+    if (isDay(req.query.to)) filter.plannedDay.$lte = req.query.to;
+  }
+  // entry field value, e.g. Machine No contains "JET-5"
+  if (filter.process && req.query.field && String(req.query.value || "").trim()) {
+    const key = String(req.query.field);
+    if (!/^[a-z][a-z0-9_]{0,39}$/.test(key)) throw fail("Unknown field");
+    const jobs = await Job.find({ process: filter.process, [`data.${key}`]: new RegExp(esc(String(req.query.value).trim()), "i") }).select("_id").limit(5000).lean();
+    filter.job = { $in: jobs.map((j) => j._id) };
+  }
+
+  // tasks per FMS (the widget), for the same people
+  const perFms = await Task.aggregate([
+    { $match: { kind: "app", status: "pending", ...(visible !== null ? { doer: filter.doer } : {}) } },
+    { $group: { _id: "$process", pending: { $sum: 1 }, overdue: { $sum: { $cond: [{ $lt: ["$planned", now] }, 1, 0] } } } },
+  ]);
+  const names = new Map((await Process.find({ _id: { $in: perFms.map((x) => x._id) } }).select("name").lean()).map((p) => [String(p._id), p.name]));
+
+  let tasks = await Task.find(filter)
+    .sort(status === "done" ? { resolvedAt: -1 } : { planned: 1 })
+    .limit(5000)
+    .select("label stepName stepKey process job doer status planned plannedDay actual actualDay values remarks")
+    .populate("doer", "name")
+    .populate({ path: "job", select: "jobNo data startDate" })
+    .populate("process", "name fields")
+    .lean();
+  for (const t of tasks) {
+    t.delay = t.status === "done" ? doneDelay(t) : t.planned && t.planned < now ? Math.floor((now - t.planned) / DAY_MS) : 0;
+    t.late = t.status === "done" ? t.delay > 0 : t.planned < now;
+  }
+  const b = BUCKETS[req.query.delay];
+  if (b) tasks = tasks.filter((t) => (req.query.delay === "ontime" ? !t.late : t.late && t.delay >= b[0] && (b[1] === null || t.delay <= b[1])));
+  const page = Math.max(1, Number(req.query.page) || 1);
+  const size = 100;
+  const total = tasks.length;
+  // keep only the entry fields worth showing in the list
+  const shown = tasks.slice((page - 1) * size, page * size).map((t) => {
+    const fields = (t.process?.fields || []).filter((f) => !["photo", "longtext", "link"].includes(f.type)).slice(0, 3);
+    return { ...t, process: { _id: t.process?._id, name: t.process?.name }, entry: t.job ? { _id: t.job._id, jobNo: t.job.jobNo, summary: fields.map((f) => [f.label, t.job.data?.[f.key]]).filter(([, v]) => v !== undefined && v !== "") } : null, job: undefined };
+  });
+  res.json({
+    total,
+    page,
+    pages: Math.max(1, Math.ceil(total / size)),
+    tasks: shown,
+    perFms: perFms.map((x) => ({ _id: x._id, name: names.get(String(x._id)) || "?", pending: x.pending, overdue: x.overdue })).sort((a, z) => z.pending - a.pending),
+  });
+});
+
+// Admin only: move the planned date of pending FMS steps (recorded in the audit log)
+router.post("/fms-tasks/planned", async (req, res) => {
+  if (req.user.role !== "admin") throw fail("Only an admin can change planned dates", 403);
+  const ids = (Array.isArray(req.body?.ids) ? req.body.ids : []).filter((id) => mongoose.isValidObjectId(id)).slice(0, 500);
+  const planned = new Date(req.body?.planned);
+  if (!ids.length) throw fail("Select the tasks first");
+  if (isNaN(planned)) throw fail("Enter the new planned date and time");
+  const reason = String(req.body?.reason || "").trim().slice(0, 300);
+  if (reason.length < 3) throw fail("Write why the planned date is changed");
+  const r = await Task.updateMany({ _id: { $in: ids }, kind: "app", status: "pending" }, { $set: { planned, plannedDay: dayKey(planned) }, $inc: { __v: 1 } });
+  audit(req, "task.planned_change", { entity: "Task", summary: `${r.modifiedCount} FMS step(s) → ${planned.toISOString()}: ${reason}` });
+  res.json({ changed: r.modifiedCount, skipped: ids.length - r.modifiedCount });
 });
 
 module.exports = router;

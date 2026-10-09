@@ -9,6 +9,7 @@ import Dashboard from "./pages/Dashboard";
 import DoerTasks from "./pages/DoerTasks";
 import WeeklyMis from "./pages/WeeklyMis";
 import Performance from "./pages/Performance";
+import FmsTasks from "./pages/FmsTasks";
 import Checklists from "./pages/Checklists";
 import ChecklistBulk from "./pages/ChecklistBulk";
 import Delegations from "./pages/Delegations";
@@ -87,6 +88,7 @@ function menuFor(user) {
       title: "PC Reports",
       items: [
         { to: "/reports/tasks", label: "Doer Tasks", show: can(user, "reports") && user.role !== "doer" },
+        { to: "/reports/fms-tasks", label: "FMS Tasks", show: can(user, "reports") && user.role !== "doer" },
         { to: "/mis", label: "MIS Score", end: true, show: can(user, "reports") },
         { to: "/mis/weekly", label: "Weekly MIS Score", show: can(user, "reports") },
         { to: "/mis/performance", label: "Performance Score", show: can(user, "reports") },
@@ -191,6 +193,7 @@ function Shell() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/mis/performance" element={guard(can(user, "reports"), <Performance />)} />
             <Route path="/mis/weekly" element={guard(can(user, "reports"), <WeeklyMis />)} />
+            <Route path="/reports/fms-tasks" element={guard(can(user, "reports"), <FmsTasks />)} />
             <Route path="/reports/tasks" element={guard(can(user, "reports"), <DoerTasks />)} />
             <Route path="/checklists" element={guard(can(user, "checklist"), <Checklists />)} />
             <Route path="/checklists/bulk" element={guard(can(user, "checklist", "add"), <ChecklistBulk />)} />
