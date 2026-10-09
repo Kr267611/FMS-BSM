@@ -423,3 +423,17 @@ test("weekly MIS score: doer-wise and department-wise, by type, with last week",
   const mine = await call(`/mis/weekly`, { session: sessions.sunil });
   assert.ok(mine.data.rows.every((x) => x.name === "Sunil Singh"));
 });
+
+test("performance score: 100 + MIS score, ranked, with a weekly trend", async () => {
+  const r = await call(`/mis/performance?from=${dates.addDaysKey(today, -20)}&to=${today}`, { session: sessions.admin });
+  assert.strictEqual(r.status, 200, r.data.message);
+  assert.ok(r.data.rows.length > 0);
+  r.data.rows.forEach((x, i) => {
+    assert.strictEqual(x.rank, i + 1);
+    assert.strictEqual(x.total.performance, Math.round((100 + x.total.score) * 10) / 10);
+    assert.strictEqual(x.weeks.length, r.data.weeks.length);
+    if (i) assert.ok(r.data.rows[i - 1].total.performance >= x.total.performance);
+  });
+  const dept = await call(`/mis/performance?group=department`, { session: sessions.admin });
+  assert.strictEqual(dept.data.group, "department");
+});

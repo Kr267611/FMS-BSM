@@ -877,3 +877,17 @@ td.msg-cell { max-width: 260px; }
 .wt-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .txt-good { color: var(--good); font-weight: 600; }
 table.mis .total-row td { font-weight: 700; background: #f8fafc; border-top: 2px solid #e3e8ef; }
+.perf-cell { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.perf-bar { width: 90px; height: 8px; border-radius: 999px; background: #e9edf2; overflow: hidden; }
+.perf-bar span { display: block; height: 100%; border-radius: 999px; }
+.perf-bar span.good { background: #15803d; } .perf-bar span.mid { background: #d97706; } .perf-bar span.bad { background: #dc2626; }
+.perf-good { color: #15803d; } .perf-mid { color: #b45309; } .perf-bad { color: #dc2626; }
+.dash-value.small-value { font-size: 20px; }
+.rank { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: #eef1f5; font-weight: 700; font-size: 12px; }
+.rank.top { background: #e3f3f1; color: #14877a; }
+.spark path { stroke: #5f6f84; } .spark circle { fill: #5f6f84; }
+.spark.good path { stroke: #15803d; } .spark.good circle { fill: #15803d; }
+.spark.mid path { stroke: #d97706; } .spark.mid circle { fill: #d97706; }
+.spark.bad path { stroke: #dc2626; } .spark.bad circle { fill: #dc2626; }
+table.perf-table td:first-child, table.perf-table th:first-child { text-align: center; }
+table.perf-table td:nth-child(2), table.perf-table th:nth-child(2) { text-align: left; }

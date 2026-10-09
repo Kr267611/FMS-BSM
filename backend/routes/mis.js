@@ -89,4 +89,47 @@ router.get("/weekly", auth, async (req, res) => {
   res.json({ week, weekEnd: addDaysKey(week, 6), countedTo: cur.to, group: byDept ? "department" : "doer", rows: out, company: { total: finish(company.total), last: finish(company.last) } });
 });
 
+// ---- Performance Score (MIDAP): performance = 100 + MIS score, with a weekly trend ----
+// ?from= &to= (max 92 days; default this month) &group=doer|department
+router.get("/performance", auth, async (req, res) => {
+  const p = await params(req);
+  let { from, to } = p;
+  if (from > to) [from, to] = [to, from];
+  if (Date.parse(to) - Date.parse(from) > 92 * 86400000) from = addDaysKey(to, -92);
+  const byDept = req.query.group === "department";
+  const keyOf = (d) => (byDept ? d.doer.department || "No department" : d.doer._id);
+
+  const total = await misReport({ from, to, doerIds: p.doerIds });
+  const weeks = [];
+  for (let w = monday(from); w <= total.to; w = addDaysKey(w, 7)) weeks.push(w);
+  const weekly = await Promise.all(weeks.map((w) => misReport({ from: w < from ? from : w, to: addDaysKey(w, 6) > to ? to : addDaysKey(w, 6), doerIds: p.doerIds })));
+
+  const rows = new Map();
+  const rowFor = (d) => {
+    const k = keyOf(d);
+    if (!rows.has(k)) rows.set(k, { key: k, name: byDept ? k : d.doer.name, department: byDept ? "" : d.doer.department, people: 0, total: zero(), weeks: weeks.map(() => zero()) });
+    return rows.get(k);
+  };
+  for (const d of total.doers) {
+    const r = rowFor(d);
+    r.people += 1;
+    add(r.total, d.total);
+  }
+  weekly.forEach((rep, i) => {
+    for (const d of rep.doers) add(rowFor(d).weeks[i], d.total);
+  });
+  const perf = (t) => {
+    const f = finish(t);
+    const pct = (n) => (t.planned ? Math.round((100 * n) / t.planned) : 0);
+    return { ...f, completionPct: pct(t.done), onTimePct: pct(t.onTime), performance: t.planned ? Math.round((100 + f.score) * 10) / 10 : null };
+  };
+  const company = zero();
+  const out = [...rows.values()]
+    .filter((r) => r.total.planned)
+    .map((r) => (add(company, r.total), { ...r, total: perf(r.total), weeks: r.weeks.map((w) => (w.planned ? perf(w).performance : null)) }))
+    .sort((a, b) => b.total.performance - a.total.performance)
+    .map((r, i) => ({ ...r, rank: i + 1 }));
+  res.json({ from, to: total.to, group: byDept ? "department" : "doer", weeks, rows: out, company: perf(company) });
+});
+
 module.exports = router;
