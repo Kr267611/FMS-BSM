@@ -36,7 +36,12 @@ export default function App() {
       .finally(() => setReady(true));
   }, []);
 
-  if (!ready) return <div className="center muted">Loading…</div>;
+  if (!ready) return (
+    <>
+      <WakeBanner />
+      <div className="center muted">Loading…</div>
+    </>
+  );
 
   const login = (u) => setUser(u);
   const logout = async () => {
@@ -46,6 +51,7 @@ export default function App() {
 
   return (
     <AuthContext.Provider value={{ user, login, logout, setUser }}>
+      <WakeBanner />
       <Routes>
         <Route path="/login" element={user ? <Navigate to="/" /> : <Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -199,4 +205,16 @@ function Shell() {
       </div>
     </div>
   );
+}
+
+// Shown while the free server wakes up (see waitForServer in api.js)
+function WakeBanner() {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    const h = (e) => setOn(e.detail);
+    window.addEventListener("fms:waking", h);
+    return () => window.removeEventListener("fms:waking", h);
+  }, []);
+  if (!on) return null;
+  return <div className="wake-banner">The server is waking up – this can take up to a minute. Please wait…</div>;
 }

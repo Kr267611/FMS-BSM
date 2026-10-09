@@ -8,6 +8,27 @@ try {
 
 const AUTH_PAGES = ["/login", "/forgot-password", "/reset-password"];
 
+const DOWN = [502, 503, 504];
+let waking = null;
+// Polls /api/health for up to ~90 s; tells the page (WakeBanner) while it waits
+function waitForServer() {
+  if (!waking) {
+    window.dispatchEvent(new CustomEvent("fms:waking", { detail: true }));
+    waking = (async () => {
+      for (let i = 0; i < 30; i++) {
+        const r = await fetch("/api/health", { cache: "no-store" }).catch(() => null);
+        if (r && r.ok) return true;
+        await new Promise((ok) => setTimeout(ok, 3000));
+      }
+      return false;
+    })().finally(() => {
+      waking = null;
+      window.dispatchEvent(new CustomEvent("fms:waking", { detail: false }));
+    });
+  }
+  return waking;
+}
+
 export async function api(path, { method = "GET", body, query } = {}) {
   let url = "/api" + path;
   if (query) {
@@ -15,19 +36,23 @@ export async function api(path, { method = "GET", body, query } = {}) {
     if ([...qs].length) url += "?" + qs;
   }
 
-  let res;
-  try {
-    res = await fetch(url, {
+  const send = () =>
+    fetch(url, {
       method,
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
       body: body ? JSON.stringify(body) : undefined,
-    });
-  } catch {
-    throw new Error("Could not reach the server. Check your connection and try again.");
-  }
-  if (res.status === 502 || res.status === 503 || res.status === 504) {
-    throw new Error("The server is not available right now. Please refresh in a moment.");
+    }).catch(() => null);
+  let res = await send();
+  if (!res || DOWN.includes(res.status)) {
+    // The free server sleeps after 15 idle minutes and needs up to a minute to wake up.
+    // Wait for it, then repeat reads and sign-in. Other changes are not repeated, because the first try
+    // may have reached the server and repeating it could save the same thing twice.
+    if (!(await waitForServer())) throw new Error("The server is not available right now. Please refresh in a moment.");
+    if (method !== "GET" && path !== "/auth/login") throw new Error("The server was starting up. Please try again now.");
+    res = await send();
+    if (!res) throw new Error("Could not reach the server. Check your connection and try again.");
+    if (DOWN.includes(res.status)) throw new Error("The server is not available right now. Please refresh in a moment.");
   }
   const data = await res.json().catch(() => ({}));
   // Session ended (expired, password changed, deactivated): back to sign-in, except on the sign-in pages themselves

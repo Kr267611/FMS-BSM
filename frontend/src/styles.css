@@ -817,3 +817,5 @@ ul.wf-list, ul.act-list, ul.type-list { list-style: none; margin: 0; padding: 4p
 .type-list b { font-size: 18px; }
 @media (max-width: 1100px) { .dash-grid { grid-template-columns: 1fr; } }
 @media (max-width: 900px) { .dash-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .dash-head h1 { font-size: 22px; } }
+
+.wake-banner { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 100; background: #fff7e6; color: #92400e; border: 1px solid #f5d38a; border-radius: 10px; padding: 9px 16px; font-weight: 600; font-size: 13px; box-shadow: 0 6px 18px rgba(15, 27, 45, 0.12); max-width: calc(100% - 24px); text-align: center; }
