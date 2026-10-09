@@ -823,3 +823,55 @@ ul.wf-list, ul.act-list, ul.type-list { list-style: none; margin: 0; padding: 4p
 .bulk-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; position: sticky; top: 72px; z-index: 5; }
 .bulk-bar select { width: auto; }
 tr.picked td { background: #eef7f6; }
+
+/* dashboard: MIDAP layout */
+.dash-top { margin-bottom: 14px; }
+.mid-row { display: grid; grid-template-columns: 200px minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; margin-bottom: 16px; align-items: stretch; }
+.mid-row.second { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1fr); }
+.mid-row > .card { margin: 0; }
+.hello-card { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 4px; }
+.hello-card b { font-size: 20px; }
+.hello-logo { width: 84px; height: 84px; border-radius: 50%; display: grid; place-items: center; background: #e3f3f1; color: #14877a; font-size: 26px; font-weight: 800; margin-bottom: 10px; box-shadow: 0 2px 10px rgba(15, 27, 45, 0.08); }
+.week-card h3, .chart-card h3, .pending-card h3 { margin-bottom: 12px; }
+.week-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.week-tile { background: #e8effc; border: 1px solid #c9d7f3; border-radius: 12px; padding: 8px 10px; text-align: center; }
+.wt-label { font-size: 12px; font-weight: 600; color: #34425a; margin-bottom: 4px; }
+.wt-values { display: grid; grid-template-columns: 1fr 2px 1fr; align-items: center; gap: 6px; }
+.wt-values i { width: 2px; height: 30px; background: #34425a; border-radius: 2px; }
+.wt-values small { display: block; font-size: 11px; color: #5f6f84; }
+.wt-cur { font-size: 17px; font-weight: 800; color: #3b6fd4; }
+.wt-cur.good { color: #15803d; }
+.wt-cur.bad { color: #dc2626; }
+.wt-values > div:first-child small { font-weight: 700; color: #0f1b2d; }
+.wt-prev { font-size: 17px; font-weight: 600; color: #5f6f84; }
+.week-chart { width: 100%; height: auto; display: block; }
+.week-chart .bar-planned { fill: #d6def0; }
+.week-chart .bar-done { fill: #14877a; }
+.week-chart .bar-num { font-size: 11px; fill: #5f6f84; font-weight: 600; }
+.week-chart .bar-day { font-size: 12px; fill: #5f6f84; }
+.week-chart .bar-day.today { fill: #14877a; font-weight: 700; }
+.week-chart .axis { stroke: #e3e8ef; }
+.legend { display: flex; align-items: center; gap: 6px; color: var(--muted); white-space: nowrap; }
+.legend .key { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.legend .key.planned { background: #d6def0; }
+.legend .key.done { background: #14877a; margin-left: 8px; }
+.pending-card { background: #e57373; border-color: #e57373; color: #fff; }
+.pending-card h3 { color: #fff; }
+.pills { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.pill { display: flex; align-items: center; gap: 8px; background: #fff; color: #0f1b2d; border-radius: 999px; padding: 6px 14px 6px 6px; font-size: 13px; font-weight: 500; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12); }
+.pill b { margin-left: auto; }
+.pill-dot { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #3b6fd4; color: #3b6fd4; display: grid; place-items: center; font-size: 8px; letter-spacing: -1px; }
+.task-tabs { margin: 22px 0 14px; flex-wrap: wrap; gap: 10px; }
+.tab-btn { border: 0; border-radius: 6px; padding: 10px 18px; background: #93c5fd; color: #0f1b2d; font-weight: 600; cursor: pointer; }
+.tab-btn.active { background: #f43f5e; color: #fff; }
+.switch { display: inline-flex; align-items: center; gap: 8px; flex-direction: row; color: var(--text); font-size: 13px; cursor: pointer; }
+.switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.switch .track { width: 48px; height: 24px; border-radius: 999px; border: 2px solid #3b6fd4; position: relative; }
+.switch .track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #3b6fd4; transition: left 0.15s; }
+.switch input:checked + .track::after { left: 26px; }
+.caps { text-transform: uppercase; letter-spacing: 0.08em; font-size: 12px; color: #34425a; }
+td.msg-cell { max-width: 260px; }
+@media (max-width: 1200px) { .mid-row, .mid-row.second { grid-template-columns: 1fr 1fr; } .hello-card { grid-column: 1 / -1; flex-direction: row; gap: 12px; } .hello-logo { width: 48px; height: 48px; font-size: 16px; margin: 0; } }
+@media (max-width: 760px) { .mid-row, .mid-row.second { grid-template-columns: 1fr; } .week-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.wt-cur, .wt-prev { white-space: nowrap; font-size: 16px; }
+.wt-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

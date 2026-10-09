@@ -8,7 +8,7 @@ const { auth } = require("../middleware/auth");
 const { visibleUserIds } = require("../services/scope");
 const { todayKey, addDaysKey } = require("../services/dates");
 const { startOfDay } = require("../services/calendar");
-const { misReport } = require("../services/scoring");
+const { misReport, score } = require("../services/scoring");
 const { sweepSoon } = require("../services/sweep");
 
 const router = express.Router();
@@ -30,7 +30,8 @@ router.get("/", async (req, res) => {
   const today = todayKey();
   const week = weekStartKey(today);
   const weekStart = startOfDay(week);
-  const visible = await visibleUserIds(req.user);
+  // ?scope=me: only my own tasks; otherwise everyone this user may see (a doer only ever sees themselves)
+  const visible = req.query.scope === "me" ? [String(req.user._id)] : await visibleUserIds(req.user);
   const ids = visible === null ? null : visible.map((id) => new mongoose.Types.ObjectId(id));
   const mine = ids ? { doer: { $in: ids } } : {};
 
@@ -74,6 +75,35 @@ router.get("/", async (req, res) => {
     .lean();
 
   const mis = await misReport({ from: week, to: today, doerId: req.user._id });
+
+  // MIDAP "Week Score": this week and last week, for the same people
+  const weekRow = async (from, to) => {
+    const r = await misReport({ from, to, doerIds: visible });
+    const t = r.doers.reduce((a, d) => ({ planned: a.planned + d.total.planned, done: a.done + d.total.actual, onTime: a.onTime + d.total.onTime, late: a.late + d.total.late, pending: a.pending + d.total.pending, autoClosed: a.autoClosed + (d.total.autoClosed || 0) }), { planned: 0, done: 0, onTime: 0, late: 0, pending: 0, autoClosed: 0 });
+    const pct = (n) => (t.planned ? Math.round((-100 * n) / t.planned * 10) / 10 + 0 : 0);
+    return { from: r.from, to: r.to, ...t, notDonePct: pct(t.pending), notOnTimePct: pct(t.late + t.pending), score: score(t) };
+  };
+  const [thisWeek, lastWeek] = await Promise.all([weekRow(week, today), weekRow(addDaysKey(week, -7), addDaysKey(week, -1))]);
+
+  // MIDAP "Weekly Task Chart": planned and done for each day of this week
+  const days = await Task.aggregate([
+    { $match: { ...mine, plannedDay: { $gte: week, $lte: addDaysKey(week, 6) }, status: { $in: ["pending", "done", "expired"] } } },
+    { $group: { _id: "$plannedDay", planned: { $sum: 1 }, done: { $sum: { $cond: [{ $eq: ["$status", "done"] }, 1, 0] } }, onTime: { $sum: { $cond: [{ $and: [{ $eq: ["$status", "done"] }, { $lte: ["$actualDay", "$plannedDay"] }] }, 1, 0] } } } },
+  ]);
+  const byDay = new Map(days.map((d) => [d._id, d]));
+  const chart = Array.from({ length: 7 }, (_, i) => {
+    const day = addDaysKey(week, i);
+    const d = byDay.get(day) || {};
+    return { day, planned: d.planned || 0, done: d.done || 0, onTime: d.onTime || 0 };
+  });
+
+  // MIDAP "Checklist Tasks": today's checklist tasks
+  const checklistToday = await Task.find({ ...mine, kind: "checklist", plannedDay: today, status: { $in: ["pending", "done", "na", "expired"] } })
+    .sort({ planned: 1 })
+    .limit(30)
+    .select("label status planned actual doer priority")
+    .populate("doer", "name")
+    .lean();
   const kinds = Object.fromEntries(byKind.map((k) => [k._id, { pending: k.n, overdue: k.late }]));
 
   res.json({
@@ -85,6 +115,10 @@ router.get("/", async (req, res) => {
     overdueList: oldest,
     activity,
     myScore: mis.doers[0]?.total || null,
+    scope: req.query.scope === "me" ? "me" : visible === null || visible.length > 1 ? "team" : "me",
+    week: { thisWeek, lastWeek },
+    chart,
+    checklistToday,
   });
 });
 

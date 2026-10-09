@@ -393,3 +393,16 @@ test("PC report: doer tasks list, switch doer (not overdue unless admin), admin-
   assert.strictEqual(del.data.deleted, 1);
   assert.strictEqual((await call("/reports/tasks", { session: sessions.sunil })).data.tasks.every((t) => t.doer._id === people.sunil), true);
 });
+
+test("dashboard: MIDAP week score (this vs last week), weekly chart, today's checklists, Me / Team", async () => {
+  const team = (await call("/dashboard", { session: sessions.admin })).data;
+  assert.strictEqual(team.scope, "team");
+  assert.strictEqual(team.chart.length, 7);
+  const w = team.week.thisWeek;
+  for (const k of ["planned", "done", "pending", "autoClosed", "notDonePct", "notOnTimePct", "score"]) assert.strictEqual(typeof w[k], "number");
+  if (w.planned) assert.strictEqual(w.notDonePct, Math.round((-100 * w.pending) / w.planned * 10) / 10 + 0);
+  assert.ok(Array.isArray(team.checklistToday));
+  const me = (await call("/dashboard?scope=me", { session: sessions.sunil })).data;
+  assert.strictEqual(me.scope, "me");
+  assert.ok(me.checklistToday.every((t) => t.doer.name === "Sunil Singh"));
+});
