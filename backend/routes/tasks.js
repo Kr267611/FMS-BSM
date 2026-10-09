@@ -4,6 +4,7 @@ const Task = require("../models/Task");
 const { auth } = require("../middleware/auth");
 const wf = require("../services/workflow");
 const other = require("../services/taskActions");
+const autoComplete = require("../services/autoComplete");
 const { sweepSoon } = require("../services/sweep");
 const { todayKey } = require("../services/dates");
 const { canSeeUser } = require("../services/scope");
@@ -84,7 +85,10 @@ router.post("/:id/done", auth, async (req, res) => {
   const task = kind === "app" ? await wf.markDone(req.params.id, req.user, opts) : await other.markDone(req.params.id, req.user, opts);
   const status = task.values?.status ? ` (${task.values.status})` : "";
   audit(req, "task.done", { entity: "Task", entityId: task._id, summary: `${task.label}${status}` });
-  res.json(task);
+  // FMS Auto Complete: entries in other FMS that this step starts
+  const auto = kind === "app" ? await autoComplete.runFor(task, req.user) : [];
+  for (const a of auto) audit(req, a.ok ? "job.auto_complete" : "job.auto_complete_failed", { entity: "Job", entityId: a.jobId, summary: a.ok ? `${a.rule}: ${a.process} #${a.jobNo}` : `${a.rule}: ${a.error}` });
+  res.json({ ...(task.toObject ? task.toObject() : task), autoComplete: auto });
 });
 
 router.post("/:id/not-required", auth, async (req, res) => {

@@ -462,3 +462,54 @@ test("List FMS Tasks: steps with filters and the per-FMS widget; planned date ch
   const late = await call(`/reports/fms-tasks?process=${p.data._id}&delay=3-7`, { session: sessions.admin });
   assert.strictEqual(late.data.total, 1);
 });
+
+test("FMS Auto Complete: a done step creates an entry in another FMS; condition, mapping, drafts and loops", async () => {
+  const mk = (body) => call("/processes", { session: sessions.admin, method: "POST", body });
+  const qc = await mk({
+    name: "QC Damage AC",
+    fields: [{ key: "lot", label: "Lot", type: "text", required: true }, { key: "party", label: "Party", type: "text" }],
+    steps: [{ key: "s1", name: "Inspect", doer: { mode: "fixed", user: people.sunil }, tat: 1, tatUnit: "days", fields: [{ key: "result", label: "Result", type: "select", options: ["OK", "Damage"], required: true }, { key: "meters", label: "Damaged meters", type: "number" }] }],
+  });
+  const debit = await mk({
+    name: "Vendor Debit Note AC",
+    fields: [{ key: "from_entry", label: "From", type: "text", required: true }, { key: "party", label: "Party", type: "text", required: true }, { key: "meters", label: "Meters", type: "number" }, { key: "reason", label: "Reason", type: "text" }],
+    steps: [{ key: "s1", name: "Raise debit note", doer: { mode: "fixed", user: people.ankit }, tat: 1, tatUnit: "days" }],
+  });
+  assert.strictEqual(qc.status, 201, qc.data.message);
+  assert.strictEqual(debit.status, 201, debit.data.message);
+
+  const rule = {
+    name: "Damage → debit note",
+    source: { process: qc.data._id, step: "s1" },
+    when: { all: [{ src: "step", step: "s1", key: "result", op: "=", value: "Damage" }] },
+    target: debit.data._id,
+    map: [{ to: "from_entry", from: "entryNo" }, { to: "party", from: "entry", key: "party" }, { to: "meters", from: "step", key: "meters" }, { to: "reason", from: "fixed", value: "QC damage" }],
+  };
+  assert.match((await call("/fms-rules/auto-complete", { session: sessions.admin, method: "POST", body: { ...rule, map: rule.map.slice(1) } })).data.message, /required fields/);
+  assert.match((await call("/fms-rules/auto-complete", { session: sessions.admin, method: "POST", body: { ...rule, target: qc.data._id } })).data.message, /different FMS/);
+  const saved = await call("/fms-rules/auto-complete", { session: sessions.admin, method: "POST", body: rule });
+  assert.strictEqual(saved.status, 201, saved.data.message);
+
+  const entry = async (lot) => {
+    const j = await call("/jobs", { session: sessions.admin, method: "POST", body: { process: qc.data._id, data: { lot, party: "Devesh Fab" } } });
+    return (await Task.findOne({ job: j.data._id }).lean())._id;
+  };
+  // OK result: condition false, nothing made
+  const ok = await call(`/tasks/${await entry("L-1")}/done`, { session: sessions.sunil, method: "POST", body: { values: { result: "OK" } } });
+  assert.deepStrictEqual(ok.data.autoComplete, []);
+  // Damage: a debit note entry with the mapped values
+  const dmg = await call(`/tasks/${await entry("L-2")}/done`, { session: sessions.sunil, method: "POST", body: { values: { result: "Damage", meters: 42 } } });
+  assert.strictEqual(dmg.data.autoComplete[0].ok, true, JSON.stringify(dmg.data.autoComplete));
+  const Job = require("../models/Job");
+  const made = await Job.findById(dmg.data.autoComplete[0].jobId).lean();
+  assert.deepStrictEqual({ from: made.data.from_entry.startsWith("QC Damage AC #"), party: made.data.party, meters: made.data.meters, reason: made.data.reason }, { from: true, party: "Devesh Fab", meters: 42, reason: "QC damage" });
+  assert.strictEqual(made.origin.depth, 1);
+  assert.strictEqual(String((await Task.findOne({ job: made._id }).lean()).doer), people.ankit);
+
+  // target switched to draft: the Done still works, the rule reports why it did not create an entry
+  const full = (await call(`/processes/${debit.data._id}`, { session: sessions.admin })).data;
+  await call(`/processes/${debit.data._id}`, { session: sessions.admin, method: "PUT", body: { ...full, active: false } });
+  const off = await call(`/tasks/${await entry("L-3")}/done`, { session: sessions.sunil, method: "POST", body: { values: { result: "Damage" } } });
+  assert.strictEqual(off.status, 200);
+  assert.match(off.data.autoComplete[0].error, /draft/);
+});

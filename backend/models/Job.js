@@ -15,6 +15,14 @@ const jobSchema = new mongoose.Schema(
     closedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     closedAt: Date,
     searchText: { type: String, default: "" }, // lower-case field values for the entries search box
+    // made by an FMS Auto Complete rule: the entry and step it came from
+    origin: {
+      job: { type: mongoose.Schema.Types.ObjectId, ref: "Job" },
+      process: { type: mongoose.Schema.Types.ObjectId, ref: "Process" },
+      step: String,
+      rule: { type: mongoose.Schema.Types.ObjectId, ref: "AutoComplete" },
+      depth: Number,
+    },
   },
   { timestamps: true }
 );

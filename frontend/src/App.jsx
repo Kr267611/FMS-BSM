@@ -11,6 +11,7 @@ import WeeklyMis from "./pages/WeeklyMis";
 import Performance from "./pages/Performance";
 import FmsTasks from "./pages/FmsTasks";
 import FmsRules from "./pages/FmsRules";
+import AutoComplete from "./pages/AutoComplete";
 import Checklists from "./pages/Checklists";
 import ChecklistBulk from "./pages/ChecklistBulk";
 import Delegations from "./pages/Delegations";
@@ -86,6 +87,7 @@ function menuFor(user) {
         { to: "/fms/doer-conditions", label: "Doer Conditions", show: can(user, "fms") },
         { to: "/fms/override-tat", label: "Override TAT", show: can(user, "fms") },
         { to: "/fms/auto-calculate", label: "Auto-calculate Fields", show: can(user, "fms") },
+        { to: "/fms/auto-complete", label: "FMS Auto Complete", show: can(user, "fms") },
         { to: "/jobs", label: "FMS Entries", show: can(user, "fmsEntries") },
       ],
     },
@@ -236,6 +238,7 @@ function Shell() {
             <Route path="/mis/weekly" element={guard(can(user, "reports"), <WeeklyMis />)} />
             <Route path="/fms/doer-conditions" element={guard(can(user, "fms"), <FmsRules kind="doer" />)} />
             <Route path="/fms/override-tat" element={guard(can(user, "fms"), <FmsRules kind="tat" />)} />
+            <Route path="/fms/auto-complete" element={guard(can(user, "fms"), <AutoComplete />)} />
             <Route path="/fms/auto-calculate" element={guard(can(user, "fms"), <FmsRules kind="calc" />)} />
             <Route path="/reports/fms-tasks" element={guard(can(user, "reports"), <FmsTasks />)} />
             <Route path="/reports/tasks" element={guard(can(user, "reports"), <DoerTasks />)} />

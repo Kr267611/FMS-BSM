@@ -86,7 +86,7 @@ function RuleRow({ rule, fields, steps, onChange, onRemove }) {
 
 // Edits { all: [...] } / { any: [...] } with rules and one level of nested groups.
 // fields: entry fields; steps: the steps before this one ({ key, name, fields, index })
-export default function ConditionEditor({ value, onChange, fields, steps, depth = 0 }) {
+export default function ConditionEditor({ value, onChange, fields, steps, depth = 0, label = "Run this step only if" }) {
   const kind = value?.any ? "any" : "all";
   const items = value?.[kind] || [];
   const set = (next) => onChange(next.length ? { [kind]: next } : undefined);
@@ -96,7 +96,7 @@ export default function ConditionEditor({ value, onChange, fields, steps, depth 
   return (
     <div className={depth ? "cond cond-nested" : "cond"}>
       <div className="cond-head small">
-        {depth ? "Group:" : "Run this step only if"}
+        {depth ? "Group:" : label}
         <select value={kind} onChange={(e) => onChange(items.length ? { [e.target.value]: items } : undefined)}>
           <option value="all">all of these are true</option>
           <option value="any">any of these is true</option>
