@@ -21,7 +21,7 @@ export default function DoerTasks() {
   const { user } = useAuth();
   const canSwitch = MANAGERS.includes(user.role);
   const isAdmin = user.role === "admin";
-  const [f, setF] = useState({ kind: "", doer: "", status: "pending", from: "", to: "", q: "" });
+  const [f, setF] = useState({ kind: "", doer: "", status: "pending", delay: "", from: "", to: "", q: "" });
   const [page, setPage] = useState(1);
   const [data, setData] = useState(null);
   const [picked, setPicked] = useState(new Set());
@@ -100,6 +100,41 @@ export default function DoerTasks() {
         )}
       </div>
 
+      {data?.summary && (
+        <div className="sum-row">
+          <button className={"card sum-card" + (f.status === "all" && !f.delay ? " on" : "")} onClick={() => set({ status: "all", delay: "" })}>
+            <span className="sum-icon blue">▤</span>
+            <span>
+              <span className="muted small">Total tasks</span>
+              <b>{data.summary.total}</b>
+            </span>
+            <span className="muted small sum-note">
+              {data.summary.done} done · {data.summary.pending} pending
+            </span>
+          </button>
+          <div className="card sum-card wide">
+            <span className="sum-icon red">⚠</span>
+            <span>
+              <b className="sum-title">Overdue</b>
+              <span className="muted small">Pending tasks by how late they are</span>
+            </span>
+            <div className="delay-list">
+              {[
+                ["ontime", "Not due yet"],
+                ["1-3", "Up to 3 days late"],
+                ["4-7", "4–7 days late"],
+                ["8+", "More than 7 days"],
+              ].map(([k, label]) => (
+                <button key={k} className={"delay-row" + (f.delay === k ? " on" : "")} onClick={() => set({ status: "pending", delay: f.delay === k ? "" : k })}>
+                  <span>{label}</span>
+                  <b className={k === "ontime" ? "" : data.summary.delay[k] ? "txt-bad" : ""}>{data.summary.delay[k]}</b>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="row wrap filters">
         <div className="tabs">
           {[
@@ -108,7 +143,7 @@ export default function DoerTasks() {
             ["done", "Finished"],
             ["all", "All"],
           ].map(([k, label]) => (
-            <button key={k} className={f.status === k ? "active" : ""} onClick={() => set({ status: k })}>
+            <button key={k} className={f.status === k ? "active" : ""} onClick={() => set({ status: k, delay: "" })}>
               {label}
             </button>
           ))}

@@ -24,8 +24,20 @@ function fail(message, status = 400) {
 }
 
 // PC report "List Doer Tasks": every task of the people this user may see.
-// ?kind= &doer= &status=pending|overdue|done|all &from= &to= (planned day) &q= &page=
+// Overdue buckets of pending tasks (MIDAP widget): planned time ranges relative to now
+const DAY = 86400000;
+function delayRange(key, now) {
+  const ago = (d) => new Date(now.getTime() - d * DAY);
+  if (key === "ontime") return { $gte: now };
+  if (key === "1-3") return { $lt: now, $gte: ago(3) };
+  if (key === "4-7") return { $lt: ago(3), $gte: ago(7) };
+  if (key === "8+") return { $lt: ago(7) };
+  return null;
+}
+
+// ?kind= &doer= &status=pending|overdue|done|all &delay=ontime|1-3|4-7|8+ &from= &to= (planned day) &q= &page=
 router.get("/tasks", async (req, res) => {
+  const now = new Date();
   const visible = await visibleUserIds(req.user);
   const filter = { status: { $in: ["pending", "done", "na", "expired"] } };
   if (visible !== null) filter.doer = { $in: visible.map((id) => new mongoose.Types.ObjectId(id)) };
@@ -46,6 +58,21 @@ router.get("/tasks", async (req, res) => {
   const q = String(req.query.q || "").trim();
   if (q) filter.label = new RegExp(esc(q), "i");
 
+  // summary cards: the same people, type, dates and search, any status
+  const base = { ...filter, status: { $in: ["pending", "done", "na", "expired"] } };
+  delete base.planned;
+  const count = (extra) => Task.countDocuments({ ...base, ...extra });
+  const [all, done, pending, ...buckets] = await Promise.all([
+    count({}),
+    count({ status: "done" }),
+    count({ status: "pending" }),
+    ...["ontime", "1-3", "4-7", "8+"].map((k) => count({ status: "pending", planned: delayRange(k, now) })),
+  ]);
+  const summary = { total: all, done, pending, delay: { ontime: buckets[0], "1-3": buckets[1], "4-7": buckets[2], "8+": buckets[3] } };
+
+  const range = delayRange(req.query.delay, now);
+  if (range) Object.assign(filter, { status: "pending", planned: range });
+
   const page = Math.max(1, Number(req.query.page) || 1);
   const size = 100;
   const [total, tasks] = await Promise.all([
@@ -60,7 +87,7 @@ router.get("/tasks", async (req, res) => {
       .populate("job", "jobNo")
       .lean(),
   ]);
-  res.json({ total, page, pages: Math.max(1, Math.ceil(total / size)), tasks });
+  res.json({ total, page, pages: Math.max(1, Math.ceil(total / size)), tasks, summary });
 });
 
 // Give pending tasks to someone else. A task whose planned time has passed keeps its doer (its late / pending

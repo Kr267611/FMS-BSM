@@ -96,8 +96,8 @@ function menuFor(user) {
     {
       title: "PC Reports",
       items: [
-        { to: "/reports/tasks", label: "Doer Tasks", show: can(user, "reports") && user.role !== "doer" },
-        { to: "/reports/fms-tasks", label: "FMS Tasks", show: can(user, "reports") && user.role !== "doer" },
+        { to: "/reports/tasks", label: "List Doer Tasks", show: can(user, "reports") && user.role !== "doer" },
+        { to: "/reports/fms-tasks", label: "List FMS Tasks", show: can(user, "reports") && user.role !== "doer" },
         { to: "/mis", label: "MIS Score", end: true, show: can(user, "reports") },
         { to: "/mis/weekly", label: "Weekly MIS Score", show: can(user, "reports") },
         { to: "/mis/performance", label: "Performance Score", show: can(user, "reports") },

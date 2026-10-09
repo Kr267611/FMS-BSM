@@ -558,3 +558,13 @@ test("FMS reminders: due / overdue with repeat and limit, overrides by condition
   const list = await call("/fms-rules/reminders", { session: sessions.admin });
   assert.ok(list.data.list.find((r) => r.name === "Overdue").stats.sent >= 2);
 });
+
+test("Doer Tasks summary: total, done, pending and overdue buckets; a bucket filters the list", async () => {
+  const r = (await call("/reports/tasks?status=all", { session: sessions.admin })).data;
+  const s = r.summary;
+  assert.strictEqual(s.pending, s.delay.ontime + s.delay["1-3"] + s.delay["4-7"] + s.delay["8+"]);
+  assert.ok(s.total >= s.done + s.pending);
+  const late = (await call("/reports/tasks?delay=1-3", { session: sessions.admin })).data;
+  assert.strictEqual(late.total, s.delay["1-3"]);
+  assert.ok(late.tasks.every((t) => t.status === "pending" && new Date(t.planned) < new Date()));
+});
