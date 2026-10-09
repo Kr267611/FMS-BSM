@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, can, showDateTime } from "../api";
 import { useAuth } from "../App";
@@ -15,6 +15,30 @@ const lateBy = (planned) => Math.max(0, Math.floor((Date.now() - new Date(planne
 function greeting() {
   const h = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", hour12: false }).format(new Date()));
   return h < 12 ? "Good Morning" : h < 17 ? "Good Afternoon" : "Good Evening";
+}
+
+// A number that counts up from 0 when it appears (skipped when the user prefers less motion)
+function CountUp({ value }) {
+  const [shown, setShown] = useState(value);
+  const from = useRef(0);
+  useEffect(() => {
+    const n = Number(value);
+    if (!Number.isFinite(n) || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return setShown(value);
+    const start = performance.now();
+    const a = from.current;
+    let raf;
+    const step = (t) => {
+      const k = Math.min(1, (t - start) / 700);
+      const eased = 1 - Math.pow(1 - k, 3);
+      const v = a + (n - a) * eased;
+      setShown(Number.isInteger(n) ? Math.round(v) : Math.round(v * 10) / 10);
+      if (k < 1) raf = requestAnimationFrame(step);
+      else from.current = n;
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [value]);
+  return shown;
 }
 
 // MIDAP layout: greeting · week score · weekly chart / pending tasks · workflows · follow-up / my task tables
@@ -110,7 +134,7 @@ function WeekScore({ week }) {
               <div className="wt-values">
                 <div>
                   <span className={"wt-cur " + (same || kind === "neutral" ? "" : good ? "good" : "bad")}>
-                    {cur}
+                    <CountUp value={cur} />
                     {unit} {same ? "" : up ? "↑" : "↓"}
                   </span>
                   <small>Current</small>
@@ -118,7 +142,7 @@ function WeekScore({ week }) {
                 <i />
                 <div>
                   <span className="wt-prev">
-                    {prev}
+                    <CountUp value={prev} />
                     {unit}
                   </span>
                   <small>Previous</small>
@@ -198,7 +222,9 @@ function PendingCard({ kinds }) {
           <span key={k} className="pill" title={k === "ticket" || k === "audit" ? "Coming soon" : `${kinds[k]?.overdue || 0} overdue`}>
             <span className="pill-dot">•••</span>
             {label}
-            <b>{kinds[k]?.pending || 0}</b>
+            <b>
+              <CountUp value={kinds[k]?.pending || 0} />
+            </b>
           </span>
         ))}
       </div>
@@ -234,7 +260,9 @@ function Workflows({ workflows, canSee }) {
               </div>
             </div>
             <div className="wf-count">
-              <b>{w.open}</b>
+              <b>
+                <CountUp value={w.open} />
+              </b>
               <span className="muted small">open</span>
             </div>
           </li>

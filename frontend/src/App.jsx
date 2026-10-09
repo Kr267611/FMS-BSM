@@ -171,19 +171,23 @@ function Shell() {
             <div key={g.title} className={"side-group" + (isOpen ? " open" : "")}>
               <button type="button" className="side-title" onClick={() => toggleGroup(g.title)} aria-expanded={isOpen}>
                 <span>{g.title}</span>
-                <span className="side-toggle">{isOpen ? "−" : "+"}</span>
+                <span className="side-toggle" aria-hidden="true" />
               </button>
-              {isOpen && g.items.map((i) =>
+              <div className="side-items">
+                <div>
+              {g.items.map((i) =>
                 i.soon ? (
                   <span key={i.label} className="side-link soon" title="Coming in the next milestone">
                     {i.label} <em>soon</em>
                   </span>
                 ) : (
-                  <NavLink key={i.to} to={i.to} end={i.end} className="side-link">
+                  <NavLink key={i.to} to={i.to} end={i.end} className="side-link" tabIndex={isOpen ? undefined : -1}>
                     {i.label}
                   </NavLink>
                 )
               )}
+                </div>
+              </div>
             </div>
             );
           })}
@@ -218,6 +222,7 @@ function Shell() {
           </button>
         </header>
         <main className="page">
+          <div key={location.pathname} className="page-anim">
           <Routes>
             <Route path="/" element={<MyTasks />} />
             <Route path="/account" element={<Account />} />
@@ -243,6 +248,7 @@ function Shell() {
             <Route path="/audit" element={guard(can(user, "audit"), <Audit />)} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
+          </div>
         </main>
       </div>
     </div>

@@ -905,3 +905,72 @@ button.side-title:hover { background: rgba(255, 255, 255, 0.06); color: #ffffff;
 .side-toggle { font-size: 16px; font-weight: 500; line-height: 1; letter-spacing: 0; color: rgba(255, 255, 255, 0.6); }
 .side-group.open .side-link { margin-left: 8px; }
 .side-group.open { padding-bottom: 6px; }
+
+/* ---------- motion ---------- */
+:root { --ease: cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* sidebar groups slide open and closed */
+.side-items { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 0.32s var(--ease), opacity 0.22s ease; }
+.side-items > div { overflow: hidden; min-height: 0; }
+.side-group.open .side-items { grid-template-rows: 1fr; opacity: 1; }
+.side-group .side-link { margin-left: 8px; }
+.side-group .side-items .side-link { transform: translateX(-6px); transition: transform 0.3s var(--ease), background 0.15s, color 0.15s, box-shadow 0.2s; }
+.side-group.open .side-items .side-link { transform: none; }
+.side-link:hover { transform: translateX(3px) !important; }
+.side-link.active { box-shadow: inset 3px 0 0 #2bb3a3; animation: active-in 0.35s var(--ease); }
+@keyframes active-in { from { box-shadow: inset 0 0 0 #2bb3a3; } }
+
+/* + turns into − */
+.side-toggle { position: relative; width: 12px; height: 12px; display: inline-block; }
+.side-toggle::before, .side-toggle::after { content: ""; position: absolute; left: 0; top: 5px; width: 12px; height: 2px; border-radius: 2px; background: currentColor; transition: transform 0.3s var(--ease); }
+.side-toggle::after { transform: rotate(90deg); }
+.side-group.open .side-toggle::after { transform: rotate(0deg); }
+.side-group.open .side-toggle::before { transform: rotate(180deg); }
+
+/* page content fades in on every page change (opacity only: a transform here would move fixed popups) */
+.page-anim { animation: page-in 0.35s var(--ease) both; }
+@keyframes page-in { from { opacity: 0; } }
+
+/* cards lift a little under the mouse */
+.card.task, .dash-tile, .week-tile, .bucket, .pill, .hello-card, .ladder li { transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease), background 0.15s; }
+.card.task:hover, .dash-tile:hover, .bucket:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(15, 27, 45, 0.09); }
+.week-tile:hover, .pill:hover { transform: translateY(-2px); }
+
+/* dashboard: cards come in one after another */
+.mid-row > *, .dash-stats > * { animation: pop-in 0.45s var(--ease) both; }
+.mid-row > *:nth-child(2), .dash-stats > *:nth-child(2) { animation-delay: 0.06s; }
+.mid-row > *:nth-child(3), .dash-stats > *:nth-child(3) { animation-delay: 0.12s; }
+.dash-stats > *:nth-child(4) { animation-delay: 0.18s; }
+.mid-row.second > * { animation-delay: 0.15s; }
+.mid-row.second > *:nth-child(2) { animation-delay: 0.21s; }
+.mid-row.second > *:nth-child(3) { animation-delay: 0.27s; }
+@keyframes pop-in { from { opacity: 0; transform: translateY(10px) scale(0.985); } }
+
+/* chart bars grow from the bottom, progress bars fill */
+.week-chart rect { transform-box: fill-box; transform-origin: bottom; animation: grow-up 0.7s var(--ease) both; }
+.week-chart g:nth-child(2) rect { animation-delay: 0.05s; } .week-chart g:nth-child(3) rect { animation-delay: 0.1s; }
+.week-chart g:nth-child(4) rect { animation-delay: 0.15s; } .week-chart g:nth-child(5) rect { animation-delay: 0.2s; }
+.week-chart g:nth-child(6) rect { animation-delay: 0.25s; } .week-chart g:nth-child(7) rect { animation-delay: 0.3s; }
+@keyframes grow-up { from { transform: scaleY(0); } }
+.bar span, .perf-bar span { transform-origin: left; animation: fill-in 0.8s var(--ease) both; }
+@keyframes fill-in { from { transform: scaleX(0); } }
+.spark path { stroke-dasharray: 400; stroke-dashoffset: 0; animation: draw 0.9s var(--ease) both; }
+@keyframes draw { from { stroke-dashoffset: 400; } }
+
+/* popups zoom in, lists slide in */
+.modal-bg { animation: fade-in 0.2s ease both; }
+.modal-bg > .modal { animation: zoom-in 0.28s var(--ease) both; }
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes zoom-in { from { opacity: 0; transform: translateY(10px) scale(0.97); } }
+.task-list > .card { animation: pop-in 0.35s var(--ease) both; }
+.task-list > .card:nth-child(2) { animation-delay: 0.04s; } .task-list > .card:nth-child(3) { animation-delay: 0.08s; }
+.task-list > .card:nth-child(4) { animation-delay: 0.12s; } .task-list > .card:nth-child(n + 5) { animation-delay: 0.16s; }
+
+/* buttons press in */
+.btn, .tab-btn, .tabs button { transition: transform 0.12s, background 0.15s, box-shadow 0.15s, color 0.15s; }
+.btn.primary:hover:not(:disabled) { box-shadow: 0 6px 16px rgba(20, 135, 122, 0.3); }
+.tab-btn:active, .tabs button:active { transform: scale(0.97); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
