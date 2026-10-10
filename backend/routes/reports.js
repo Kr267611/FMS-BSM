@@ -11,6 +11,7 @@ const { loadCalendar } = require("../services/workflow");
 const { auth, permit } = require("../middleware/auth");
 const { visibleUserIds, canSeeUser } = require("../services/scope");
 const { audit } = require("../services/audit");
+const { applyTaskFilters } = require("../services/taskFilters");
 
 const router = express.Router();
 router.use(auth, permit("reports", "view"));
@@ -38,7 +39,8 @@ function delayRange(key, now) {
   return null;
 }
 
-// ?kind= &doer= &status=pending|overdue|done|all &delay=ontime|1-3|4-7|8+ &from= &to= (planned day) &q= &page=
+// ?kind= &doer= &status=pending|overdue|done|all|pending_late|done_ontime|done_late|na|expired &delay=ontime|1-3|4-7|8+
+// &from= &to= (planned day) &q= &priority= &group= &assignedBy= &pc= &auditor= &department= &branch= &page=
 router.get("/tasks", async (req, res) => {
   const now = new Date();
   const visible = await visibleUserIds(req.user);
@@ -60,6 +62,7 @@ router.get("/tasks", async (req, res) => {
   }
   const q = String(req.query.q || "").trim();
   if (q) filter.label = new RegExp(esc(q), "i");
+  await applyTaskFilters(filter, req.query, { now });
 
   // summary cards: the same people, type, dates and search, any status
   const base = { ...filter, status: { $in: ["pending", "done", "na", "expired"] } };
@@ -84,7 +87,8 @@ router.get("/tasks", async (req, res) => {
       .sort(status === "done" ? { resolvedAt: -1 } : { planned: 1 })
       .skip((page - 1) * size)
       .limit(size)
-      .select("kind label doer assignedBy job status planned plannedDay actual actualDay activatedAt createdAt remarks priority")
+      .select("kind label doer assignedBy job status planned plannedDay actual actualDay activatedAt createdAt remarks priority checklist")
+      .populate({ path: "checklist", select: "group", populate: { path: "group", select: "name" } })
       .populate("doer", "name")
       .populate("assignedBy", "name")
       .populate("job", "jobNo")
@@ -143,7 +147,8 @@ const BUCKETS = { ontime: [null, 0], "1-2": [1, 2], "3-7": [3, 7], "7+": [8, nul
 // whole days a finished step was late: actual day vs planned day
 const doneDelay = (t) => (t.actualDay && t.plannedDay ? Math.max(0, Math.round((Date.parse(t.actualDay) - Date.parse(t.plannedDay)) / DAY_MS)) : 0);
 
-// ?process= &step= &status=pending|overdue|done|all &doer= &delay=ontime|1-2|3-7|7+ &field= &value= &from= &to= &page=
+// ?process= &step= &status=pending|overdue|done|all|pending_late|done_ontime|done_late &doer= &delay=ontime|1-2|3-7|7+
+// &field= &value= &from= &to= &pc= &department= &page=
 router.get("/fms-tasks", async (req, res) => {
   const now = new Date();
   const visible = await visibleUserIds(req.user);
@@ -171,6 +176,7 @@ router.get("/fms-tasks", async (req, res) => {
     const jobs = await Job.find({ process: filter.process, [`data.${key}`]: new RegExp(esc(String(req.query.value).trim()), "i") }).select("_id").limit(5000).lean();
     filter.job = { $in: jobs.map((j) => j._id) };
   }
+  await applyTaskFilters(filter, req.query, { now });
 
   // tasks per FMS (the widget), for the same people
   const perFms = await Task.aggregate([

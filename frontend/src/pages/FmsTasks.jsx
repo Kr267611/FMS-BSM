@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api, showDateTime } from "../api";
 import { useAuth } from "../App";
 import DoerSelect from "../components/DoerSelect";
+import { MoreFilters, RangeSelect, STATUSES, moreCount } from "../components/ListFilters";
 import { csvCell, download } from "../csv";
 import { joinIst } from "../tasks";
 
@@ -22,7 +23,8 @@ export default function FmsTasks() {
   const canSwitch = MANAGERS.includes(user.role);
   const isAdmin = user.role === "admin";
   const [processes, setProcesses] = useState([]);
-  const [f, setF] = useState({ process: "", step: "", status: "pending", doer: "", delay: "", field: "", value: "", from: "", to: "" });
+  const [f, setF] = useState({ process: "", step: "", status: "pending", doer: "", delay: "", field: "", value: "", from: "", to: "", mode: "", pc: "", department: "" });
+  const [more, setMore] = useState(false);
   const [page, setPage] = useState(1);
   const [data, setData] = useState(null);
   const [picked, setPicked] = useState(new Set());
@@ -162,12 +164,24 @@ export default function FmsTasks() {
           </>
         )}
         <label className="inline small">
-          Planned from <input type="date" value={f.from} onChange={(e) => set({ from: e.target.value })} />
+          Planned from <input type="date" value={f.from} onChange={(e) => set({ from: e.target.value, mode: "" })} />
         </label>
         <label className="inline small">
-          to <input type="date" value={f.to} onChange={(e) => set({ to: e.target.value })} />
+          to <input type="date" value={f.to} onChange={(e) => set({ to: e.target.value, mode: "" })} />
         </label>
+        <RangeSelect value={f.mode} onChange={(mode, r) => set({ mode, ...(r ? { from: r[0], to: r[1] } : {}) })} />
+        <select value={STATUSES.slice(0, 5).some(([k]) => k && k === f.status) ? f.status : ""} onChange={(e) => set({ status: e.target.value || "all", delay: "" })} aria-label="Status">
+          {STATUSES.slice(0, 5).map(([k, l]) => (
+            <option key={k} value={k}>
+              {l}
+            </option>
+          ))}
+        </select>
+        <button type="button" className={"btn ghost small" + (moreCount(f, ["pc", "department"]) ? " active" : "")} onClick={() => setMore(!more)}>
+          More filters{moreCount(f, ["pc", "department"]) ? ` (${moreCount(f, ["pc", "department"])})` : ""} {more ? "▴" : "▾"}
+        </button>
       </div>
+      {(more || moreCount(f, ["pc", "department"]) > 0) && <MoreFilters f={f} set={set} show={["pc", "department"]} />}
 
       {canSwitch && picked.size > 0 && (
         <div className="card bulk-bar">

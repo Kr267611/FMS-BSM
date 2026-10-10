@@ -645,6 +645,29 @@ test("Auditor Settings: only the auditor's share of tasks is audited, with an Au
   await set({}); // back to auditing everything
 });
 
+test("MIDAP list filters: priority, assigned by, department, detailed status; Audit List keyword, done date and order", async () => {
+  const get = async (q) => (await call(`/reports/tasks?${/status=/.test(q) ? "" : "status=all&"}${q}`, { session: sessions.admin })).data.tasks;
+  const crit = await get("priority=critical");
+  assert.ok(crit.length > 0 && crit.every((t) => t.priority === "critical"));
+  const admin = (await call("/auth/me", { session: sessions.admin })).data._id;
+  const mine = await get(`assignedBy=${admin}&kind=delegation`);
+  assert.ok(mine.length > 0 && mine.every((t) => t.assignedBy?.name === "Admin"));
+  const late = await get("status=done_late");
+  assert.ok(late.every((t) => t.status === "done" && t.actualDay > t.plannedDay));
+  const onTime = await get("status=done_ontime");
+  assert.ok(onTime.every((t) => t.status === "done" && t.actualDay <= t.plannedDay));
+  // a department with nobody in it: nothing
+  const dept = await call("/org/departments", { session: sessions.admin, method: "POST", body: { name: "Nobody here" } });
+  assert.strictEqual((await get(`department=${dept.data._id}`)).length, 0);
+
+  const audits = (q) => call(`/audits?status=all&${q}`, { session: sessions.qaud });
+  const found = (await audits("q=sample take")).data.tasks;
+  assert.deepStrictEqual(found.map((t) => t.label), ["Sample take"]);
+  assert.strictEqual((await audits(`from=${dates.addDaysKey(today, 1)}`)).data.total, 0); // nothing done tomorrow
+  const asc = (await audits("order=asc")).data.tasks.map((t) => t.actual).filter(Boolean); // a task sent back has no done date
+  assert.deepStrictEqual(asc, [...asc].sort());
+});
+
 test("Auditor sampling picks the same tasks every time, about the share asked for", () => {
   const { bucketOf, auditFor, cleanAuditorSettings } = require("../services/auditSampling");
   const ids = Array.from({ length: 2000 }, (_, i) => `66f0000000000000000${String(i).padStart(5, "0")}`);

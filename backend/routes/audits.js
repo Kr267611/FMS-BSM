@@ -8,6 +8,8 @@ const User = require("../models/User");
 const wf = require("../services/workflow");
 const { getAuditorSettings, saveAuditorSettings } = require("../services/auditSampling");
 const { todayKey } = require("../services/dates");
+const { applyTaskFilters } = require("../services/taskFilters");
+const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const router = express.Router();
 router.use(auth);
@@ -22,7 +24,8 @@ function fail(message, status = 400) {
 }
 
 // MIDAP "Audit List": finished tasks waiting for (or given) my audit. An admin sees every auditor's list.
-// ?status=pending|done|all &auditor= (admin) &doer= &kind=checklist|delegation|fms &page=
+// ?status=pending|done|all &auditor= (admin) &doer= &kind=checklist|delegation|fms &q= (task name) &priority= &department=
+// &from= &to= (done day) &order=asc|desc &page=
 router.get("/", async (req, res) => {
   const filter = { auditor: { $ne: null }, "audit.status": { $exists: true } };
   if (req.user.role === "admin") {
@@ -33,13 +36,22 @@ router.get("/", async (req, res) => {
   const status = req.query.status || "pending";
   if (status === "pending") filter["audit.status"] = "pending";
   else if (status === "done") filter["audit.status"] = { $in: ["ok", "notok"] };
+  const q = String(req.query.q || "").trim();
+  if (q) filter.$or = [{ label: new RegExp(esc(q), "i") }, { stepName: new RegExp(esc(q), "i") }];
+  if (isDay(req.query.from) || isDay(req.query.to)) {
+    filter.actualDay = {};
+    if (isDay(req.query.from)) filter.actualDay.$gte = req.query.from;
+    if (isDay(req.query.to)) filter.actualDay.$lte = req.query.to;
+  }
+  await applyTaskFilters(filter, { priority: req.query.priority, department: req.query.department });
+  const dir = req.query.order === "asc" ? 1 : -1;
 
   const page = Math.max(1, Number(req.query.page) || 1);
   const [total, pendingCount, tasks] = await Promise.all([
     Task.countDocuments(filter),
     Task.countDocuments({ ...filter, "audit.status": "pending" }),
     Task.find(filter)
-      .sort(status === "done" ? { "audit.at": -1 } : { actual: -1 })
+      .sort(status === "done" ? { "audit.at": dir } : { actual: dir })
       .skip((page - 1) * 100)
       .limit(100)
       .select("kind label stepName stepIndex job process doer auditor assignedBy priority planned plannedDay actual actualDay values remarks audit checklist details proofRequired")

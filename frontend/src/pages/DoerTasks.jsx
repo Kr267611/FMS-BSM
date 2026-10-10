@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, showDateTime } from "../api";
 import { useAuth } from "../App";
 import DoerSelect from "../components/DoerSelect";
+import { MoreFilters, RangeSelect, STATUSES, moreCount } from "../components/ListFilters";
 import { csvCell, download } from "../csv";
 import { deadlineState, priorityLabel, priorityTone } from "../tasks";
 
@@ -21,7 +22,8 @@ export default function DoerTasks() {
   const { user } = useAuth();
   const canSwitch = MANAGERS.includes(user.role);
   const isAdmin = user.role === "admin";
-  const [f, setF] = useState({ kind: "", doer: "", status: "pending", delay: "", from: "", to: "", q: "" });
+  const [f, setF] = useState({ kind: "", doer: "", status: "pending", delay: "", from: "", to: "", q: "", mode: "", priority: "", department: "", branch: "", group: "", assignedBy: "", pc: "", auditor: "" });
+  const [more, setMore] = useState(false);
   const [page, setPage] = useState(1);
   const [data, setData] = useState(null);
   const [picked, setPicked] = useState(new Set());
@@ -156,14 +158,26 @@ export default function DoerTasks() {
           ))}
         </select>
         <DoerSelect value={f.doer} onChange={(v) => set({ doer: v })} placeholder="All doers" />
+        <RangeSelect value={f.mode} onChange={(mode, r) => set({ mode, ...(r ? { from: r[0], to: r[1] } : {}) })} />
         <label className="inline small">
-          Planned from <input type="date" value={f.from} onChange={(e) => set({ from: e.target.value })} />
+          Planned from <input type="date" value={f.from} onChange={(e) => set({ from: e.target.value, mode: "" })} />
         </label>
         <label className="inline small">
-          to <input type="date" value={f.to} onChange={(e) => set({ to: e.target.value })} />
+          to <input type="date" value={f.to} onChange={(e) => set({ to: e.target.value, mode: "" })} />
         </label>
+        <select value={STATUSES.some(([k]) => k && k === f.status) ? f.status : ""} onChange={(e) => set({ status: e.target.value || "all", delay: "" })} aria-label="Status">
+          {STATUSES.map(([k, l]) => (
+            <option key={k} value={k}>
+              {l}
+            </option>
+          ))}
+        </select>
         <input className="search" placeholder="Search task…" value={f.q} onChange={(e) => set({ q: e.target.value })} />
+        <button type="button" className={"btn ghost small" + (moreCount(f) ? " active" : "")} onClick={() => setMore(!more)}>
+          More filters{moreCount(f) ? ` (${moreCount(f)})` : ""} {more ? "▴" : "▾"}
+        </button>
       </div>
+      {(more || moreCount(f) > 0) && <MoreFilters f={f} set={set} />}
 
       {canSwitch && picked.size > 0 && (
         <div className="card bulk-bar">

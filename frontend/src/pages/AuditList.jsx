@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, showDateTime, showDay, todayKey } from "../api";
 import { useAuth } from "../App";
 import DoerSelect from "../components/DoerSelect";
+import { PRIORITY_OPTIONS, RangeSelect, MoreFilters } from "../components/ListFilters";
 import { FieldValue } from "../components/FieldInput";
 
 const PROOF = { key: "proof", label: "Proof", type: "photo" };
@@ -15,14 +16,16 @@ export default function AuditList() {
   const [status, setStatus] = useState("pending");
   const [kind, setKind] = useState("");
   const [auditor, setAuditor] = useState("");
+  const [f, setF] = useState({ q: "", doer: "", priority: "", from: "", to: "", mode: "", order: "desc", department: "" });
+  const set = (patch) => setF((prev) => ({ ...prev, ...patch }));
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const load = useCallback(() => {
     setError("");
-    return api("/audits", { query: { status, kind, auditor } })
+    return api("/audits", { query: { status, kind, auditor, ...f } })
       .then(setData)
       .catch((e) => setError(e.message));
-  }, [status, kind, auditor]);
+  }, [status, kind, auditor, f]);
   useEffect(() => {
     load();
   }, [load]);
@@ -54,6 +57,29 @@ export default function AuditList() {
           <option value="delegation">Delegation</option>
         </select>
         {user.role === "admin" && <DoerSelect value={auditor} onChange={setAuditor} placeholder="All auditors" />}
+        <DoerSelect value={f.doer} onChange={(doer) => set({ doer })} placeholder="All doers" />
+        <select value={f.priority} onChange={(e) => set({ priority: e.target.value })} aria-label="Priority">
+          {PRIORITY_OPTIONS.map(([k, l]) => (
+            <option key={k} value={k}>
+              {l}
+            </option>
+          ))}
+        </select>
+        <input className="search" placeholder="Search task…" value={f.q} onChange={(e) => set({ q: e.target.value })} />
+      </div>
+      <div className="row wrap filters">
+        <RangeSelect value={f.mode} onChange={(mode, r) => set({ mode, ...(r ? { from: r[0], to: r[1] } : {}) })} />
+        <label className="inline small">
+          Done from <input type="date" value={f.from} onChange={(e) => set({ from: e.target.value, mode: "" })} />
+        </label>
+        <label className="inline small">
+          to <input type="date" value={f.to} onChange={(e) => set({ to: e.target.value, mode: "" })} />
+        </label>
+        <select value={f.order} onChange={(e) => set({ order: e.target.value })} aria-label="Order">
+          <option value="desc">Newest first</option>
+          <option value="asc">Oldest first</option>
+        </select>
+        <MoreFilters f={f} set={set} show={["department"]} />
       </div>
       {error && <div className="error">{error}</div>}
       {!data && !error && <p className="muted">Loading…</p>}

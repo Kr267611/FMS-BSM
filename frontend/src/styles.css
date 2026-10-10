@@ -1058,3 +1058,6 @@ th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
 .btn.danger-fill { background: var(--bad); border-color: var(--bad); color: #fff; }
 .btn.danger-fill:disabled { opacity: 0.45; }
 .num-input { width: 80px; }
+.more-filters { margin-top: -6px; }
+.filters .more-filters { margin: 0; }
+.btn.small.active { border-color: var(--primary); color: var(--primary); }
