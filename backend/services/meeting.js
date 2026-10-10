@@ -110,7 +110,7 @@ async function meetingReport({ week, doerIds = null }) {
 }
 
 // ---------- the weekly email ----------
-const DEFAULTS = { enabled: false, emails: [], day: 1, time: "09:30" }; // Monday 09:30 IST, for the week before
+const DEFAULTS = { enabled: false, emails: [], day: 1, time: "09:00" }; // Monday 09:00 IST (when the daily cron call comes), for the week before
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 async function getSettings() {
