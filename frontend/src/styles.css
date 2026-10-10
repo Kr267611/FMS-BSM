@@ -1009,3 +1009,5 @@ input.bad-input { border-color: var(--bad); }
 .sheet-url > input { flex: 1; min-width: 0; }
 .sheet-find { display: grid; gap: 8px; padding: 10px 12px; border: 1px dashed var(--stroke-30); border-radius: 10px; background: var(--glass-8); }
 .sheet-find .chips { margin: 0; }
+.share-with { display: grid; gap: 6px; }
+.share-with code { user-select: all; word-break: break-all; }

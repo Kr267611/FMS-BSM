@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, showDateTime } from "../api";
 import DoerSelect from "../components/DoerSelect";
+import ShareWith from "../components/ShareWith";
 
 const blank = {
   name: "",
@@ -60,16 +61,9 @@ export default function SheetLinks() {
         adds it to the doer's score. The sheet is never edited.
       </p>
 
-      {data && (
-        <div className={data.serviceAccountEmail ? "notice" : "error"}>
-          {data.serviceAccountEmail ? (
-            <>
-              Share each FMS sheet as <b>Viewer</b> with: <code>{data.serviceAccountEmail}</code>
-            </>
-          ) : (
-            <>The Google service account is not configured yet – see “Connecting Google Sheets” in the README. Sync is off until then.</>
-          )}
-        </div>
+      {data?.serviceAccountEmail && <ShareWith email={data.serviceAccountEmail} />}
+      {data && !data.serviceAccountEmail && (
+        <div className="error">The Google service account is not configured yet – see “Connecting Google Sheets” in the README. Sync is off until then.</div>
       )}
       {error && <div className="error">{error}</div>}
 

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import DoerSelect from "../components/DoerSelect";
+import ShareWith from "../components/ShareWith";
 
 const TYPE_LABEL = { text: "Text", number: "Number", date: "Date", datetime: "Date + time", select: "Dropdown" };
 
@@ -98,9 +99,7 @@ export default function SheetFmsImport() {
           <div className="muted small">Paste the link of an FMS Google Sheet: its entry columns, every step and all its rows come into the software.</div>
         </div>
       </div>
-      {sheet?.title === undefined && !busy && (
-        <p className="muted small">First share the sheet as Viewer with the service account shown on the Sheet Links page. The sheet is only read, never changed.</p>
-      )}
+      <ShareWith />
 
       <div className="card form-grid">
         <label className="span-all">
