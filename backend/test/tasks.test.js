@@ -668,6 +668,62 @@ test("MIDAP list filters: priority, assigned by, department, detailed status; Au
   assert.deepStrictEqual(asc, [...asc].sort());
 });
 
+test("Doer leave: checklist tasks on those days are not required, delegations and FMS steps move after it, new steps avoid it", async () => {
+  const d2 = dates.addDaysKey(today, 2);
+  // a delegation due tomorrow 15:00 and a daily checklist, both for a doer who will be away today and tomorrow
+  const dl = await call("/delegations", { session: sessions.admin, method: "POST", body: { title: "Leave test quote", doer: people.mpc, date: tomorrow, time: "15:00" } });
+  assert.strictEqual(dl.status, 201, dl.data.message);
+  const ck = await call("/checklists", { session: sessions.admin, method: "POST", body: { name: "Leave test round", doer: people.mpc, frequency: { type: "daily" }, start: today, dueTime: "23:00" } });
+  assert.strictEqual(ck.status, 201, ck.data.message);
+  assert.ok(await Task.exists({ checklist: ck.data._id, plannedDay: today, status: "pending" }));
+
+  const body = { user: people.mpc, from: today, to: tomorrow, reason: "Sick" };
+  assert.strictEqual((await call("/leaves", { session: sessions.sunil, method: "POST", body })).status, 403);
+  assert.match((await call("/leaves", { session: sessions.admin, method: "POST", body: { ...body, to: dates.addDaysKey(today, -1) } })).data.message, /before the first/);
+  const pre = await call("/leaves/preview", { session: sessions.admin, method: "POST", body });
+  assert.ok(pre.data.notRequired >= 1 && pre.data.moved >= 1, JSON.stringify(pre.data));
+  const made = await call("/leaves", { session: sessions.admin, method: "POST", body });
+  assert.strictEqual(made.status, 201, made.data.message);
+  assert.match((await call("/leaves", { session: sessions.admin, method: "POST", body: { ...body, from: tomorrow, to: tomorrow } })).data.message, /already has leave/);
+
+  const ckTask = await Task.findOne({ checklist: ck.data._id, plannedDay: today }).lean();
+  assert.deepStrictEqual([ckTask.status, ckTask.remarks], ["na", "On leave " + today + " to " + tomorrow + " – Sick"]);
+  const moved = await Task.findById(dl.data._id).lean();
+  assert.strictEqual(moved.plannedDay, d2); // the first working day after the leave (no week-off in this test)
+  assert.strictEqual(new Date(moved.planned).toISOString().slice(11, 16), "09:30"); // 15:00 IST kept
+  assert.match(moved.log.at(-1).action, /moved for leave/);
+
+  // a new FMS step for this doer with a 1-day TAT would fall due tomorrow – on leave – so it comes after it
+  const p = await call("/processes", {
+    session: sessions.admin,
+    method: "POST",
+    body: { name: "Leave flow", calendar: { mode: "calendar" }, fields: [], steps: [{ key: "s1", name: "Check", doer: { mode: "fixed", user: people.mpc }, start: { mode: "entry" }, tat: 1 }] },
+  });
+  const job = await call("/jobs", { session: sessions.admin, method: "POST", body: { process: p.data._id, data: {} } });
+  assert.strictEqual((await Task.findOne({ job: job.data._id }).lean()).plannedDay, d2);
+
+  // own week-off: saved on the user; the list shows the leave
+  const wk = await call(`/users/${people.mpc}`, { session: sessions.admin, method: "PUT", body: { weekOff: [2, 2, 9] } });
+  assert.deepStrictEqual(wk.data.weekOff, [2]);
+  assert.match((await call(`/users/${people.mpc}`, { session: sessions.admin, method: "PUT", body: { weekOff: [0, 1, 2, 3, 4, 5, 6] } })).data.message, /working day/);
+  await call(`/users/${people.mpc}`, { session: sessions.admin, method: "PUT", body: { weekOff: [] } });
+  const list = await call(`/leaves?user=${people.mpc}`, { session: sessions.admin });
+  assert.deepStrictEqual([list.data.length, list.data[0].applied.moved >= 1], [1, true]);
+  assert.strictEqual((await call(`/leaves/${made.data._id}`, { session: sessions.admin, method: "DELETE" })).status, 200);
+});
+
+test("Personal calendar: own week-off replaces the company's; a planned time on leave moves to the next working day", () => {
+  const { personalCalendar, outsideLeave } = require("../services/doerCalendar");
+  const { normalizeCalendar, isOff, fromIst } = require("../services/calendar");
+  const company = normalizeCalendar({ weekOff: [0], holidays: ["2026-10-02"] });
+  const cal = personalCalendar(company, [2], ["2026-10-14", "2026-10-15"]); // Tuesday off; away Wed 14 – Thu 15
+  assert.deepStrictEqual([isOff("2026-10-11", cal), isOff("2026-10-13", cal), isOff("2026-10-02", cal), isOff("2026-10-14", cal)], [false, true, true, true]);
+  const planned = fromIst("2026-10-14", 10 * 60); // Wed 10:00 on leave -> Fri 16 10:00
+  assert.strictEqual(outsideLeave(planned, cal).toISOString(), fromIst("2026-10-16", 10 * 60).toISOString());
+  assert.strictEqual(outsideLeave(planned, company), planned); // no leave: unchanged
+  assert.strictEqual(personalCalendar(company, null, []), company);
+});
+
 test("Auditor sampling picks the same tasks every time, about the share asked for", () => {
   const { bucketOf, auditFor, cleanAuditorSettings } = require("../services/auditSampling");
   const ids = Array.from({ length: 2000 }, (_, i) => `66f0000000000000000${String(i).padStart(5, "0")}`);

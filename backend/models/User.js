@@ -11,6 +11,8 @@ const userSchema = new mongoose.Schema(
     // HOD / PC: the departments they oversee (their own department is always included)
     managedDepartments: [{ type: mongoose.Schema.Types.ObjectId, ref: "Department" }],
     teamLeader: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    // MIDAP "Doer Weekoff": this person's own week-off days (0 = Sunday); not set = the company's
+    weekOff: { type: [Number], default: undefined },
     // Per-user overrides of the role's default permissions: { module: ["view","add",...] }
     permissions: { type: mongoose.Schema.Types.Mixed },
     email: { type: String, trim: true, lowercase: true, default: "" },

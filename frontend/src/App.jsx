@@ -9,6 +9,7 @@ import Dashboard from "./pages/Dashboard";
 import DoerTasks from "./pages/DoerTasks";
 import WeeklyMis from "./pages/WeeklyMis";
 import AuditorSettings from "./pages/AuditorSettings";
+import Leaves from "./pages/Leaves";
 import MeetingReport from "./pages/MeetingReport";
 import Performance from "./pages/Performance";
 import FmsTasks from "./pages/FmsTasks";
@@ -120,6 +121,7 @@ function menuFor(user) {
         { to: "/users", label: "Users", show: can(user, "users") },
         { to: "/users/bulk", label: "Bulk Upload", show: can(user, "users", "add") },
         { to: "/org", label: "Branches & Departments", show: can(user, "org") },
+        { to: "/users/leave", label: "Doer Leave", show: can(user, "users") },
       ],
     },
     {
@@ -274,6 +276,7 @@ function Shell() {
             <Route path="/users" element={guard(can(user, "users"), <Users />)} />
             <Route path="/users/bulk" element={guard(can(user, "users", "add"), <BulkUsers />)} />
             <Route path="/org" element={guard(can(user, "org"), <Org />)} />
+            <Route path="/users/leave" element={guard(can(user, "users"), <Leaves />)} />
             <Route path="/sheets" element={guard(can(user, "settings", "edit"), <SheetLinks />)} />
             <Route path="/reminders" element={guard(can(user, "settings"), <Reminders />)} />
             <Route path="/audit" element={guard(can(user, "audit"), <Audit />)} />

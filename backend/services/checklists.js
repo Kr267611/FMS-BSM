@@ -9,6 +9,7 @@ const { fromIst, isTime, toMin } = require("./calendar");
 const { dueDays, nextDueDays } = require("./recurrence");
 const { cleanFields, STEP_FIELD_TYPES } = require("./fms/definition");
 const { loadCalendar } = require("./workflow");
+const { loadDoerCalendars } = require("./doerCalendar");
 
 const { FREQUENCIES, HOLIDAY_RULES } = Checklist;
 const { PRIORITIES } = Task;
@@ -148,9 +149,11 @@ function occurrence(c, day, now) {
 }
 
 // Make the tasks of one checklist up to today + createBefore. Safe to run any number of times.
-async function generateChecklist(c, { now = new Date(), cal } = {}) {
+// cal: the company calendar; calFor: (user) -> their own calendar (week-off, leave), loaded when not given
+async function generateChecklist(c, { now = new Date(), cal, calFor } = {}) {
   if (!c.active) return 0;
-  const calendar = cal || (await loadCalendar());
+  const company = cal || (await loadCalendar());
+  const calendar = (calFor || (await loadDoerCalendars(company, { now })))(c.doer);
   const today = dayKey(now);
   const until = addDaysKey(today, c.createBefore || 0);
   let from = c.generatedUntil ? addDaysKey(c.generatedUntil, 1) : today;
@@ -184,13 +187,14 @@ async function generateChecklist(c, { now = new Date(), cal } = {}) {
 // Scheduler, cron and before lists: make due tasks, then close the ones past their auto-close time
 async function sweepChecklists(now = new Date()) {
   const cal = await loadCalendar();
+  const calFor = await loadDoerCalendars(cal, { now });
   const today = dayKey(now);
   const list = await Checklist.find({ active: true, $or: [{ generatedUntil: null }, { generatedUntil: { $lt: addDaysKey(today, 30) } }] }).lean();
   let created = 0;
   for (const c of list) {
     if (c.generatedUntil && c.generatedUntil >= addDaysKey(today, c.createBefore || 0)) continue;
     try {
-      created += await generateChecklist(c, { now, cal });
+      created += await generateChecklist(c, { now, cal, calFor });
     } catch (err) {
       console.error(`Checklist "${c.name}":`, err.message);
     }
@@ -220,7 +224,7 @@ async function afterChange(c, before, now = new Date()) {
 // Next due days shown on the list and in the form
 async function preview(c, count = 8, now = new Date()) {
   const cal = await loadCalendar();
-  return nextDueDays(c, dayKey(now), count, cal);
+  return nextDueDays(c, dayKey(now), count, c.doer ? (await loadDoerCalendars(cal, { now }))(c.doer) : cal);
 }
 
 // ---------- bulk upload (CSV) ----------

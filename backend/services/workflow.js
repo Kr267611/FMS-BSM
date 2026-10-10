@@ -13,6 +13,7 @@ const { canSeeUser } = require("./scope");
 const engine = require("./fms/engine");
 const { resolveDoer, directory } = require("./fms/doers");
 const { auditFor, getAuditorSettings } = require("./auditSampling");
+const { loadDoerCalendars } = require("./doerCalendar");
 
 class WorkflowError extends Error {
   constructor(message, status = 400) {
@@ -67,12 +68,14 @@ async function settle({ job, process, tasks, touched, session, now }) {
   if (!job.closeStatus) job.status = "open";
 
   const [calendar, dir] = await Promise.all([loadCalendar(), loadDirectory(session)]);
+  const calendarFor = await loadDoerCalendars(calendar, { now });
   const changed = engine.advance({
     process,
     job,
     tasks,
     now,
     calendar,
+    calendarFor,
     doerOf: (step, data) => resolveDoer(step.doer, data, dir),
     fallbackDoer: process.pc || job.createdBy,
   });
@@ -349,10 +352,11 @@ async function previewJob({ processId, data = {}, startDate, now = new Date() })
     values = engine.computeFields(process.fields, {}, start);
   }
   const [calendar, dir] = await Promise.all([loadCalendar(), loadDirectory()]);
+  const calendarFor = await loadDoerCalendars(calendar, { now: start });
   const job = { startDate: start, data: values };
   const tasks = Object.fromEntries(process.steps.map((s) => [s.key, { status: "waiting" }]));
   const doerOf = (step, d) => resolveDoer(step.doer, d, dir);
-  engine.advance({ process, job, tasks, now: start, calendar, doerOf, fallbackDoer: process.pc });
+  engine.advance({ process, job, tasks, now: start, calendar, doerOf, fallbackDoer: process.pc, calendarFor });
   const ids = process.steps.map((s) => tasks[s.key].doer || doerOf(s, values)).filter(Boolean);
   const names = new Map((await User.find({ _id: { $in: ids } }).select("name").lean()).map((u) => [String(u._id), u.name]));
   return {

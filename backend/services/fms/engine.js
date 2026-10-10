@@ -9,6 +9,7 @@
 // date and a doer; false -> it is skipped (not scored). Steps that depend on a skipped step are skipped too.
 const { dayKey, addDaysKey } = require("../dates");
 const { addTatCal, startOfDay, normalizeCalendar } = require("../calendar");
+const { outsideLeave } = require("../doerCalendar");
 const { evaluate, stepRefs, isBlank, num, norm } = require("./conditions");
 
 const START_MODES = ["entry", "afterDone", "afterDue", "withStart"];
@@ -218,7 +219,8 @@ function skipTask(t, reason, now) {
 //   tasks   : { [stepKey]: task }
 //   calendar: normalizeCalendar(...)
 //   doerOf  : (step, data) -> user id | null
-function advance({ process, job, tasks, now = new Date(), calendar = normalizeCalendar(), doerOf = () => null, fallbackDoer = null }) {
+//   calendarFor: (user id) -> that person's calendar (own week-off and leave), when they have one
+function advance({ process, job, tasks, now = new Date(), calendar = normalizeCalendar(), doerOf = () => null, fallbackDoer = null, calendarFor = null }) {
   const changed = new Set();
   const ctx = { data: job.data || {}, steps: tasks };
   const mode = process.calendar?.mode || "working";
@@ -280,7 +282,10 @@ function advance({ process, job, tasks, now = new Date(), calendar = normalizeCa
       continue;
     }
     const { tat, unit } = pickTat(step, ctx);
-    const planned = addTatCal(base, tat, unit, calendar, mode);
+    // the doer first: the TAT runs on their calendar, and never ends on a day they are on leave
+    const doer = doerOf(step, job.data || {}) || fallbackDoer || t.doer || null;
+    const cal = (calendarFor && doer && calendarFor(doer)) || calendar;
+    const planned = outsideLeave(addTatCal(base, tat, unit, cal, mode), cal);
     Object.assign(t, {
       status: "pending",
       planned,
@@ -289,7 +294,7 @@ function advance({ process, job, tasks, now = new Date(), calendar = normalizeCa
       triggerAt: null,
       tat,
       tatUnit: unit,
-      doer: doerOf(step, job.data || {}) || fallbackDoer || t.doer || null,
+      doer,
     });
     changed.add(step.key);
   }

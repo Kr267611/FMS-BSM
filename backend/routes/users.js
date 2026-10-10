@@ -100,6 +100,7 @@ router.post("/", auth, permit("users", "add"), async (req, res) => {
     email,
     password: await bcrypt.hash(String(password), 10),
     permissions: req.user.role === "admin" ? cleanOverrides(req.body?.permissions) : undefined,
+    weekOff: ((w) => (w.length && w.length < 7 ? w : undefined))(Array.isArray(req.body?.weekOff) ? [...new Set(req.body.weekOff.map(Number))].filter((n) => Number.isInteger(n) && n >= 0 && n <= 6).sort() : []),
   });
   audit(req, "user.create", { entity: "User", entityId: user._id, summary: `${user.name} (${user.role})` });
   res.status(201).json(strip(user));
@@ -139,6 +140,17 @@ router.put("/:id", auth, permit("users", "edit"), async (req, res) => {
     user.managedDepartments = f.managedDepartments;
     changes.push("managed departments");
   }
+  // own week-off: [] or null = the company's; the doer's coming checklist tasks are made again with it
+  let weekOffChanged = false;
+  if (b.weekOff !== undefined) {
+    const next = Array.isArray(b.weekOff) ? [...new Set(b.weekOff.map(Number))].filter((n) => Number.isInteger(n) && n >= 0 && n <= 6).sort() : [];
+    if (next.length >= 7) return res.status(400).json({ message: "At least one day of the week must be a working day" });
+    if (!same(next.length ? next : null, user.weekOff?.length ? [...user.weekOff] : null)) {
+      user.weekOff = next.length ? next : undefined;
+      weekOffChanged = true;
+      changes.push(next.length ? `own week-off ${next.join(",")}` : "company week-off");
+    }
+  }
   if (b.permissions !== undefined && req.user.role === "admin") {
     const next = cleanOverrides(b.permissions);
     if (!same(next, user.permissions)) {
@@ -158,6 +170,11 @@ router.put("/:id", auth, permit("users", "edit"), async (req, res) => {
     changes.push("password reset");
   }
   await user.save();
+  if (weekOffChanged) {
+    const Checklist = require("../models/Checklist");
+    const { afterChange } = require("../services/checklists");
+    for (const c of await Checklist.find({ doer: user._id, active: true }).lean()) await afterChange(c, c);
+  }
   audit(req, "user.update", { entity: "User", entityId: user._id, summary: `${user.name}: ${changes.join(", ") || "no changes"}` });
   res.json(strip(await populateUser(User.findById(user._id))));
 });

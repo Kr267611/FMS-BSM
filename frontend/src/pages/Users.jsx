@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ROLE_LABELS, api, can, showDateTime } from "../api";
 import { useAuth } from "../App";
+import { WEEKDAYS } from "../tasks";
 import DoerSelect, { clearUsersCache } from "../components/DoerSelect";
 
 const blank = {
@@ -15,6 +16,7 @@ const blank = {
   department: "",
   managedDepartments: [],
   teamLeader: "",
+  weekOff: [],
   active: true,
   permissions: null,
 };
@@ -57,6 +59,7 @@ export default function Users() {
       branch: idOf(u.branch),
       department: idOf(u.department),
       teamLeader: idOf(u.teamLeader),
+      weekOff: u.weekOff || [],
       managedDepartments: (u.managedDepartments || []).map(idOf),
       permissions: u.permissions || null,
     });
@@ -263,6 +266,23 @@ function UserForm({ initial, meta, org, me, onClose, onSaved, onOrgAdded }) {
         Team leader
         <DoerSelect value={v.teamLeader} onChange={(id) => set({ teamLeader: id })} placeholder="—" />
       </label>
+      <div className="span-2 own-weekoff">
+        <span>
+          Own week-off <small className="muted">— none ticked = the company's week-off</small>
+        </span>
+        <div className="chips">
+          {WEEKDAYS.map((d, n) => (
+            <label key={d} className={"chip check" + ((v.weekOff || []).includes(n) ? " on" : "")}>
+              <input
+                type="checkbox"
+                checked={(v.weekOff || []).includes(n)}
+                onChange={() => set({ weekOff: (v.weekOff || []).includes(n) ? v.weekOff.filter((x) => x !== n) : [...(v.weekOff || []), n].sort() })}
+              />{" "}
+              {d}
+            </label>
+          ))}
+        </div>
+      </div>
 
       {v.role === "tl" && (
         <div className="span-all muted small">A Team Leader sees and follows up the people who have them as Team leader (set it on each team member).</div>

@@ -1061,3 +1061,5 @@ th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
 .more-filters { margin-top: -6px; }
 .filters .more-filters { margin: 0; }
 .btn.small.active { border-color: var(--primary); color: var(--primary); }
+.own-weekoff { display: grid; gap: 6px; }
+.own-weekoff .chips { margin: 0; }
