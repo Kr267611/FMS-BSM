@@ -13,6 +13,7 @@ import FmsTasks from "./pages/FmsTasks";
 import FmsRules from "./pages/FmsRules";
 import AutoComplete from "./pages/AutoComplete";
 import BulkFms from "./pages/BulkFms";
+import SheetFmsImport from "./pages/SheetFmsImport";
 import AuditList from "./pages/AuditList";
 import AuditorReport from "./pages/AuditorReport";
 import EffortReport from "./pages/EffortReport";
@@ -88,6 +89,7 @@ function menuFor(user) {
       items: [
         { to: "/processes", label: "List Master FMS", end: true, show: can(user, "fms") },
         { to: "/processes/new", label: "Add Master FMS", show: can(user, "fms", "add") },
+        { to: "/fms/import-sheet", label: "Import FMS from Sheet", show: can(user, "fms", "add") && can(user, "settings", "edit") },
         { to: "/fms/doer-conditions", label: "Doer Conditions", show: can(user, "fms") },
         { to: "/fms/override-tat", label: "Override TAT", show: can(user, "fms") },
         { to: "/fms/auto-calculate", label: "Auto-calculate Fields", show: can(user, "fms") },
@@ -246,6 +248,7 @@ function Shell() {
             <Route path="/mis/weekly" element={guard(can(user, "reports"), <WeeklyMis />)} />
             <Route path="/fms/doer-conditions" element={guard(can(user, "fms"), <FmsRules kind="doer" />)} />
             <Route path="/fms/override-tat" element={guard(can(user, "fms"), <FmsRules kind="tat" />)} />
+            <Route path="/fms/import-sheet" element={guard(can(user, "fms", "add") && can(user, "settings", "edit"), <SheetFmsImport />)} />
             <Route path="/fms/bulk" element={guard(can(user, "fmsEntries"), <BulkFms />)} />
             <Route path="/fms/auto-complete" element={guard(can(user, "fms"), <AutoComplete />)} />
             <Route path="/fms/auto-calculate" element={guard(can(user, "fms"), <FmsRules kind="calc" />)} />

@@ -14,6 +14,7 @@ const jobSchema = new mongoose.Schema(
     closeRemarks: String,
     closedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     closedAt: Date,
+    sheetRow: Number, // imported from a Google Sheet: the row it came from
     searchText: { type: String, default: "" }, // lower-case field values for the entries search box
     // made by an FMS Auto Complete rule: the entry and step it came from
     origin: {

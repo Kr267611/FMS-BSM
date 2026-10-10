@@ -38,7 +38,8 @@ function findSteps(rows) {
     let a = -1;
     for (let c = p + 1; c < end; c++) if (ACTUAL.test(header[c])) (a = c), (c = end);
     if (a < 0) a = p + 1; // Actual is right after Planned in the standard 5-column block
-    const start = k > 0 ? plannedCols[k - 1] + 1 : 0;
+    // from just left of Planned, so the sheet's title on the far left is not taken as a step name
+    const start = Math.max(k > 0 ? plannedCols[k - 1] + 1 : 0, p - 1);
 
     // The step name and doer sit above the block (often a merged cell that starts left of Planned)
     const above = [];

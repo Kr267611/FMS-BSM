@@ -5,6 +5,8 @@ const User = require("../models/User");
 const { auth, permit } = require("../middleware/auth");
 const { syncLink, syncAll, extractSpreadsheetId, isColumn, serviceAccountEmail, getSheets, friendlyError } = require("../services/sheetSync");
 const { inspectSheet } = require("../services/sheetInspect");
+const { previewSheetFms, importSheetFms } = require("../services/sheetFms");
+const { audit } = require("../services/audit");
 
 const router = express.Router();
 router.use(auth, permit("settings", "edit"));
@@ -86,6 +88,36 @@ router.post("/inspect", async (req, res) => {
     res.json(await inspectSheet(getSheets(), spreadsheetId, { tabName: req.body.tabName, gid }));
   } catch (err) {
     res.status(400).json({ message: friendlyError(err, { tabName: req.body.tabName }) });
+  }
+});
+
+// A whole Google Sheet FMS -> an FMS in the software: preview, then create it and bring in the rows
+async function sheetFmsArgs(req) {
+  const spreadsheetId = extractSpreadsheetId(req.body?.sheetUrl);
+  if (!spreadsheetId) throw Object.assign(new Error("Invalid Google Sheet URL. Paste the plain link."), { status: 400 });
+  if (!req.body.tabName) throw Object.assign(new Error("Choose the tab"), { status: 400 });
+  return [getSheets(), spreadsheetId, String(req.body.tabName)];
+}
+const sheetError = (res, err, req) => res.status(err.status || 400).json({ message: err.status ? err.message : friendlyError(err, { tabName: req.body?.tabName }) });
+
+router.post("/fms-preview", async (req, res) => {
+  try {
+    const args = await sheetFmsArgs(req);
+    const links = await SheetLink.find({ spreadsheetId: args[1], tabName: args[2] }).select("name").lean();
+    res.json({ ...(await previewSheetFms(...args)), sheetLinks: links });
+  } catch (err) {
+    sheetError(res, err, req);
+  }
+});
+
+router.post("/fms-import", permit("fms", "add"), async (req, res) => {
+  try {
+    const args = await sheetFmsArgs(req);
+    const out = await importSheetFms(...args, req.body, req.user);
+    audit(req, "fms.import", { entity: "Process", entityId: out.process._id, summary: `${out.process.name}: ${out.counts.entries} entries from the sheet tab "${args[2]}"` });
+    res.status(201).json(out);
+  } catch (err) {
+    sheetError(res, err, req);
   }
 });
 

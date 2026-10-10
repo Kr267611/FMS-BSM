@@ -65,6 +65,8 @@ const processSchema = new Schema(
       label: { type: String, default: "Status by PC" },
       options: { type: [String], default: ["Closed"] },
     },
+    // imported from a Google Sheet tab: where it came from and which column fed which field / step
+    source: { type: Schema.Types.Mixed, default: undefined },
     active: { type: Boolean, default: true },
     jobCounter: { type: Number, default: 0 },
     version: { type: Number, default: 2 },
