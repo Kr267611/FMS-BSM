@@ -17,6 +17,8 @@ const KINDS = [
 const KIND_TAG = { checklist: "Checklist", delegation: "Delegation", sheet: "Google Sheet" };
 const PRIORITY_ORDER = { critical: 0, high: 1 };
 const MAX_REVISIONS = 2;
+const PAGE = 20; // tasks shown per group before "Show more"
+const OLD_DAYS = 7; // overdue for longer than this goes into a folded group
 // Due day first, then critical / high before normal, then due time
 const byDue = (a, b) =>
   (a.plannedDay || "").localeCompare(b.plannedDay || "") || (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9) || new Date(a.planned || 0) - new Date(b.planned || 0);
@@ -31,6 +33,7 @@ export default function MyTasks() {
   const [doer, setDoer] = useState("");
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
+  const [q, setQ] = useState("");
 
   const load = useCallback(() => {
     setError("");
@@ -55,14 +58,18 @@ export default function MyTasks() {
   const all = data?.tasks || [];
   const today = data?.today;
   const kindsHere = KINDS.filter(([k]) => !k || all.some((t) => t.kind === k));
-  const tasks = kind ? all.filter((t) => t.kind === kind) : all.slice();
+  const words = q.trim().toLowerCase();
+  const tasks = (kind ? all.filter((t) => t.kind === kind) : all.slice()).filter((t) => !words || searchText(t).includes(words));
   if (tab === "pending") tasks.sort(byDue);
+  // The last week's overdue first; older overdue folded away so today's work is not lost under it
+  const oldFrom = today ? addDays(today, -OLD_DAYS) : "";
   const groups =
     tab === "pending"
       ? [
-          ["Overdue", tasks.filter((t) => t.plannedDay < today), "late"],
+          ["Overdue", tasks.filter((t) => t.plannedDay < today && t.plannedDay >= oldFrom), "late"],
           ["Due today", tasks.filter((t) => t.plannedDay === today), "today"],
           ["Upcoming", tasks.filter((t) => t.plannedDay > today), "later"],
+          [`Overdue for more than ${OLD_DAYS} days`, tasks.filter((t) => t.plannedDay < oldFrom), "late old", true],
         ]
       : [["Completed", tasks, "done"]];
 
@@ -107,35 +114,29 @@ export default function MyTasks() {
           />
         </div>
       )}
-      {kindsHere.length > 2 && (
-        <div className="tabs kind-tabs">
-          {kindsHere.map(([k, label]) => (
-            <button key={k} className={kind === k ? "active" : ""} onClick={() => setKind(k)}>
-              {label}
-              {k && <span className="tab-count">{all.filter((t) => t.kind === k).length}</span>}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="row wrap between task-filters">
+        {kindsHere.length > 2 ? (
+          <div className="tabs kind-tabs">
+            {kindsHere.map(([k, label]) => (
+              <button key={k} className={kind === k ? "active" : ""} onClick={() => setKind(k)}>
+                {label}
+                {k && <span className="tab-count">{all.filter((t) => t.kind === k).length}</span>}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <span />
+        )}
+        {all.length > 10 && <input className="task-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search item, machine, entry no…" />}
+      </div>
       {error && <div className="error">{error}</div>}
       {!data && !error && <p className="muted">Loading…</p>}
       {data && !tasks.length && (
         <div className="card empty">{tab === "pending" ? "You are all caught up. No pending tasks." : "No completed tasks yet."}</div>
       )}
       {groups.map(
-        ([title, list, tone]) =>
-          list.length > 0 && (
-            <section key={title} className="group">
-              <h3 className={"group-title " + tone}>
-                {title} <span className="count">{list.length}</span>
-              </h3>
-              <div className="task-list">
-                {list.map((t) => (
-                  <TaskCard key={t._id} task={t} today={today} me={user._id} canReopen={canReopen} onChange={load} />
-                ))}
-              </div>
-            </section>
-          )
+        ([title, list, tone, folded]) =>
+          list.length > 0 && <TaskGroup key={title} title={title} list={list} tone={tone} folded={folded && !words} today={today} me={user._id} canReopen={canReopen} onChange={load} />
       )}
     </>
   );
@@ -148,6 +149,54 @@ const longDate = new Intl.DateTimeFormat("en-IN", {
   month: "short",
   year: "numeric",
 }).format(new Date());
+
+// One section (Overdue / Due today / …): PAGE tasks at a time; a folded section opens on click
+function TaskGroup({ title, list, tone, folded, today, me, canReopen, onChange }) {
+  const [open, setOpen] = useState(!folded);
+  const [shown, setShown] = useState(PAGE);
+  return (
+    <section className="group">
+      <h3 className={"group-title " + tone}>
+        {folded ? (
+          <button type="button" className="group-toggle" onClick={() => setOpen(!open)} aria-expanded={open}>
+            {open ? "▾" : "▸"} {title} <span className="count">{list.length}</span>
+          </button>
+        ) : (
+          <>
+            {title} <span className="count">{list.length}</span>
+          </>
+        )}
+      </h3>
+      {folded && !open && <p className="muted small">Old work still open. Finish it or mark it Not Required when it no longer applies.</p>}
+      {open && (
+        <div className="task-list">
+          {list.slice(0, shown).map((t) => (
+            <TaskCard key={t._id} task={t} today={today} me={me} canReopen={canReopen} onChange={onChange} />
+          ))}
+          {list.length > shown && (
+            <button type="button" className="btn ghost show-more" onClick={() => setShown(shown + PAGE)}>
+              Show {Math.min(PAGE, list.length - shown)} more · {list.length - shown} left
+            </button>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// What the search box looks in: the task, its FMS and step, and the entry's values
+function searchText(t) {
+  return [t.label, t.stepName, t.process?.name, t.job?.jobNo && `#${t.job.jobNo}`, t.checklist?.name, t.sheetLink?.name, ...Object.values(t.job?.data || {})]
+    .filter((v) => typeof v === "string" || typeof v === "number")
+    .join(" ")
+    .toLowerCase();
+}
+
+// A short title: the step for an FMS task (its FMS goes in a tag), the task name otherwise
+function titleOf(t) {
+  if (t.kind === "app") return t.step?.name || t.stepName || t.label;
+  return t.label;
+}
 
 function Stat({ label, value, note, tone = "" }) {
   return (
@@ -271,7 +320,14 @@ function TaskCard({ task, today, me, canReopen, onChange }) {
     <div className="card task">
       <div className="task-main">
         <div className="task-title">
-          {task.label}
+          <span className="task-name" title={task.label}>
+            {titleOf(task)}
+          </span>
+          {task.kind === "app" && task.process?.name && (
+            <span className="tag gray fms-tag" title={task.process.name}>
+              {task.process.name}
+            </span>
+          )}
           {KIND_TAG[task.kind] && <span className="tag gray">{KIND_TAG[task.kind]}</span>}
           {tone && <span className={"tag " + tone}>{priorityLabel(task.priority)}</span>}
         </div>
@@ -326,8 +382,8 @@ function TaskCard({ task, today, me, canReopen, onChange }) {
               </button>
             )}
             {!isDelegation && (
-              <button className="btn ghost small" onClick={() => setMode("na")}>
-                Not Required
+              <button className="link-btn small" onClick={() => setMode("na")}>
+                Not required
               </button>
             )}
           </>
