@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { MoreFilters, PRIORITY_OPTIONS, RangeSelect } from "../components/ListFilters";
 import { api, can, showDateTime } from "../api";
 import { useAuth } from "../App";
 import DoerSelect from "../components/DoerSelect";
@@ -16,6 +17,8 @@ export default function Delegations() {
   const [view, setView] = useState(seeAll ? "all" : "mine");
   const [status, setStatus] = useState("pending");
   const [q, setQ] = useState("");
+  const [more, setMore] = useState({ doer: "", priority: "", mode: "", from: "", to: "", department: "", detail: "" }); // MIDAP filters
+  const setM = (x) => setMore((v) => ({ ...v, ...x }));
   const [data, setData] = useState(null);
   const [form, setForm] = useState(null); // {} = new, a task = edit
   const [openId, setOpenId] = useState(null);
@@ -23,10 +26,10 @@ export default function Delegations() {
 
   const load = useCallback(() => {
     setError("");
-    return api("/delegations", { query: { view, status, q } })
+    return api("/delegations", { query: { view, status, q, ...more, mode: undefined } })
       .then(setData)
       .catch((e) => setError(e.message));
-  }, [view, status, q]);
+  }, [view, status, q, more]);
   useEffect(() => {
     const t = setTimeout(load, q ? 300 : 0);
     return () => clearTimeout(t);
@@ -70,6 +73,31 @@ export default function Delegations() {
           ))}
         </div>
         <input className="search" placeholder="Search task…" value={q} onChange={(e) => setQ(e.target.value)} />
+      </div>
+      <div className="row wrap filters">
+        {view !== "mine" && <DoerSelect value={more.doer} onChange={(doer) => setM({ doer })} placeholder="All doers" />}
+        <select value={more.priority} onChange={(e) => setM({ priority: e.target.value })} aria-label="Priority">
+          {PRIORITY_OPTIONS.map(([k, l]) => (
+            <option key={k} value={k}>
+              {l}
+            </option>
+          ))}
+        </select>
+        <RangeSelect value={more.mode} onChange={(mode, r) => setM({ mode, ...(r ? { from: r[0], to: r[1] } : {}) })} />
+        <label className="inline small">
+          Deadline from <input type="date" value={more.from} onChange={(e) => setM({ from: e.target.value, mode: "" })} />
+        </label>
+        <label className="inline small">
+          to <input type="date" value={more.to} onChange={(e) => setM({ to: e.target.value, mode: "" })} />
+        </label>
+        {status === "done" && (
+          <select value={more.detail} onChange={(e) => setM({ detail: e.target.value })} aria-label="On time or delayed">
+            <option value="">On time or delayed</option>
+            <option value="done_ontime">Completed on time</option>
+            <option value="done_late">Completed · delayed</option>
+          </select>
+        )}
+        {view !== "mine" && <MoreFilters f={more} set={setM} show={["department"]} />}
       </div>
 
       {error && <div className="error">{error}</div>}

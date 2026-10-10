@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { PeopleFilter } from "../components/ListFilters";
 import { addDays, api, showDay, todayKey } from "../api";
 import { useAuth } from "../App";
 import { csvCell, download } from "../csv";
@@ -43,15 +44,16 @@ export default function Performance() {
   const [range, setRange] = useState({ key: "month", from: ps.month[1], to: ps.month[2] });
   const [group, setGroup] = useState("doer");
   const [data, setData] = useState(null);
+  const [people, setPeople] = useState({ department: "", branch: "", doer: "" }); // Department / Branch / Doer filter
   const [error, setError] = useState("");
 
   useEffect(() => {
     setError("");
     setData(null);
-    api("/mis/performance", { query: { from: range.from, to: range.to, group } })
+    api("/mis/performance", { query: { from: range.from, to: range.to, group, ...people } })
       .then(setData)
       .catch((e) => setError(e.message));
-  }, [range.from, range.to, group]);
+  }, [range.from, range.to, group, people]);
 
   const best = data?.rows[0];
   const worst = data?.rows.length > 1 ? data.rows[data.rows.length - 1] : null;
@@ -75,6 +77,7 @@ export default function Performance() {
           <div className="muted small">{data ? `${showDay(data.from)} – ${showDay(data.to)}` : " "}</div>
         </div>
         <div className="row wrap">
+          <PeopleFilter f={people} set={(x) => setPeople((v) => ({ ...v, ...x }))} />
           <div className="tabs">
             {Object.entries(ps).map(([k, [name, from, to]]) => (
               <button key={k} className={range.key === k ? "active" : ""} onClick={() => setRange({ key: k, from, to })}>

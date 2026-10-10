@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { PeopleFilter } from "../components/ListFilters";
 import { addDays, api, showDay, todayKey } from "../api";
 import { useAuth } from "../App";
 import { csvCell, download } from "../csv";
@@ -25,14 +26,15 @@ export default function EffortReport() {
   const [basis, setBasis] = useState("planned");
   const [group, setGroup] = useState("doer");
   const [data, setData] = useState(null);
+  const [people, setPeople] = useState({ department: "", branch: "", doer: "" }); // Department / Branch / Doer filter
   const [error, setError] = useState("");
   useEffect(() => {
     setError("");
     setData(null);
-    api("/reports/effort", { query: { from: range.from, to: range.to, basis, group } })
+    api("/reports/effort", { query: { from: range.from, to: range.to, basis, group, ...people } })
       .then(setData)
       .catch((e) => setError(e.message));
-  }, [range.from, range.to, basis, group]);
+  }, [range.from, range.to, basis, group, people]);
 
   const label = group === "department" ? "Department" : "Doer";
   function exportCsv() {
@@ -52,6 +54,7 @@ export default function EffortReport() {
           <div className="muted small">{data ? `${showDay(data.from)} – ${showDay(data.to)} · ${data.workingDays} working day(s)` : " "}</div>
         </div>
         <div className="row wrap">
+          <PeopleFilter f={people} set={(x) => setPeople((v) => ({ ...v, ...x }))} />
           <div className="tabs">
             {Object.entries(ps).map(([k, [name, from, to]]) => (
               <button key={k} className={range.key === k ? "active" : ""} onClick={() => setRange({ key: k, from, to })}>

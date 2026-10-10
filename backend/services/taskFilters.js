@@ -65,4 +65,14 @@ async function applyTaskFilters(filter, q, { now = new Date() } = {}) {
   return filter;
 }
 
-module.exports = { applyTaskFilters, STATUS, narrowDoers };
+// visible: what the user may see (null = everyone). q.department / q.branch narrow it -> ids, or null for everyone
+async function peopleFor(visible, q = {}) {
+  if (!isId(q.department) && !isId(q.branch)) return visible;
+  const who = { active: true };
+  if (isId(q.department)) who.department = q.department;
+  if (isId(q.branch)) who.branch = q.branch;
+  const ids = (await User.find(who).distinct("_id")).map(String);
+  return visible === null ? ids : ids.filter((id) => visible.map(String).includes(id));
+}
+
+module.exports = { applyTaskFilters, STATUS, narrowDoers, peopleFor };

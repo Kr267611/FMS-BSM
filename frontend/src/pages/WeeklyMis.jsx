@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState } from "react";
+import { PeopleFilter } from "../components/ListFilters";
 import { addDays, api, showDay, todayKey } from "../api";
 import { useAuth } from "../App";
 import { csvCell, download } from "../csv";
@@ -24,16 +25,17 @@ export default function WeeklyMis() {
   const [week, setWeek] = useState(monday(todayKey()));
   const [group, setGroup] = useState("doer");
   const [data, setData] = useState(null);
+  const [people, setPeople] = useState({ department: "", branch: "", doer: "" }); // Department / Branch / Doer filter
   const [open, setOpen] = useState({});
   const [error, setError] = useState("");
 
   useEffect(() => {
     setError("");
     setData(null);
-    api("/mis/weekly", { query: { week, group } })
+    api("/mis/weekly", { query: { week, group, ...people } })
       .then(setData)
       .catch((e) => setError(e.message));
-  }, [week, group]);
+  }, [week, group, people]);
 
   const thisMonday = monday(todayKey());
   const label = group === "department" ? "Department" : "Doer";
@@ -63,6 +65,7 @@ export default function WeeklyMis() {
           </div>
         </div>
         <div className="row wrap">
+          <PeopleFilter f={people} set={(x) => setPeople((v) => ({ ...v, ...x }))} />
           <div className="row">
             <button className="btn ghost small" onClick={() => setWeek(addDays(week, -7))}>
               ‹ Previous week

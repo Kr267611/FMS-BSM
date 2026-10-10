@@ -1,4 +1,5 @@
 const express = require("express");
+const { applyTaskFilters } = require("../services/taskFilters");
 const mongoose = require("mongoose");
 const Task = require("../models/Task");
 const { auth, permit } = require("../middleware/auth");
@@ -42,6 +43,13 @@ router.get("/", async (req, res) => {
   else if (status === "done") filter.status = "done";
   const q = String(req.query.q || "").trim();
   if (q) filter.label = new RegExp(esc(q), "i");
+  const isDay = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ""));
+  if (isDay(req.query.from) || isDay(req.query.to)) {
+    filter.plannedDay = {};
+    if (isDay(req.query.from)) filter.plannedDay.$gte = req.query.from;
+    if (isDay(req.query.to)) filter.plannedDay.$lte = req.query.to;
+  }
+  await applyTaskFilters(filter, { priority: req.query.priority, department: req.query.department, branch: req.query.branch, status: req.query.detail });
 
   const sort = status === "done" || status === "all" ? { resolvedAt: -1, planned: -1 } : { planned: 1 };
   const list = await people(Task.find(filter).select("-log -values").sort(sort).limit(500)).lean();

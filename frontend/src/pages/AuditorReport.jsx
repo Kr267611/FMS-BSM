@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState } from "react";
+import { PeopleFilter } from "../components/ListFilters";
 import { api } from "../api";
 import { csvCell, download } from "../csv";
 
@@ -8,15 +9,16 @@ export default function AuditorReport() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [data, setData] = useState(null);
+  const [people, setPeople] = useState({ department: "", branch: "", doer: "" }); // Department / Branch / Doer filter
   const [open, setOpen] = useState({});
   const [error, setError] = useState("");
   useEffect(() => {
     setError("");
     setData(null);
-    api("/audits/report", { query: { group, from, to } })
+    api("/audits/report", { query: { group, from, to, ...people } })
       .then(setData)
       .catch((e) => setError(e.message));
-  }, [group, from, to]);
+  }, [group, from, to, people]);
 
   const label = group === "doer" ? "Doer" : "Auditor";
   const other = group === "doer" ? "auditor" : "doer";
@@ -49,6 +51,7 @@ export default function AuditorReport() {
           <div className="muted small">Tasks that have an auditor: how many were audited, how many are waiting, and how they were rated.</div>
         </div>
         <div className="row wrap">
+          <PeopleFilter f={people} set={(x) => setPeople((v) => ({ ...v, ...x }))} />
           <div className="tabs">
             <button className={group === "auditor" ? "active" : ""} onClick={() => setGroup("auditor")}>
               Auditor-wise

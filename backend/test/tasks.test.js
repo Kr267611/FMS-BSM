@@ -668,6 +668,29 @@ test("MIDAP list filters: priority, assigned by, department, detailed status; Au
   assert.deepStrictEqual(asc, [...asc].sort());
 });
 
+test("Department / doer filters on the score reports, delegations and checklists", async () => {
+  const empty = await call("/org/departments", { session: sessions.admin, method: "POST", body: { name: "Empty dept" } });
+  const dep = empty.data._id;
+  const from = dates.addDaysKey(today, -30);
+  const q = (p) => call(p, { session: sessions.admin });
+  // a department with nobody in it: every report is empty
+  assert.strictEqual((await q(`/mis?from=${from}&to=${today}&department=${dep}`)).data.doers.length, 0);
+  assert.strictEqual((await q(`/mis/weekly?department=${dep}`)).data.rows.length, 0);
+  assert.strictEqual((await q(`/mis/performance?from=${from}&to=${today}&department=${dep}`)).data.rows.length, 0);
+  assert.strictEqual((await q(`/reports/effort?from=${from}&to=${today}&department=${dep}`)).data.rows.length, 0);
+  assert.strictEqual((await q(`/audits/report?department=${dep}`)).data.rows.length, 0);
+  // one doer: only that doer
+  const weekly = (await q(`/mis/weekly?doer=${people.ankit}`)).data.rows;
+  assert.ok(weekly.every((r) => String(r.key) === String(people.ankit)));
+  // delegations by priority and planned dates; checklists by frequency
+  const crit = (await q("/delegations?view=all&status=all&priority=critical")).data.tasks;
+  assert.ok(crit.length && crit.every((t) => t.priority === "critical"));
+  assert.strictEqual((await q(`/delegations?view=all&status=all&from=${dates.addDaysKey(today, 400)}`)).data.tasks.length, 0);
+  const daily = (await q("/checklists?frequency=daily")).data;
+  assert.ok(daily.length && daily.every((c) => c.frequency.type === "daily"));
+  assert.strictEqual((await q(`/checklists?department=${dep}`)).data.length, 0);
+});
+
 test("Doer leave: checklist tasks on those days are not required, delegations and FMS steps move after it, new steps avoid it", async () => {
   const d2 = dates.addDaysKey(today, 2);
   // a delegation due tomorrow 15:00 and a daily checklist, both for a doer who will be away today and tomorrow

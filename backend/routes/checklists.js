@@ -71,6 +71,14 @@ router.get("/", permit("checklist", "view"), async (req, res) => {
     filter.doer = req.query.doer;
   }
   if (req.query.group && mongoose.isValidObjectId(req.query.group)) filter.group = req.query.group;
+  if (["daily", "weekly", "monthly", "interval"].includes(req.query.frequency)) filter["frequency.type"] = req.query.frequency;
+  if (mongoose.isValidObjectId(req.query.department) || mongoose.isValidObjectId(req.query.branch)) {
+    const { narrowDoers } = require("../services/taskFilters");
+    const who = { active: true };
+    if (mongoose.isValidObjectId(req.query.department)) who.department = req.query.department;
+    if (mongoose.isValidObjectId(req.query.branch)) who.branch = req.query.branch;
+    narrowDoers(filter, await require("../models/User").find(who).distinct("_id"));
+  }
   if (req.query.active === "1") filter.active = true;
   if (req.query.active === "0") filter.active = false;
   const q = String(req.query.q || "").trim();

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { RangeSelect } from "../components/ListFilters";
 import { useSearchParams } from "react-router-dom";
 import { api, can, istDay, showDateTime, showDay } from "../api";
 import { useAuth } from "../App";
@@ -28,6 +29,7 @@ export default function Jobs() {
   const [status, setStatus] = useState("open");
   const [q, setQ] = useState("");
   const [search, setSearch] = useState("");
+  const [range, setRange] = useState({ mode: "", from: "", to: "" }); // entry date (MIDAP Mode / dates)
   const [page, setPage] = useState(1);
   const [data, setData] = useState(null);
   const [form, setForm] = useState(false);
@@ -77,10 +79,10 @@ export default function Jobs() {
   const load = useCallback(() => {
     if (!pid) return;
     setError("");
-    api("/jobs", { query: { process: pid, status, q: search, page } })
+    api("/jobs", { query: { process: pid, status, q: search, page, from: range.from, to: range.to } })
       .then(setData)
       .catch((e) => setError(e.message));
-  }, [pid, status, search, page]);
+  }, [pid, status, search, page, range.from, range.to]);
   useEffect(load, [load]);
 
   if (processes && !processes.length) {
@@ -118,6 +120,13 @@ export default function Jobs() {
             ))}
           </div>
           <input className="search" placeholder="Search item, machine, entry no…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <RangeSelect value={range.mode} onChange={(mode, r) => (setRange({ mode, from: r?.[0] || "", to: r?.[1] || "" }), setPage(1))} label="Entry date" />
+          <label className="inline small">
+            Entry from <input type="date" value={range.from} onChange={(e) => (setRange({ ...range, mode: "", from: e.target.value }), setPage(1))} />
+          </label>
+          <label className="inline small">
+            to <input type="date" value={range.to} onChange={(e) => (setRange({ ...range, mode: "", to: e.target.value }), setPage(1))} />
+          </label>
           <a className="btn ghost small" href={exportUrl}>
             Export (Excel)
           </a>

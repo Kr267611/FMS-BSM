@@ -11,7 +11,7 @@ const { loadCalendar } = require("../services/workflow");
 const { auth, permit } = require("../middleware/auth");
 const { visibleUserIds, canSeeUser } = require("../services/scope");
 const { audit } = require("../services/audit");
-const { applyTaskFilters } = require("../services/taskFilters");
+const { applyTaskFilters, peopleFor } = require("../services/taskFilters");
 
 const router = express.Router();
 router.use(auth, permit("reports", "view"));
@@ -239,7 +239,8 @@ router.get("/effort", async (req, res) => {
   const from = isDay(req.query.from) ? req.query.from : to.slice(0, 8) + "01";
   const byActual = req.query.basis === "actual";
   const byDept = req.query.group === "department";
-  const visible = await visibleUserIds(req.user);
+  let visible = await peopleFor(await visibleUserIds(req.user), req.query);
+  if (mongoose.isValidObjectId(req.query.doer)) visible = visible === null || visible.map(String).includes(String(req.query.doer)) ? [String(req.query.doer)] : [];
   const match = byActual ? { status: "done", actualDay: { $gte: from, $lte: to } } : { status: { $in: ["pending", "done", "expired"] }, plannedDay: { $gte: from, $lte: to } };
   if (visible !== null) match.doer = { $in: visible.map((id) => new mongoose.Types.ObjectId(id)) };
 

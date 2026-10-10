@@ -7,6 +7,7 @@ const { misReport, dailyReport, score } = require("../services/scoring");
 const { todayKey, addDaysKey } = require("../services/dates");
 const { visibleUserIds } = require("../services/scope");
 const { sweepSoon } = require("../services/sweep");
+const { peopleFor } = require("../services/taskFilters");
 
 const router = express.Router();
 
@@ -25,7 +26,10 @@ async function params(req) {
     err.status = 403;
     throw err;
   }
-  return { from, to, doerId: asked, doerIds: visible };
+  // department / branch, and one doer, narrow the people every report covers
+  let doerIds = await peopleFor(visible, req.query);
+  if (asked) doerIds = doerIds === null || doerIds.includes(asked) ? [asked] : [];
+  return { from, to, doerId: asked, doerIds };
 }
 
 // Task Count + MIS Summary

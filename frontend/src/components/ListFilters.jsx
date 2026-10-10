@@ -142,3 +142,31 @@ export function MoreFilters({ f, set, show = ["priority", "department", "branch"
 
 // How many of the "More filters" are set, for the button label
 export const moreCount = (f, keys = ["priority", "department", "branch", "group", "assignedBy", "pc", "auditor"]) => keys.filter((k) => f[k]).length;
+
+// Department / Branch / Doer for the score reports (MIS Score, Weekly MIS, Meeting, Performance, Effort, Auditor Report)
+export function PeopleFilter({ f, set, doer = true }) {
+  const org = useOrg();
+  return (
+    <div className="row wrap people-filter">
+      <select value={f.department || ""} onChange={(e) => set({ department: e.target.value })} aria-label="Department">
+        <option value="">All departments</option>
+        {org.departments.map((d) => (
+          <option key={d._id} value={d._id}>
+            {d.name}
+          </option>
+        ))}
+      </select>
+      {org.branches.length > 1 && (
+        <select value={f.branch || ""} onChange={(e) => set({ branch: e.target.value })} aria-label="Branch">
+          <option value="">All branches</option>
+          {org.branches.map((b) => (
+            <option key={b._id} value={b._id}>
+              {b.name}
+            </option>
+          ))}
+        </select>
+      )}
+      {doer && <DoerSelect value={f.doer} onChange={(v) => set({ doer: v })} placeholder="All doers" />}
+    </div>
+  );
+}

@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState } from "react";
+import { PeopleFilter } from "../components/ListFilters";
 import { addDays, api, showDay, todayKey } from "../api";
 import { useAuth } from "../App";
 
@@ -32,6 +33,7 @@ export default function Mis() {
   const ps = presets();
   const [range, setRange] = useState({ key: "month", from: ps.month[1], to: ps.month[2] });
   const [data, setData] = useState(null);
+  const [people, setPeople] = useState({ department: "", branch: "", doer: "" }); // Department / Branch / Doer filter
   const [open, setOpen] = useState({});
   const [daily, setDaily] = useState(null);
   const [error, setError] = useState("");
@@ -39,13 +41,13 @@ export default function Mis() {
   useEffect(() => {
     setError("");
     setData(null);
-    api("/mis", { query: { from: range.from, to: range.to } })
+    api("/mis", { query: { from: range.from, to: range.to, ...people } })
       .then((d) => {
         setData(d);
         if (!isAdmin && d.doers[0]) setOpen({ [d.doers[0].doer._id]: true });
       })
       .catch((e) => setError(e.message));
-  }, [range.from, range.to, isAdmin]);
+  }, [range.from, range.to, isAdmin, people]);
 
   function pick(key) {
     const [, from, to] = ps[key];
@@ -71,6 +73,7 @@ export default function Mis() {
       <div className="page-head">
         <h2>MIS Score</h2>
         <div className="row wrap">
+          <PeopleFilter f={people} set={(x) => setPeople((v) => ({ ...v, ...x }))} />
           <div className="tabs">
             {Object.entries(ps).map(([k, [label]]) => (
               <button key={k} className={range.key === k ? "active" : ""} onClick={() => pick(k)}>

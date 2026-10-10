@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { PeopleFilter } from "../components/ListFilters";
 import { useSearchParams } from "react-router-dom";
 import { addDays, api, can, showDay, todayKey } from "../api";
 import { useAuth } from "../App";
@@ -87,6 +88,7 @@ export default function MeetingReport() {
   const [params, setParams] = useSearchParams();
   const [week, setWeek] = useState(monday(params.get("week") || addDays(todayKey(), -7)));
   const [data, setData] = useState(null);
+  const [people, setPeople] = useState({ department: "", branch: "", doer: "" }); // Department / Branch / Doer filter
   const [error, setError] = useState("");
   const admin = can(user, "settings", "edit");
 
@@ -94,10 +96,10 @@ export default function MeetingReport() {
     setError("");
     setData(null);
     setParams({ week }, { replace: true });
-    api("/mis/meeting", { query: { week } })
+    api("/mis/meeting", { query: { week, ...people } })
       .then(setData)
       .catch((e) => setError(e.message));
-  }, [week]); // the URL follows the week
+  }, [week, people]); // the URL follows the week
 
   const thisMonday = monday(todayKey());
   const c = data?.company;
@@ -112,6 +114,7 @@ export default function MeetingReport() {
           </div>
         </div>
         <div className="row wrap no-print">
+          <PeopleFilter f={people} set={(x) => setPeople((v) => ({ ...v, ...x }))} />
           <button className="btn ghost" onClick={() => setWeek(addDays(week, -7))}>
             ‹ Previous week
           </button>

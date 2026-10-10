@@ -8,7 +8,7 @@ const User = require("../models/User");
 const wf = require("../services/workflow");
 const { getAuditorSettings, saveAuditorSettings } = require("../services/auditSampling");
 const { todayKey } = require("../services/dates");
-const { applyTaskFilters } = require("../services/taskFilters");
+const { applyTaskFilters, peopleFor } = require("../services/taskFilters");
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const router = express.Router();
@@ -126,6 +126,11 @@ router.get("/report", permit("reports", "view"), async (req, res) => {
   const match = { auditor: { $ne: null }, status: { $in: ["pending", "done"] } };
   const visible = await visibleUserIds(req.user);
   if (visible !== null) match.$or = [{ doer: { $in: visible.map(oid) } }, { auditor: req.user._id }];
+  // department / branch narrow the doers; one auditor or one doer
+  const people = await peopleFor(null, req.query);
+  if (people !== null) match.doer = { $in: people.map(oid) };
+  if (mongoose.isValidObjectId(req.query.doer)) match.doer = oid(req.query.doer);
+  if (mongoose.isValidObjectId(req.query.auditor)) match.auditor = oid(req.query.auditor);
   if (isDay(req.query.from) || isDay(req.query.to)) {
     match.plannedDay = {};
     if (isDay(req.query.from)) match.plannedDay.$gte = req.query.from;

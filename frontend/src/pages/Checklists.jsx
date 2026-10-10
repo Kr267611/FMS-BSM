@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { MoreFilters } from "../components/ListFilters";
 import { Link } from "react-router-dom";
 import { api, can, showDay } from "../api";
 import { useAuth } from "../App";
@@ -16,6 +17,7 @@ export default function Checklists() {
   const [doer, setDoer] = useState("");
   const [group, setGroup] = useState("");
   const [active, setActive] = useState("1");
+  const [more, setMore] = useState({ department: "", frequency: "" });
   const [open, setOpen] = useState(null); // "new" or a checklist id
   const [showGroups, setShowGroups] = useState(false);
   const [error, setError] = useState("");
@@ -27,10 +29,10 @@ export default function Checklists() {
 
   const load = useCallback(() => {
     setError("");
-    return api("/checklists", { query: { q, doer, group, active } })
+    return api("/checklists", { query: { q, doer, group, active, ...more } })
       .then(setList)
       .catch((e) => setError(e.message));
-  }, [q, doer, group, active]);
+  }, [q, doer, group, active, more]);
   useEffect(() => {
     const t = setTimeout(load, q ? 300 : 0);
     return () => clearTimeout(t);
@@ -62,6 +64,14 @@ export default function Checklists() {
 
       <div className="row wrap filters">
         <input className="search" placeholder="Search checklist…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <select value={more.frequency} onChange={(e) => setMore({ ...more, frequency: e.target.value })} aria-label="Frequency">
+          <option value="">Any frequency</option>
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+          <option value="interval">Every N days</option>
+        </select>
+        <MoreFilters f={more} set={(x) => setMore((v) => ({ ...v, ...x }))} show={["department"]} />
         <DoerSelect value={doer} onChange={setDoer} placeholder="All doers" />
         <select value={group} onChange={(e) => setGroup(e.target.value)}>
           <option value="">All groups</option>
