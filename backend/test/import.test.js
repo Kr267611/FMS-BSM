@@ -81,7 +81,26 @@ test("import: entries made with the sheet's entry date; planned = entry + 7 work
   assert.deepStrictEqual(again.data.results.map((x) => x.duplicate), [true, true]);
 });
 
-test("delete the FMS: admin only, needs DELETE, takes its entries and steps with it", async () => {
+test("deleting an FMS needs the FMS Manager – Delete permission, which the admin gives per user", async () => {
+  const login = async (username) => {
+    const res = await fetch(base + "/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username, password: "pc1234" }) });
+    return res.headers.getSetCookie().find((c) => c.startsWith("fms_session=")).split(";")[0];
+  };
+  const asUser = async (cookie, p, body) => {
+    const res = await fetch(base + p, { method: "DELETE", headers: { "Content-Type": "application/json", Cookie: cookie }, body: JSON.stringify(body) });
+    return res.status;
+  };
+  const u = await call("/users", { method: "POST", body: { name: "PC One", username: "pc1", password: "pc1234", role: "pc" } });
+  assert.strictEqual(u.status, 201, u.data.message);
+  assert.strictEqual(await asUser(await login("pc1"), `/processes/${pid}`, { confirm: "DELETE" }), 403); // a PC cannot by default
+
+  const given = await call(`/users/${u.data._id}`, { method: "PUT", body: { permissions: { fms: ["view", "delete"] } } });
+  assert.strictEqual(given.status, 200, given.data.message);
+  // with the permission the check passes (a wrong confirm word then stops it, so the FMS stays for the next test)
+  assert.strictEqual(await asUser(await login("pc1"), `/processes/${pid}`, { confirm: "no" }), 400);
+});
+
+test("delete the FMS: needs DELETE, takes its entries and steps with it", async () => {
   const before = (await call(`/jobs?process=${pid}&status=`)).data.total;
   assert.ok(before > 0);
   const no = await call(`/processes/${pid}`, { method: "DELETE", body: { confirm: "delete" } });

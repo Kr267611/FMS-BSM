@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { api } from "../api";
+import { api, can } from "../api";
 import { useAuth } from "../App";
 import DoerSelect, { useUsers } from "../components/DoerSelect";
 import ConditionEditor from "../components/ConditionEditor";
@@ -457,12 +457,12 @@ export default function FmsBuilder() {
           </>
         )}
       </div>
-      {!isNew && user.role === "admin" && <DeleteFms id={id} name={p.name} onDeleted={() => navigate("/processes")} />}
+      {!isNew && can(user, "fms", "delete") && <DeleteFms id={id} name={p.name} onDeleted={() => navigate("/processes")} />}
     </form>
   );
 }
 
-// Admin: delete the FMS from the software – its entries and steps go too. A Google Sheet is never touched.
+// With the "FMS Manager – Delete" permission: delete the FMS from the software – its entries and steps go too. A Google Sheet is never touched.
 function DeleteFms({ id, name, onDeleted }) {
   const [open, setOpen] = useState(false);
   const [count, setCount] = useState(null);

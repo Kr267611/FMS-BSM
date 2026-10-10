@@ -88,10 +88,11 @@ router.put("/:id", auth, permit("fms", "edit"), async (req, res) => {
   res.json(p);
 });
 
-// Delete an FMS from the software (admin only, body confirm: "DELETE"): the FMS, its entries, their steps and its
+// Delete an FMS from the software ("FMS Manager – Delete" permission, which an admin gives per user; body
+// confirm: "DELETE"): the FMS, its entries, their steps and its
 // Auto Complete / reminder rules. Only the software's own data – a Google Sheet it was imported from is never touched.
 router.delete("/:id", auth, async (req, res) => {
-  if (req.user.role !== "admin") return res.status(403).json({ message: "Only an admin can delete an FMS" });
+  if (!can(req.user, "fms", "delete")) return res.status(403).json({ message: "You do not have the permission to delete an FMS. An admin can give it in Users." });
   if (req.body?.confirm !== "DELETE") return res.status(400).json({ message: "Type DELETE to confirm" });
   if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: "Invalid ID" });
   const p = await Process.findById(req.params.id).select("name").lean();
