@@ -9,6 +9,10 @@ const { sweepSoon } = require("../services/sweep");
 const { todayKey } = require("../services/dates");
 const { canSeeUser } = require("../services/scope");
 const { audit } = require("../services/audit");
+const Job = require("../models/Job");
+const Process = require("../models/Process");
+const User = require("../models/User");
+const { resolveDoer, directory } = require("../services/fms/doers");
 
 const router = express.Router();
 
@@ -78,6 +82,52 @@ async function kindOf(id) {
   }
   return t.kind;
 }
+
+// MIDAP "Pipe Line Tasks": FMS steps not started yet that will come to this doer, by the step's doer rule
+// and the entry's values – with what each one is waiting for
+router.get("/pipeline", auth, async (req, res) => {
+  const doer = String(req.query.doer || req.user._id);
+  if (!mongoose.isValidObjectId(doer)) return res.status(400).json({ message: "Invalid doer" });
+  if (doer !== String(req.user._id) && !(await canSeeUser(req.user, doer))) {
+    return res.status(403).json({ message: "You can only see tasks of people in your department" });
+  }
+  const waiting = await Task.find({ kind: "app", status: "waiting" }).select("job process stepKey stepIndex stepName label triggerAt").limit(5000).lean();
+  if (!waiting.length) return res.json({ today: todayKey(), tasks: [] });
+  const [jobs, processes, users] = await Promise.all([
+    Job.find({ _id: { $in: [...new Set(waiting.map((t) => String(t.job)))] }, status: "open" }).select("jobNo data startDate").lean(),
+    Process.find({ _id: { $in: [...new Set(waiting.map((t) => String(t.process)))] } }).select("name fields steps").lean(),
+    User.find({ active: true }).select("name active").lean(),
+  ]);
+  const jobOf = new Map(jobs.map((j) => [String(j._id), j]));
+  const procOf = new Map(processes.map((p) => [String(p._id), p]));
+  const dir = directory(users);
+  const out = [];
+  for (const t of waiting) {
+    const job = jobOf.get(String(t.job));
+    const p = procOf.get(String(t.process));
+    if (!job || !p) continue;
+    const key = t.stepKey || `s${(t.stepIndex ?? 0) + 1}`;
+    const step = p.steps.find((x) => x.key === key);
+    if (!step) continue;
+    const who = resolveDoer(step.doer, job.data || {}, dir) || p.pc;
+    if (String(who) !== doer) continue;
+    const from = step.start?.step ? p.steps.find((x) => x.key === step.start.step) : null;
+    out.push({
+      _id: t._id,
+      label: t.label,
+      stepIndex: t.stepIndex,
+      stepName: step.name,
+      process: { _id: p._id, name: p.name, fields: p.fields },
+      job: { _id: job._id, jobNo: job.jobNo, data: job.data, startDate: job.startDate },
+      waitsFor: from ? { mode: step.start.mode, step: from.name } : null,
+      expected: t.triggerAt || null,
+      tat: step.tat,
+      tatUnit: step.tatUnit,
+    });
+  }
+  out.sort((a, b) => (a.expected ? Date.parse(a.expected) : Infinity) - (b.expected ? Date.parse(b.expected) : Infinity) || Number(a.job.jobNo) - Number(b.job.jobNo));
+  res.json({ today: todayKey(), tasks: out.slice(0, 1000) });
+});
 
 router.post("/:id/done", auth, async (req, res) => {
   const kind = await kindOf(req.params.id);

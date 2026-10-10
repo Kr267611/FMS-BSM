@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, can, showDateTime } from "../api";
+import { api, can } from "../api";
 import { useAuth } from "../App";
-import StepForm from "../components/StepForm";
+import DashTaskTables from "../components/DashTaskTables";
 
 const initials = (n = "") =>
   n
@@ -99,7 +99,7 @@ export default function Dashboard() {
             <FollowUp list={d.overdueList} showLink={user.role !== "doer"} />
           </div>
 
-          <MyTaskTables onChange={load} />
+          <DashTaskTables onChange={load} />
         </>
       )}
     </>
@@ -297,149 +297,5 @@ function FollowUp({ list, showLink }) {
         ))}
       </ul>
     </div>
-  );
-}
-
-// ---------- My task tables (Checklist / Delegation / FMS) with All / Today only ----------
-const TABS = [
-  ["checklist", "Checklist Tasks"],
-  ["delegation", "Delegation Tasks"],
-  ["fms", "FMS Tasks"],
-  ["ticket", "Help Ticket Tasks"],
-];
-function MyTaskTables({ onChange }) {
-  const [tab, setTab] = useState("checklist");
-  const [todayOnly, setTodayOnly] = useState(false);
-  const [data, setData] = useState(null);
-  const [doing, setDoing] = useState(null);
-  const [error, setError] = useState("");
-  const load = useCallback(() => {
-    if (tab === "ticket") return setData({ tasks: [], today: "" });
-    setError("");
-    api("/tasks", { query: { kind: tab, status: "pending" } })
-      .then(setData)
-      .catch((e) => setError(e.message));
-  }, [tab]);
-  useEffect(() => {
-    setData(null);
-    load();
-  }, [load]);
-
-  const tasks = (data?.tasks || []).filter((t) => !todayOnly || t.plannedDay === data.today);
-  const fieldsOf = (t) => (t.kind === "app" ? t.step?.fields || [] : t.formFields || []);
-  async function quickDone(t) {
-    setError("");
-    try {
-      await api(`/tasks/${t._id}/done`, { method: "POST", body: {} });
-      load();
-      onChange();
-    } catch (e) {
-      setError(e.message);
-    }
-  }
-  return (
-    <>
-      <div className="row between task-tabs">
-        <div className="row wrap">
-          {TABS.map(([k, label]) => (
-            <button key={k} className={"tab-btn" + (tab === k ? " active" : "")} onClick={() => setTab(k)}>
-              {label}
-            </button>
-          ))}
-        </div>
-        <label className="switch small">
-          All
-          <input type="checkbox" checked={todayOnly} onChange={(e) => setTodayOnly(e.target.checked)} />
-          <span className="track" />
-          Today Only
-        </label>
-      </div>
-      <div className="card table-card">
-        <div className="row between pad">
-          <b className="caps">{TABS.find(([k]) => k === tab)[1]}</b>
-          <button className="btn ghost small" onClick={load} title="Refresh">
-            ↻ Refresh
-          </button>
-        </div>
-        {error && <div className="error pad-x">{error}</div>}
-        <div className="table-scroll">
-          <table className="grid">
-            <thead>
-              <tr>
-                <th>Task Title</th>
-                <th>Message</th>
-                <th>Assigned By</th>
-                <th>Planned Date</th>
-                <th>Status</th>
-                <th>Delay</th>
-                <th>Doer Notes</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {!data && (
-                <tr>
-                  <td colSpan={8} className="muted center">
-                    Loading…
-                  </td>
-                </tr>
-              )}
-              {data && !tasks.length && (
-                <tr>
-                  <td colSpan={8} className="muted center">
-                    {tab === "ticket" ? "Help tickets are coming soon." : "No record found."}
-                  </td>
-                </tr>
-              )}
-              {tasks.map((t) => {
-                const late = lateBy(t.planned);
-                const overdue = new Date(t.planned) < new Date();
-                const msg = t.kind === "delegation" ? t.details : t.kind === "checklist" ? t.checklist?.how : t.step?.how;
-                return [
-                  <tr key={t._id}>
-                    <td>
-                      <b>{t.label}</b>
-                      {t.job && <div className="muted small">Entry #{t.job.jobNo}</div>}
-                    </td>
-                    <td className="muted small msg-cell">{msg || "—"}</td>
-                    <td className="nowrap">{t.assignedBy?.name || (t.kind === "app" ? "FMS" : "Checklist")}</td>
-                    <td className="nowrap small">{showDateTime(t.planned)}</td>
-                    <td>
-                      <span className={"tag " + (overdue ? "red" : "amber")}>{overdue ? "Overdue" : "Pending"}</span>
-                    </td>
-                    <td className="nowrap">{overdue ? `${late || "<1"}d` : "—"}</td>
-                    <td className="muted small">{t.remarks || "—"}</td>
-                    <td>
-                      {fieldsOf(t).length ? (
-                        <button className="btn primary small" onClick={() => setDoing(doing === t._id ? null : t._id)}>
-                          {doing === t._id ? "Close" : "Done…"}
-                        </button>
-                      ) : (
-                        <button className="btn primary small" onClick={() => quickDone(t)}>
-                          Done
-                        </button>
-                      )}
-                    </td>
-                  </tr>,
-                  doing === t._id && (
-                    <tr key={t._id + "-form"}>
-                      <td colSpan={8}>
-                        <StepForm
-                          task={t}
-                          step={t.step}
-                          fields={t.kind === "app" ? undefined : fieldsOf(t)}
-                          onDone={() => (setDoing(null), load(), onChange())}
-                          onCancel={() => setDoing(null)}
-                        />
-                      </td>
-                    </tr>
-                  ),
-                ];
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </>
   );
 }

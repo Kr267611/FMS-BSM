@@ -1029,3 +1029,10 @@ input.bad-input { border-color: var(--bad); }
   .table-scroll { overflow: visible !important; max-height: none !important; }
   body { background: #fff !important; }
 }
+
+/* Dashboard task tables (MIDAP style): sortable heads, FMS filters, entry details */
+th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+.sort-arrows { color: #3b6fd4; font-size: 12px; opacity: 0.6; }
+.sort-arrows.on { opacity: 1; }
+.fms-filters { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); margin-bottom: 10px; }
+.details-cell { display: grid; gap: 1px; min-width: 180px; }
