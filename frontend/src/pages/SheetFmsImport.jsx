@@ -16,6 +16,8 @@ export default function SheetFmsImport() {
   const [name, setName] = useState("");
   const [pc, setPc] = useState("");
   const [steps, setSteps] = useState({});
+  const [people, setPeople] = useState({}); // a name in the sheet -> user id
+  const [onlyUnmatched, setOnlyUnmatched] = useState(false);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [done, setDone] = useState(null);
@@ -43,7 +45,8 @@ export default function SheetFmsImport() {
       const r = await api("/sheets/fms-preview", { method: "POST", body: { sheetUrl: url, tabName: tab } });
       setPlan(r);
       setName(sheet?.title && sheet.tabs.length > 1 ? `${sheet.title} – ${tab}` : sheet?.title || tab);
-      setSteps(Object.fromEntries(r.steps.map((s) => [s.key, { name: s.name, tat: s.tat, doer: s.doer }])));
+      setSteps(Object.fromEntries(r.steps.map((s) => [s.key, { name: s.name, tat: s.tat, doer: s.doer, source: s.source || { type: "fixed" } }])));
+      setPeople(r.people || {});
     } catch (e) {
       setError(e.message);
     } finally {
@@ -55,7 +58,8 @@ export default function SheetFmsImport() {
     setBusy("import");
     setError("");
     try {
-      setDone(await api("/sheets/fms-import", { method: "POST", body: { sheetUrl: url, tabName: tab, name, pc, steps } }));
+      const used = Object.fromEntries(usedNames.map(([n]) => [n, people[n] || ""]).filter(([, u]) => u));
+      setDone(await api("/sheets/fms-import", { method: "POST", body: { sheetUrl: url, tabName: tab, name, pc, steps, people: used } }));
     } catch (e) {
       setError(e.message);
     } finally {
@@ -65,6 +69,18 @@ export default function SheetFmsImport() {
 
   const setStep = (key, patch) => setSteps((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
   const missing = plan ? plan.steps.filter((s) => !steps[s.key]?.doer).length : 0;
+
+  // Where each step's doer can come from: one person, a person column of the entry, or a doer tab
+  const src = plan?.doerSources || { fields: [], lookups: [] };
+  const sourceKey = (x) => (x?.type === "field" ? `field:${x.field}` : x?.type === "lookup" ? `lookup:${x.tab}` : "fixed");
+  const sourceOf = (k) => (k.startsWith("field:") ? { type: "field", field: k.slice(6) } : k.startsWith("lookup:") ? { type: "lookup", tab: k.slice(7) } : { type: "fixed" });
+  const namesFor = (x) => (x?.type === "field" ? src.fields.find((f) => f.key === x.field)?.names : x?.type === "lookup" ? src.lookups.find((l) => l.tab === x.tab)?.names : null) || [];
+  const usedNames = (() => {
+    const all = new Map();
+    for (const st of Object.values(steps)) for (const [n, c] of namesFor(st.source)) all.set(n, (all.get(n) || 0) + c);
+    return [...all.entries()].sort((a, b) => b[1] - a[1]);
+  })();
+  const unmatched = usedNames.filter(([n]) => !people[n]).length;
 
   if (done) {
     const c = done.counts;
@@ -180,6 +196,7 @@ export default function SheetFmsImport() {
                     <th>#</th>
                     <th>Step name</th>
                     <th>Sheet says</th>
+                    <th>Doer comes from</th>
                     <th>Doer</th>
                     <th>TAT (days)</th>
                     <th>Rule (from the sheet's formula)</th>
@@ -196,7 +213,23 @@ export default function SheetFmsImport() {
                       </td>
                       <td className="muted small">{s.doerHint || "—"}</td>
                       <td>
-                        <DoerSelect value={steps[s.key]?.doer} onChange={(v) => setStep(s.key, { doer: v })} placeholder="Choose…" />
+                        <select value={sourceKey(steps[s.key]?.source)} onChange={(e) => setStep(s.key, { source: sourceOf(e.target.value) })}>
+                          <option value="fixed">One person</option>
+                          {src.fields.map((f) => (
+                            <option key={f.key} value={`field:${f.key}`}>
+                              Name in column {f.col} ({f.label})
+                            </option>
+                          ))}
+                          {src.lookups.map((l) => (
+                            <option key={l.tab} value={`lookup:${l.tab}`}>
+                              Tab “{l.tab}” by {l.fieldLabel}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        <DoerSelect value={steps[s.key]?.doer} onChange={(v) => setStep(s.key, { doer: v })} placeholder={steps[s.key]?.source?.type === "fixed" ? "Choose…" : "Otherwise…"} />
+                        {steps[s.key]?.source?.type !== "fixed" && <div className="muted small">when no name matches</div>}
                       </td>
                       <td>
                         <input type="number" min="0" step="0.5" style={{ width: 70 }} value={steps[s.key]?.tat ?? ""} onChange={(e) => setStep(s.key, { tat: Number(e.target.value) })} />
@@ -223,6 +256,45 @@ export default function SheetFmsImport() {
               </table>
             </div>
           </div>
+
+          {usedNames.length > 0 && (
+            <div className="card">
+              <div className="row between wrap">
+                <h3>People in the sheet</h3>
+                <label className="check small">
+                  <input type="checkbox" checked={onlyUnmatched} onChange={(e) => setOnlyUnmatched(e.target.checked)} /> Only names without a user ({unmatched})
+                </label>
+              </div>
+              <p className="muted small">
+                The sheet writes names its own way (OP, SB PATIL…). Choose the user for each name; names left empty go to the step's “Otherwise” doer.
+                A user can be linked later too, in Doer Conditions.
+              </p>
+              <div className="table-scroll people-table">
+                <table className="grid">
+                  <thead>
+                    <tr>
+                      <th>Name in the sheet</th>
+                      <th>Used</th>
+                      <th>User</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {usedNames
+                      .filter(([n]) => !onlyUnmatched || !people[n])
+                      .map(([n, c]) => (
+                        <tr key={n}>
+                          <td>{n}</td>
+                          <td className="muted small">{c}×</td>
+                          <td>
+                            <DoerSelect value={people[n]} onChange={(v) => setPeople((p) => ({ ...p, [n]: v }))} placeholder="— (Otherwise doer)" />
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           <div className="card">
             <h3>Entry form</h3>

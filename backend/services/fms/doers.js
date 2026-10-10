@@ -6,8 +6,8 @@
 // Map rows keep the doer's name as well as the user id, so a table pasted from a sheet
 // starts working as soon as users with those names exist.
 
-// "JET 1", "Jet-1" and "JET1" are the same machine
-const normKey = (v) => String(v ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+// "JET 1", "Jet-1", "JET1" and "JET-01" are the same machine
+const normKey = (v) => String(v ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/([A-Z])0+(?=\d)/g, "$1");
 const normName = (v) => String(v ?? "").trim().replace(/\s+/g, " ").toLowerCase();
 
 // users: [{ _id, name, active }] -> lookups by id and by name (active users only)

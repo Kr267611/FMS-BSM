@@ -13,6 +13,7 @@ const engine = require("./fms/engine");
 const { resolveDoer, directory } = require("./fms/doers");
 const { loadCalendar } = require("./workflow");
 const F = require("./sheetFormula");
+const D = require("./sheetDoers");
 
 const HEAD_ROWS = 15;
 const SAMPLE = 400; // rows looked at to guess each column's type
@@ -262,7 +263,8 @@ function entryRows(plan, fmt, raw) {
 }
 
 // The FMS definition the software saves, from the plan and what the admin changed in the preview
-function definition(plan, tab, body = {}) {
+// ctx: { rows, lookups } – the entries and the doer tabs, for doers that come from the sheet (Hissa 2)
+function definition(plan, tab, body = {}, ctx = {}) {
   const over = body.steps || {};
   return {
     name: body.name,
@@ -275,7 +277,7 @@ function definition(plan, tab, body = {}) {
     steps: plan.steps.map((s, i) => ({
       key: s.key,
       name: over[s.key]?.name || s.name,
-      doer: { mode: "fixed", user: over[s.key]?.doer || undefined, hint: s.doerHint },
+      doer: D.doerRule(over[s.key]?.source || s.source, { fallback: over[s.key]?.doer, hint: s.doerHint, people: body.people, rows: ctx.rows, lookups: ctx.lookups }),
       ...(s.rule || { start: i === 0 ? { mode: "entry" } : { mode: "afterDone", step: plan.steps[i - 1].key } }),
       tat: over[s.key]?.tat ?? s.tat,
       tatUnit: "days",
@@ -319,24 +321,56 @@ function settleRows({ process, rows, plan, now, calendar, doerOf = () => null, f
   return { counts, rows: out };
 }
 
+// The doer tabs of the sheet (e.g. MACHINE WISE DOER), read only when a step needs them
+async function doerTabs(sheets, spreadsheetId, tab, plan, wanted) {
+  const meta = await sheets.spreadsheets.get({ spreadsheetId, fields: "sheets.properties.title" });
+  const tabs = (meta.data.sheets || []).map((s) => s.properties.title).filter((t) => !wanted || wanted.includes(t));
+  return D.findLookups(sheets, spreadsheetId, tabs, tab, plan.fields);
+}
+
 async function previewSheetFms(sheets, spreadsheetId, tab, { now = new Date() } = {}) {
   const { plan, fmt, raw } = await loadTab(sheets, spreadsheetId, tab);
   const users = await User.find({ active: true }).select("name username").lean();
-  for (const s of plan.steps) {
+  const rows = entryRows(plan, fmt, raw);
+  const lookups = await doerTabs(sheets, spreadsheetId, tab, plan);
+  const persons = D.personFields(plan.fields);
+  const sources = D.suggestSources(plan.steps, persons, lookups);
+  plan.steps.forEach((s, i) => {
     const u = matchUser(s.doerHint, users);
     s.doer = u ? String(u._id) : "";
-  }
-  const rows = entryRows(plan, fmt, raw);
-  const def = normalizeProcess({ ...definition(plan, tab, { name: tab }), active: false });
+    s.source = sources[i];
+  });
+
+  // Where a doer can come from, and every name the sheet uses there, matched to a user where possible
+  const people = {};
+  const named = (count) => [...count.entries()].sort((a, b) => b[1] - a[1]).map(([name, n]) => ((people[name] ??= String(matchUser(name, users)?._id || "")), [name, n]));
+  const doerSources = {
+    fields: persons.map((f) => ({ key: f.key, label: f.label, col: f.col, names: named(D.namesOf({ type: "field", field: f.key }, rows, lookups)) })),
+    lookups: lookups.map((l) => ({
+      tab: l.tab,
+      field: l.field,
+      fieldLabel: plan.fields.find((f) => f.key === l.field)?.label,
+      keyHeader: l.keyHeader,
+      doerHeader: l.doerHeader,
+      rows: l.rows.length,
+      names: named(D.namesOf({ type: "lookup", tab: l.tab }, rows, lookups)),
+    })),
+  };
+
+  const def = normalizeProcess({ ...definition(plan, tab, { name: tab }, { rows, lookups }), active: false });
   const { counts } = settleRows({ process: def, rows, plan, now, calendar: await loadCalendar() });
-  return { ...plan, counts, closedEntries: rows.filter((r) => r.closeStatus).length };
+  return { ...plan, counts, closedEntries: rows.filter((r) => r.closeStatus).length, doerSources, people };
 }
 
-// Make the FMS and bring in the rows. body: { name, pc, steps: { s1: { name, tat, doer } } }
+// Make the FMS and bring in the rows.
+// body: { name, pc, steps: { s1: { name, tat, doer, source: { type: "fixed" | "field" | "lookup", field, tab } } }, people: { "SB PATIL": userId } }
 async function importSheetFms(sheets, spreadsheetId, tab, body, user, { now = new Date() } = {}) {
   const { plan, fmt, raw } = await loadTab(sheets, spreadsheetId, tab);
   const active = await User.find({ active: true }).select("_id name active").lean();
-  const def = normalizeProcess(definition(plan, tab, body), { activeIds: new Set(active.map((u) => String(u._id))) });
+  const entries = entryRows(plan, fmt, raw);
+  const wanted = Object.values(body.steps || {}).filter((s) => s?.source?.type === "lookup").map((s) => s.source.tab);
+  const lookups = wanted.length ? await doerTabs(sheets, spreadsheetId, tab, plan, wanted) : [];
+  const def = normalizeProcess(definition(plan, tab, body, { rows: entries, lookups }), { activeIds: new Set(active.map((u) => String(u._id))) });
   if (await Process.exists({ name: def.name })) throw fail("An FMS with this name already exists");
   const source = {
     spreadsheetId,
@@ -350,13 +384,14 @@ async function importSheetFms(sheets, spreadsheetId, tab, body, user, { now = ne
   const process = (await Process.create({ ...def, source })).toObject();
 
   const dir = directory(active);
+  const doerOf = (step, data) => resolveDoer(step.doer, data, dir);
   const { counts, rows } = settleRows({
     process,
-    rows: entryRows(plan, fmt, raw),
+    rows: entries,
     plan,
     now,
     calendar: await loadCalendar(),
-    doerOf: (step, data) => resolveDoer(step.doer, data, dir),
+    doerOf,
     fallbackDoer: process.pc || user?._id,
   });
   const stepIndex = new Map(process.steps.map((s, i) => [s.key, i]));
@@ -389,7 +424,8 @@ async function importSheetFms(sheets, spreadsheetId, tab, body, user, { now = ne
           stepKey: step.key,
           stepName: step.name,
           ...t,
-          doer: t.doer || (started ? step.doer?.user || process.pc || user?._id : undefined),
+          // a step started in the sheet: its doer by the step's rule (e.g. the person in column H), else the PC / admin
+          doer: t.doer || (started ? doerOf(step, r.job.data) || process.pc || user?._id : undefined),
           tat: t.tat ?? (t.planned ? step.tat : undefined),
           tatUnit: t.tatUnit ?? (t.planned ? step.tatUnit : undefined),
         });
