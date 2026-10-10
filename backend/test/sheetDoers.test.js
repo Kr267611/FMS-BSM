@@ -10,13 +10,22 @@ const fields = [
   { key: "maint_team_accountable_person", label: "Maint. team Accountable Person", type: "text" },
   { key: "repeat_frq", label: "Repeat Frq", type: "number" },
 ];
-const lookupTab = [[], ["", "MACHINE", "DOER NAME ", "POST"], ["", "JET 1", "SUNIL SINGH", "HEAD FITTER"], ["", "STENTER-4", "RAVEENDRAN PILLAI", "HEAD FITTER"], ["", "", "", ""]];
+const lookupTab = [
+  [],
+  ["", "MACHINE", "DOER NAME ", "POST"],
+  ["", "JET 1", "SUNIL SINGH", "HEAD FITTER"],
+  ["", "JET 2", "SUNIL SINGH", "HEAD FITTER"],
+  ["", "STENTER-4", "RAVEENDRAN PILLAI", "HEAD FITTER"],
+  ["", "", "", ""],
+];
 
 test("finds the person column and the lookup tab", () => {
   assert.deepStrictEqual(D.personFields(fields).map((f) => f.key), ["maint_team_accountable_person"]);
   const l = D.readLookup(lookupTab, fields);
-  assert.deepStrictEqual([l.keyHeader, l.doerHeader, l.field, l.rows], ["MACHINE", "DOER NAME", "installed_machine_no", [{ key: "JET 1", name: "SUNIL SINGH" }, { key: "STENTER-4", name: "RAVEENDRAN PILLAI" }]]);
+  assert.deepStrictEqual([l.keyHeader, l.doerHeader, l.field, l.rows], ["MACHINE", "DOER NAME", "installed_machine_no", [{ key: "JET 1", name: "SUNIL SINGH" }, { key: "JET 2", name: "SUNIL SINGH" }, { key: "STENTER-4", name: "RAVEENDRAN PILLAI" }]]);
   assert.strictEqual(D.readLookup([["Date", "Party", "Amount"]], fields), null);
+  // a data tab ("Item Name" on every row) is not a doer table
+  assert.strictEqual(D.readLookup([["Date", "Item Name"], ["01/10", "VALVE"], ["02/10", "BELT"], ["03/10", "SEAL"]], fields), null);
 });
 
 test("suggests the person column for the Accountable Person step", () => {
