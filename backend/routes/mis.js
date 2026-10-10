@@ -1,5 +1,8 @@
 const express = require("express");
-const { auth } = require("../middleware/auth");
+const { auth, permit } = require("../middleware/auth");
+const meeting = require("../services/meeting");
+const { mailer } = require("../services/mailer");
+const { audit } = require("../services/audit");
 const { misReport, dailyReport, score } = require("../services/scoring");
 const { todayKey, addDaysKey } = require("../services/dates");
 const { visibleUserIds } = require("../services/scope");
@@ -39,7 +42,6 @@ router.get("/daily", auth, async (req, res) => {
 });
 
 // ---- Weekly MIS Score (MIDAP "EM report") ----
-const TYPES = { checklist: "checklist", delegation: "delegation", app: "fms", sheet: "fms" };
 const zero = () => ({ planned: 0, done: 0, onTime: 0, late: 0, pending: 0, autoClosed: 0 });
 function add(a, r) {
   a.planned += r.planned;
@@ -57,36 +59,41 @@ function finish(t) {
 const monday = (day) => addDaysKey(day, -((new Date(day + "T00:00:00Z").getUTCDay() + 6) % 7));
 
 // ?week=YYYY-MM-DD (any day of the week; default this week) &group=doer|department
+const { weeklyReport } = meeting;
 router.get("/weekly", auth, async (req, res) => {
   const p = await params(req);
-  const week = monday(isDay(req.query.week) ? req.query.week : todayKey());
-  const prevWeek = addDaysKey(week, -7);
-  const [cur, prev] = await Promise.all([
-    misReport({ from: week, to: addDaysKey(week, 6), doerIds: p.doerIds }),
-    misReport({ from: prevWeek, to: addDaysKey(prevWeek, 6), doerIds: p.doerIds }),
-  ]);
-  const byDept = req.query.group === "department";
-  const rows = new Map();
-  const rowFor = (d) => {
-    const key = byDept ? d.doer.department || "No department" : d.doer._id;
-    if (!rows.has(key)) rows.set(key, { key, name: byDept ? key : d.doer.name, department: byDept ? "" : d.doer.department, people: 0, total: zero(), types: { checklist: zero(), delegation: zero(), fms: zero() }, last: zero() });
-    return rows.get(key);
-  };
-  for (const d of cur.doers) {
-    const r = rowFor(d);
-    r.people += 1;
-    add(r.total, d.total);
-    for (const x of d.rows) add(r.types[TYPES[x.kind] || "fms"], x);
+  res.json(await weeklyReport({ week: isDay(req.query.week) ? req.query.week : todayKey(), doerIds: p.doerIds, group: req.query.group }));
+});
+
+// ---- Weekly MIS meeting: one report for the meeting, and its weekly email ----
+router.get("/meeting", auth, async (req, res) => {
+  const p = await params(req);
+  res.json(await meeting.meetingReport({ week: isDay(req.query.week) ? req.query.week : todayKey(), doerIds: p.doerIds }));
+});
+
+router.get("/meeting/settings", auth, permit("settings", "edit"), async (req, res) => {
+  res.json({ ...(await meeting.getSettings()), mailReady: Boolean(mailer()) });
+});
+
+router.put("/meeting/settings", auth, permit("settings", "edit"), async (req, res) => {
+  try {
+    const value = await meeting.saveSettings(req.body);
+    audit(req, "settings.meetingReport", { entity: "Setting", summary: value.enabled ? `Weekly MIS email to ${value.emails.length} address(es)` : "Weekly MIS email off" });
+    res.json({ ...value, mailReady: Boolean(mailer()) });
+  } catch (err) {
+    res.status(err.status || 500).json({ message: err.message });
   }
-  for (const d of prev.doers) add(rowFor(d).last, d.total);
-  const company = { total: zero(), last: zero() };
-  const out = [...rows.values()].map((r) => {
-    add(company.total, r.total);
-    add(company.last, r.last);
-    return { ...r, total: finish(r.total), last: finish(r.last), types: Object.fromEntries(Object.entries(r.types).map(([k, v]) => [k, finish(v)])) };
-  });
-  out.sort((a, b) => (a.total.planned ? a.total.score : 1) - (b.total.planned ? b.total.score : 1));
-  res.json({ week, weekEnd: addDaysKey(week, 6), countedTo: cur.to, group: byDept ? "department" : "doer", rows: out, company: { total: finish(company.total), last: finish(company.last) } });
+});
+
+// Send it now (to the saved addresses), for the week asked or the week before
+router.post("/meeting/send", auth, permit("settings", "edit"), async (req, res) => {
+  try {
+    const out = await meeting.sendMeetingReport({ week: isDay(req.body?.week) ? req.body.week : undefined });
+    audit(req, "mis.meeting.send", { entity: "Setting", summary: `Weekly MIS ${out.week} sent to ${out.sent} address(es)` });
+    res.json(out);
+  } catch (err) {
+    res.status(err.status || 500).json({ message: err.message });
+  }
 });
 
 // ---- Performance Score (MIDAP): performance = 100 + MIS score, with a weekly trend ----

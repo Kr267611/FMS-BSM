@@ -1014,3 +1014,18 @@ input.bad-input { border-color: var(--bad); }
 .rule-cell { min-width: 240px; max-width: 360px; }
 .rule-cell > div + div { margin-top: 2px; }
 .people-table { max-height: 420px; overflow: auto; }
+
+/* Weekly MIS meeting */
+.txt-warn { color: var(--warn); font-weight: 600; }
+.meeting-hls { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 12px 0; }
+.meeting-hl { display: grid; gap: 4px; border-top: 3px solid var(--stroke-22); }
+.meeting-hl.good { border-top-color: var(--good); }
+.meeting-hl.bad { border-top-color: var(--bad); }
+.meeting-block h3 { margin: 4px 0 8px; }
+@media print {
+  .sidebar, .topbar, .no-print, .wake-banner { display: none !important; }
+  .page { margin: 0 !important; padding: 0 !important; width: 100% !important; }
+  .card { break-inside: avoid; box-shadow: none !important; }
+  .table-scroll { overflow: visible !important; max-height: none !important; }
+  body { background: #fff !important; }
+}

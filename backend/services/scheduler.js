@@ -2,6 +2,7 @@ const { syncAll } = require("./sheetSync");
 const { sendDailyReminders } = require("./reminders");
 const { sweepAll } = require("./sweep");
 const { TZ } = require("./dates");
+const { maybeSendMeeting } = require("./meeting");
 
 const timeFmt = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: false });
 
@@ -46,6 +47,7 @@ function startScheduler() {
   setTimeout(runSync, 10 * 1000);
   setInterval(runSync, minutes * 60 * 1000);
   setInterval(() => maybeSendReminders().catch((e) => console.error("Reminder error:", e.message)), 60 * 1000);
+  setInterval(() => maybeSendMeeting().then((r) => r && !r.alreadySent && console.log("Weekly MIS email:", JSON.stringify(r))).catch((e) => console.error("Weekly MIS email error:", e.message)), 5 * 60 * 1000);
 }
 
 module.exports = { startScheduler, runSync, runSweep };

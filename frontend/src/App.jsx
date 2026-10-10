@@ -8,6 +8,7 @@ import MyTasks from "./pages/MyTasks";
 import Dashboard from "./pages/Dashboard";
 import DoerTasks from "./pages/DoerTasks";
 import WeeklyMis from "./pages/WeeklyMis";
+import MeetingReport from "./pages/MeetingReport";
 import Performance from "./pages/Performance";
 import FmsTasks from "./pages/FmsTasks";
 import FmsRules from "./pages/FmsRules";
@@ -106,6 +107,7 @@ function menuFor(user) {
         { to: "/reports/fms-tasks", label: "List FMS Tasks", show: can(user, "reports") && user.role !== "doer" },
         { to: "/mis", label: "MIS Score", end: true, show: can(user, "reports") },
         { to: "/mis/weekly", label: "Weekly MIS Score", show: can(user, "reports") },
+        { to: "/reports/meeting", label: "Weekly MIS Meeting", show: can(user, "reports") && user.role !== "doer" },
         { to: "/mis/performance", label: "Performance Score", show: can(user, "reports") },
         { to: "/reports/auditor", label: "Auditor Report", show: can(user, "reports") && user.role !== "doer" },
         { to: "/reports/effort", label: "List Effort Time", show: can(user, "reports") },
@@ -245,6 +247,7 @@ function Shell() {
             <Route path="/account" element={<Account />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/mis/performance" element={guard(can(user, "reports"), <Performance />)} />
+            <Route path="/reports/meeting" element={guard(can(user, "reports"), <MeetingReport />)} />
             <Route path="/mis/weekly" element={guard(can(user, "reports"), <WeeklyMis />)} />
             <Route path="/fms/doer-conditions" element={guard(can(user, "fms"), <FmsRules kind="doer" />)} />
             <Route path="/fms/override-tat" element={guard(can(user, "fms"), <FmsRules kind="tat" />)} />
