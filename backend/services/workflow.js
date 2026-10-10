@@ -12,6 +12,7 @@ const { can } = require("./permissions");
 const { canSeeUser } = require("./scope");
 const engine = require("./fms/engine");
 const { resolveDoer, directory } = require("./fms/doers");
+const { auditFor, getAuditorSettings } = require("./auditSampling");
 
 class WorkflowError extends Error {
   constructor(message, status = 400) {
@@ -181,10 +182,11 @@ async function onTask(taskId, user, fn, opts) {
 
 // Done: Actual = now with the step's fields (Status, Action Taken…); the engine starts what comes next
 async function markDone(taskId, user, { remarks = "", values, now } = {}) {
+  const auditSettings = await getAuditorSettings();
   return onTask(
     taskId,
     user,
-    async ({ task, step, now: at }) => {
+    async ({ task, step, process, now: at }) => {
       if (task.status !== "pending") throw new WorkflowError("This task cannot be marked done right now");
       const clean = engine.cleanValues(step?.fields || [], values);
       Object.assign(task, {
@@ -197,6 +199,13 @@ async function markDone(taskId, user, { remarks = "", values, now } = {}) {
         doneBy: user._id,
       });
       task.markModified("values");
+      // the FMS's auditor checks a sample of its finished steps; a step sent back by the auditor is checked again
+      const picked = process.auditor && (auditFor(task, process.auditor, auditSettings, at) || (task.audit?.status === "notok" ? { status: "pending", rating: null, remarks: "" } : null));
+      if (picked) {
+        task.auditor = process.auditor;
+        task.audit = { ...picked, rounds: task.audit?.rounds };
+        task.markModified("audit");
+      }
       return task;
     },
     { now: now || new Date() }
@@ -221,24 +230,43 @@ async function markNotRequired(taskId, user, remarks = "", { now } = {}) {
 // so this is refused once one of them has been completed.
 async function reopen(taskId, user) {
   if (!can(user, "fmsEntries", "edit")) throw new WorkflowError("You don't have permission to reopen tasks", 403);
-  return onTask(taskId, user, async ({ task, job, process, tasks, touched }) => {
-    if (!["done", "na"].includes(task.status)) throw new WorkflowError("This task is already open");
-    if (job.closeStatus) throw new WorkflowError("This entry was closed by the PC. Reopen the entry first.");
-    const deps = engine.dependentsOf(process.steps, stepKeyOf(task));
-    for (const k of deps) {
-      if (tasks[k] && ["done", "na"].includes(tasks[k].status)) {
-        throw new WorkflowError(`"${tasks[k].stepName}" is already complete. Reopen that step first.`);
-      }
+  return onTask(taskId, user, reopenStep);
+}
+
+// The auditor said Not OK: the step goes back to its doer (same rule as reopen, without the editor check)
+async function reopenForAudit(taskId, { now = new Date() } = {}) {
+  const pre = await Task.findById(taskId).select("job").lean();
+  if (!pre?.job) throw new WorkflowError("Task not found", 404);
+  return withJob(
+    pre.job,
+    async (ctx) => {
+      const task = Object.values(ctx.tasks).find((t) => String(t._id) === String(taskId));
+      if (!task) throw new WorkflowError("Task not found", 404);
+      const out = await reopenStep({ ...ctx, task });
+      ctx.touched.add(stepKeyOf(task));
+      return out;
+    },
+    { now }
+  );
+}
+
+async function reopenStep({ task, job, process, tasks, touched }) {
+  if (!["done", "na"].includes(task.status)) throw new WorkflowError("This task is already open");
+  if (job.closeStatus) throw new WorkflowError("This entry was closed by the PC. Reopen the entry first.");
+  const deps = engine.dependentsOf(process.steps, stepKeyOf(task));
+  for (const k of deps) {
+    if (tasks[k] && ["done", "na"].includes(tasks[k].status)) {
+      throw new WorkflowError(`"${tasks[k].stepName}" is already complete. Reopen that step first.`);
     }
-    for (const k of deps) {
-      if (tasks[k] && tasks[k].status !== "waiting") {
-        engine.resetTask(tasks[k]);
-        touched.add(k);
-      }
+  }
+  for (const k of deps) {
+    if (tasks[k] && tasks[k].status !== "waiting") {
+      engine.resetTask(tasks[k]);
+      touched.add(k);
     }
-    Object.assign(task, { status: "pending", actual: null, actualDay: null, resolvedAt: null, doneBy: null });
-    return task;
-  });
+  }
+  Object.assign(task, { status: "pending", actual: null, actualDay: null, resolvedAt: null, doneBy: null });
+  return task;
 }
 
 // PC closes the entry with a status ("Status by PC"): open steps count as done now, the rest are skipped
@@ -350,6 +378,7 @@ module.exports = {
   markDone,
   markNotRequired,
   reopen,
+  reopenForAudit,
   closeJob,
   reopenJob,
   updateJobData,

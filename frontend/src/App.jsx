@@ -8,6 +8,7 @@ import MyTasks from "./pages/MyTasks";
 import Dashboard from "./pages/Dashboard";
 import DoerTasks from "./pages/DoerTasks";
 import WeeklyMis from "./pages/WeeklyMis";
+import AuditorSettings from "./pages/AuditorSettings";
 import MeetingReport from "./pages/MeetingReport";
 import Performance from "./pages/Performance";
 import FmsTasks from "./pages/FmsTasks";
@@ -99,7 +100,7 @@ function menuFor(user) {
         { to: "/jobs", label: "FMS Entries", show: can(user, "fmsEntries") },
       ],
     },
-    { title: "Audit", items: [{ to: "/audits", label: "Audit List" }] },
+    { title: "Audit", items: [{ to: "/audits", label: "Audit List" }, { to: "/audits/settings", label: "Auditor Settings", show: can(user, "settings", "edit") }] },
     {
       title: "PC Reports",
       items: [
@@ -256,6 +257,7 @@ function Shell() {
             <Route path="/fms/auto-complete" element={guard(can(user, "fms"), <AutoComplete />)} />
             <Route path="/fms/auto-calculate" element={guard(can(user, "fms"), <FmsRules kind="calc" />)} />
             <Route path="/audits" element={<AuditList />} />
+            <Route path="/audits/settings" element={guard(can(user, "settings", "edit"), <AuditorSettings />)} />
             <Route path="/reports/effort" element={guard(can(user, "reports"), <EffortReport />)} />
             <Route path="/reports/auditor" element={guard(can(user, "reports"), <AuditorReport />)} />
             <Route path="/reports/fms-tasks" element={guard(can(user, "reports"), <FmsTasks />)} />

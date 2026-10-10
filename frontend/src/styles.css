@@ -1057,3 +1057,4 @@ th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
 .danger-zone:not(.open) { background: none; border: 0; padding: 0; }
 .btn.danger-fill { background: var(--bad); border-color: var(--bad); color: #fff; }
 .btn.danger-fill:disabled { opacity: 0.45; }
+.num-input { width: 80px; }

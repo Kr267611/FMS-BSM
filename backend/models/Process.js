@@ -55,6 +55,7 @@ const processSchema = new Schema(
     description: { type: String, default: "" },
     sopLink: { type: String, default: "" },
     pc: { type: Schema.Types.ObjectId, ref: "User" }, // global PC: follows up, closes entries
+    auditor: { type: Schema.Types.ObjectId, ref: "User" }, // checks a sample of the finished steps (Auditor Settings)
     department: { type: Schema.Types.ObjectId, ref: "Department" },
     calendar: { mode: { type: String, enum: ["working", "calendar_skip", "calendar"], default: "working" } },
     fields: [fieldSchema],

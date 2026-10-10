@@ -21,15 +21,17 @@ export default function AuditorReport() {
   const label = group === "doer" ? "Doer" : "Auditor";
   const other = group === "doer" ? "auditor" : "doer";
   function exportCsv() {
-    const lines = [[label, other === "doer" ? "Doer" : "Auditor", "Tasks", "Done", "Waiting for audit", "Audited", "OK", "Not OK", "OK %", "Avg rating", "Sent back"].map(csvCell).join(",")];
-    for (const g of data.rows) for (const r of g.rows) lines.push([g.name, r.name, r.tasks, r.done, r.waiting, r.audited, r.ok, r.notOk, r.okPct ?? "", r.avgRating ?? "", r.sentBack].map(csvCell).join(","));
+    const lines = [[label, other === "doer" ? "Doer" : "Auditor", "Tasks", "Done", "In sample", "Waiting for audit", "Audit late", "Audited", "OK", "Not OK", "OK %", "Avg rating", "Sent back"].map(csvCell).join(",")];
+    for (const g of data.rows) for (const r of g.rows) lines.push([g.name, r.name, r.tasks, r.done, r.sampled, r.waiting, r.late, r.audited, r.ok, r.notOk, r.okPct ?? "", r.avgRating ?? "", r.sentBack].map(csvCell).join(","));
     download(`auditor-report-${group}.csv`, lines.join("\n"));
   }
   const Cells = ({ r }) => (
     <>
       <td>{r.tasks}</td>
       <td>{r.done}</td>
+      <td>{r.sampled}</td>
       <td className={r.waiting ? "txt-late" : ""}>{r.waiting}</td>
+      <td className={r.late ? "txt-bad" : ""}>{r.late}</td>
       <td>{r.audited}</td>
       <td className="txt-good">{r.ok}</td>
       <td className={r.notOk ? "txt-bad" : ""}>{r.notOk}</td>
@@ -80,7 +82,9 @@ export default function AuditorReport() {
                   <th>{label}</th>
                   <th>Tasks</th>
                   <th>Done</th>
+                  <th title="Done tasks picked for audit (Auditor Settings %)">In sample</th>
                   <th>Waiting for audit</th>
+                  <th title="Still waiting after the Audit TAT">Audit late</th>
                   <th>Audited</th>
                   <th>OK</th>
                   <th>Not OK</th>

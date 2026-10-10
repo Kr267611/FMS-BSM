@@ -28,6 +28,7 @@ function fromServer(d) {
   return {
     ...d,
     pc: idOf(d.pc),
+    auditor: idOf(d.auditor),
     department: idOf(d.department),
     calendar: d.calendar || { mode: "working" },
     closure: d.closure || { enabled: true, label: "Status by PC", options: ["Closed"] },
@@ -364,6 +365,10 @@ export default function FmsBuilder() {
         <label>
           PC (follows up, closes entries)
           <DoerSelect value={p.pc} onChange={(pc) => set({ pc })} placeholder="—" />
+        </label>
+        <label>
+          Auditor <small className="muted">(checks a sample of finished steps)</small>
+          <DoerSelect value={p.auditor} onChange={(auditor) => set({ auditor })} placeholder="—" />
         </label>
         <label>
           Department

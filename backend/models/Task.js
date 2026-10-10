@@ -44,7 +44,8 @@ const taskSchema = new mongoose.Schema(
     },
     reopenCount: Number,
     // audit by the task's auditor after it is done: pending -> ok / notok (Not OK reopens the task)
-    audit: { status: { type: String, enum: ["pending", "ok", "notok"] }, rating: Number, remarks: String, by: { type: ObjectId, ref: "User" }, at: Date, rounds: Number },
+    // dueDay: audit by this day (the auditor's Audit TAT); a task is only audited when it falls in the auditor's sample
+    audit: { status: { type: String, enum: ["pending", "ok", "notok"] }, rating: Number, remarks: String, by: { type: ObjectId, ref: "User" }, at: Date, rounds: Number, dueDay: String },
     // FMS reminders sent for this task: once, or repeated up to the rule's limit
     reminders: { type: [{ _id: false, rule: { type: ObjectId, ref: "FmsReminder" }, n: Number, last: Date, ok: Boolean, note: String }], default: undefined },
     log: { type: [{ _id: false, at: Date, by: { type: ObjectId, ref: "User" }, action: String, note: String }], default: undefined },

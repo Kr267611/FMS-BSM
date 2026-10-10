@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, showDateTime } from "../api";
+import { api, showDateTime, showDay, todayKey } from "../api";
 import { useAuth } from "../App";
 import DoerSelect from "../components/DoerSelect";
 import { FieldValue } from "../components/FieldInput";
 
 const PROOF = { key: "proof", label: "Proof", type: "photo" };
-const KIND_NAME = { checklist: "Checklist", delegation: "Delegation" };
+const KIND_NAME = { checklist: "Checklist", delegation: "Delegation", app: "FMS" };
+// FMS step values come with their keys only: "action_taken" -> "Action taken"
+const keyLabel = (k) => k.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 
 // MIDAP "Audit List": finished tasks the auditor checks and rates; Not OK sends the task back to the doer
 export default function AuditList() {
@@ -48,6 +50,7 @@ export default function AuditList() {
         <select value={kind} onChange={(e) => setKind(e.target.value)}>
           <option value="">All types</option>
           <option value="checklist">Checklist</option>
+          <option value="fms">FMS</option>
           <option value="delegation">Delegation</option>
         </select>
         {user.role === "admin" && <DoerSelect value={auditor} onChange={setAuditor} placeholder="All auditors" />}
@@ -82,7 +85,15 @@ function AuditCard({ t, onDone }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const waiting = t.audit?.status === "pending";
-  const fields = t.kind === "checklist" ? t.checklist?.fields || [] : t.proofRequired ? [PROOF] : [];
+  const fields =
+    t.kind === "checklist"
+      ? t.checklist?.fields || []
+      : t.kind === "app"
+        ? Object.keys(t.values || {}).map((k) => ({ key: k, label: keyLabel(k), type: /photo/.test(k) ? "photo" : "text" }))
+        : t.proofRequired
+          ? [PROOF]
+          : [];
+  const auditLate = waiting && t.audit?.dueDay && t.audit.dueDay < todayKey();
   const values = fields.filter((f) => t.values?.[f.key] !== undefined);
   const late = t.actualDay && t.plannedDay && t.actualDay > t.plannedDay;
 
@@ -102,8 +113,9 @@ function AuditCard({ t, onDone }) {
     <div className="card task audit-card">
       <div className="task-main">
         <div className="task-title">
-          {t.label}
-          <span className="tag gray">{KIND_NAME[t.kind] || t.kind}</span>
+          {t.kind === "app" ? t.stepName || t.label : t.label}
+          <span className="tag gray">{t.kind === "app" ? `${t.process?.name || "FMS"} · Entry #${t.job?.jobNo ?? "?"}` : KIND_NAME[t.kind] || t.kind}</span>
+          {waiting && t.audit?.dueDay && <span className={"tag " + (auditLate ? "red" : "")}>{auditLate ? "Audit late · was due" : "Audit by"} {showDay(t.audit.dueDay)}</span>}
           {t.audit?.status === "ok" && <span className="tag green">OK</span>}
           {t.audit?.status === "notok" && <span className="tag red">Not OK – sent back</span>}
         </div>

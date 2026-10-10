@@ -40,6 +40,10 @@
       "destination": "/index.html"
     },
     {
+      "source": "/audits/:rest*",
+      "destination": "/index.html"
+    },
+    {
       "source": "/(.*)",
       "destination": {
         "service": "frontend"

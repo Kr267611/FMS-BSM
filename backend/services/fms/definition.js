@@ -255,6 +255,8 @@ function normalizeProcess(body, { activeIds = new Set() } = {}) {
   if (sopLink && !isLink(sopLink)) throw fail("The SOP link must start with http:// or https://");
   const pc = idOf(b.pc);
   if (pc && !activeIds.has(pc)) throw fail("The PC must be an active user");
+  const auditor = idOf(b.auditor);
+  if (auditor && !activeIds.has(auditor)) throw fail("The auditor must be an active user");
 
   const closure = {
     enabled: b.closure?.enabled === undefined ? true : Boolean(b.closure.enabled),
@@ -268,6 +270,7 @@ function normalizeProcess(body, { activeIds = new Set() } = {}) {
     description: text(b.description, 2000),
     sopLink,
     pc,
+    auditor,
     department: idOf(b.department),
     calendar: { mode: MODES.includes(b.calendar?.mode) ? b.calendar.mode : b.skipSundays ? "calendar_skip" : "working" },
     fields,

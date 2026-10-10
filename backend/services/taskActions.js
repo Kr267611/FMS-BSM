@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 const Task = require("../models/Task");
 const Checklist = require("../models/Checklist");
 const { dayKey } = require("./dates");
+const { auditFor, getAuditorSettings } = require("./auditSampling");
 const { can } = require("./permissions");
 const { canSeeUser } = require("./scope");
 const { cleanValues } = require("./fms/engine");
@@ -55,7 +56,9 @@ async function markDone(taskId, user, { remarks = "", values, now = new Date() }
     remarks: String(remarks || "").trim().slice(0, 1000),
   };
   if (Object.keys(clean).length) set.values = clean;
-  if (task.auditor) Object.assign(set, { "audit.status": "pending", "audit.rating": null, "audit.remarks": "" }); // goes to the auditor's Audit List
+  // goes to the auditor's Audit List when it is in the auditor's sample; a task sent back by the auditor always does
+  const picked = auditFor(task, task.auditor, await getAuditorSettings(), now) || (task.audit?.status === "notok" ? { status: "pending", rating: null, remarks: "" } : null);
+  if (picked) for (const [k, v] of Object.entries(picked)) set[`audit.${k}`] = v;
   const update = { $set: set, $inc: { __v: 1 } }; // bumps the version so a stale edit elsewhere fails instead of overwriting
   if (task.kind === "delegation") update.$push = { log: { $each: [{ at: now, by: user._id, action: "done", note: set.remarks }], $slice: -60 } };
   const done = await Task.findOneAndUpdate({ _id: task._id, status: "pending" }, update, { returnDocument: "after" });

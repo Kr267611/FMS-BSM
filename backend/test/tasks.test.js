@@ -594,6 +594,67 @@ test("Audit: a done task with an auditor goes to the Audit List; OK / Not OK wit
   assert.ok(byDoer.data.rows.some((r) => r.name === "Ankitbhai"));
 });
 
+test("Auditor Settings: only the auditor's share of tasks is audited, with an Audit TAT; FMS steps too, Not OK sends the step back", async () => {
+  const qaud = (await call("/users/list", { session: sessions.admin })).data.find((u) => u.name === "Quality Auditor")._id;
+  const set = (row) => call("/audits/settings", { session: sessions.admin, method: "PUT", body: { settings: { [qaud]: row } } });
+  assert.strictEqual((await call("/audits/settings", { session: sessions.sunil, method: "PUT", body: { settings: {} } })).status, 403);
+  assert.match((await set({ tat: 99 })).data.message, /0 to 60/);
+
+  // 0% of delegations: done, but not audited
+  assert.strictEqual((await set({ delegation: 0 })).status, 200);
+  const skip = await call("/delegations", { session: sessions.admin, method: "POST", body: { title: "Sample skip", doer: people.ankit, auditor: qaud, planned: new Date(Date.now() + 60 * 60 * 1000) } });
+  await call(`/tasks/${skip.data._id}/done`, { session: sessions.ankit, method: "POST", body: {} });
+  assert.strictEqual((await Task.findById(skip.data._id).lean()).audit?.status, undefined);
+
+  // 100% with a 2-day Audit TAT: audited, due in 2 days
+  await set({ delegation: 100, fms: 100, tat: 2 });
+  const take = await call("/delegations", { session: sessions.admin, method: "POST", body: { title: "Sample take", doer: people.ankit, auditor: qaud, planned: new Date(Date.now() + 60 * 60 * 1000) } });
+  await call(`/tasks/${take.data._id}/done`, { session: sessions.ankit, method: "POST", body: {} });
+  const t = await Task.findById(take.data._id).lean();
+  assert.deepStrictEqual([t.audit.status, t.audit.dueDay], ["pending", dates.addDaysKey(today, 2)]);
+
+  // an FMS with an auditor: its finished step is audited; Not OK sends it back and the next step waits again
+  const p = await call("/processes", {
+    session: sessions.admin,
+    method: "POST",
+    body: {
+      name: "Audited flow",
+      auditor: qaud,
+      fields: [{ key: "item", label: "Item", type: "text" }],
+      steps: [
+        { key: "s1", name: "Check part", doer: { mode: "fixed", user: people.ankit }, start: { mode: "entry" }, tat: 1 },
+        { key: "s2", name: "Fit part", doer: { mode: "fixed", user: people.sunil }, start: { mode: "afterDone", step: "s1" }, tat: 1 },
+      ],
+    },
+  });
+  assert.strictEqual(p.status, 201, p.data.message);
+  const job = await call("/jobs", { session: sessions.admin, method: "POST", body: { process: p.data._id, data: { item: "Bearing" } } });
+  const s1 = await Task.findOne({ job: job.data._id, stepKey: "s1" }).lean();
+  await call(`/tasks/${s1._id}/done`, { session: sessions.ankit, method: "POST", body: {} });
+  const list = await call("/audits?kind=fms", { session: sessions.qaud });
+  assert.ok(list.data.tasks.some((x) => String(x._id) === String(s1._id) && x.process.name === "Audited flow"));
+  assert.strictEqual((await Task.findOne({ job: job.data._id, stepKey: "s2" }).lean()).status, "pending");
+  const back = await call(`/audits/${s1._id}`, { session: sessions.qaud, method: "POST", body: { result: "notok", rating: 2, remarks: "Wrong part checked" } });
+  assert.strictEqual(back.status, 200, back.data.message);
+  assert.deepStrictEqual([back.data.status, back.data.audit.status], ["pending", "notok"]);
+  assert.strictEqual((await Task.findOne({ job: job.data._id, stepKey: "s2" }).lean()).status, "waiting");
+
+  const rep = await call("/audits/report", { session: sessions.admin });
+  const row = rep.data.rows.find((r) => r.name === "Quality Auditor");
+  assert.ok(row.total.sampled < row.total.done || row.total.tasks > row.total.sampled); // the 0% delegation was not sampled
+  await set({}); // back to auditing everything
+});
+
+test("Auditor sampling picks the same tasks every time, about the share asked for", () => {
+  const { bucketOf, auditFor, cleanAuditorSettings } = require("../services/auditSampling");
+  const ids = Array.from({ length: 2000 }, (_, i) => `66f0000000000000000${String(i).padStart(5, "0")}`);
+  const picked = ids.filter((id) => auditFor({ _id: id, kind: "checklist" }, "a".repeat(24), { ["a".repeat(24)]: { checklist: 20 } }));
+  assert.ok(picked.length > 300 && picked.length < 500, `picked ${picked.length} of 2000`);
+  assert.strictEqual(bucketOf(ids[7]), bucketOf(ids[7]));
+  assert.notStrictEqual(auditFor({ _id: ids[0], kind: "delegation" }, "b".repeat(24), {}), null); // no settings: every task
+  assert.deepStrictEqual(cleanAuditorSettings({ ["a".repeat(24)]: { checklist: "150", delegation: "", fms: "-5", tat: "3" }, bad: { checklist: 1 } }), { ["a".repeat(24)]: { checklist: 100, delegation: null, fms: 0, tat: 3 } });
+});
+
 test("Effort time: checklist and FMS step effort from the master, delegation effort of its own; planned / actual basis", async () => {
   const c = await call("/checklists", { session: sessions.admin, method: "POST", body: { name: "Effort oiling", doer: people.mpc, frequency: { type: "daily" }, effortMinutes: 30 } });
   assert.strictEqual(c.data.effortMinutes, 30);
