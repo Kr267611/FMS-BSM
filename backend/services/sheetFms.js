@@ -9,6 +9,10 @@ const User = require("../models/User");
 const { findSteps, colLetter } = require("./sheetInspect");
 const { dayKey, parseSheetDate } = require("./dates");
 const { normalizeProcess, slug } = require("./fms/definition");
+const engine = require("./fms/engine");
+const { resolveDoer, directory } = require("./fms/doers");
+const { loadCalendar } = require("./workflow");
+const F = require("./sheetFormula");
 
 const HEAD_ROWS = 15;
 const SAMPLE = 400; // rows looked at to guess each column's type
@@ -109,6 +113,75 @@ function planFms(top, fmt, raw) {
   return { headerRow: found.headerRow, firstDataRow: found.headerRow + 1, fields, steps };
 }
 
+// The sheet's formulas -> each step's rule (how it starts, its condition, what its planned date counts from),
+// the auto-calculated entry fields and the "Status by PC" column that closes an entry. Pure (covered by tests).
+//   topF : the header rows as formulas (to find the =TODAY() cell)   rowsF: the data rows as formulas
+function applyFormulas(plan, top, topF, rowsF) {
+  const cols = {};
+  const dateField = plan.fields.find((f) => f.type === "date" || f.type === "datetime");
+  for (const f of plan.fields) cols[f.col] = { kind: f === dateField ? "entryDate" : "field", key: f.key, date: f.type === "date" || f.type === "datetime" };
+  for (const s of plan.steps) {
+    cols[s.plannedCol] = { kind: "planned", step: s.key };
+    cols[s.actualCol] = { kind: "actual", step: s.key };
+    for (const sf of s.fields) cols[sf.col] = { kind: "stepField", step: s.key, key: sf.key };
+  }
+  const cell = (rows, col, row) => rows[row - 1]?.[colIndex(col)];
+  const ctx = {
+    cols,
+    dataRow: F.ROW,
+    head: (col, row) => {
+      const v = text(cell(top, col, row));
+      return v !== "" && isFinite(Number(v)) ? Number(v) : v;
+    },
+    isToday: (col, row) => /^=\s*TODAY\(\s*\)\s*$/i.test(String(cell(topF, col, row) ?? "")),
+  };
+  const common = (col) => F.commonFormula(rowsF.map((r) => r?.[colIndex(col)]), plan.firstDataRow);
+  const parsed = (pattern) => {
+    try {
+      return pattern ? F.parseCommon(pattern) : null;
+    } catch {
+      return null;
+    }
+  };
+  const show = (pattern) => pattern && pattern.replace(/\{r\}/g, String(plan.firstDataRow));
+
+  // "Status by PC": the entry column the Actual formulas watch
+  let closureCol = null;
+  for (const s of plan.steps) closureCol ||= F.closureColumn(parsed(common(s.actualCol)), ctx);
+  if (closureCol) {
+    const f = plan.fields.find((x) => x.col === closureCol);
+    if (f) {
+      plan.closure = { key: f.key, col: f.col, label: f.label.slice(0, 60), options: f.options.length ? f.options : ["Closed"] };
+      plan.fields = plan.fields.filter((x) => x !== f);
+      cols[closureCol].kind = "closure";
+    }
+  }
+
+  for (const f of plan.fields) {
+    const pattern = common(f.col);
+    if (!pattern) continue;
+    const formula = F.fieldFormula(parsed(pattern), ctx);
+    if (formula) f.formula = formula;
+    else f.sheetFormula = show(pattern);
+  }
+
+  let working = 0;
+  for (const s of plan.steps) {
+    const pattern = common(s.plannedCol);
+    s.formula = show(pattern);
+    const ast = parsed(pattern);
+    const r = ast ? F.translate(ast, ctx) : { ok: false, notes: [pattern ? "The planned formula could not be read" : "No planned formula in this column"] };
+    if (r.ok) {
+      s.rule = { start: r.start, plan: r.plan, ...(r.when ? { when: r.when } : {}) };
+      if (typeof r.tat === "number") s.tat = r.tat;
+      if (r.working) working++;
+    }
+    s.ruleNotes = r.notes;
+  }
+  plan.calendar = working > plan.steps.length / 2 ? "working" : "calendar";
+  return plan;
+}
+
 // A sheet row -> entry values (in the stored form) + whether the row has anything in it
 function rowValues(fields, frow, rrow) {
   const data = {};
@@ -127,11 +200,12 @@ function rowValues(fields, frow, rrow) {
   return data;
 }
 
-// One row's steps as in the sheet. A step with no Planned date: not started yet if the step before it is
-// still open, otherwise the sheet's condition left it out (skipped, not scored).
-function rowTasks(plan, frow, rrow) {
+// One row's steps as in the sheet. A step with no Planned date is "waiting": the software's engine then decides,
+// with the step's rule, whether it starts now, later, or is not needed. On a closed entry it is not needed.
+function rowTasks(plan, frow, rrow, { closed = false } = {}) {
   const out = [];
   let prevOpen = false;
+  const ruled = plan.steps.some((s) => s.rule);
   for (const s of plan.steps) {
     const pc = colIndex(s.plannedCol);
     const ac = colIndex(s.actualCol);
@@ -150,128 +224,176 @@ function rowTasks(plan, frow, rrow) {
     if (/^(no\s*req|not\s*required|n\/?a)$/i.test(plannedText)) status = "na";
     else if (planned && actual) status = "done";
     else if (planned) status = "pending";
-    else status = prevOpen ? "waiting" : "skipped";
+    else if (closed) status = "skipped";
+    else status = ruled || prevOpen ? "waiting" : "skipped";
     prevOpen = status === "pending" || status === "waiting";
     out.push({ step: s, status, planned, actual, values, remarks });
   }
   return out;
 }
 
-async function readTop(sheets, spreadsheetId, tab) {
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${quote(tab)}!A1:ZZ${HEAD_ROWS}`, valueRenderOption: "FORMATTED_VALUE" });
-  return res.data.values || [];
+const get = (sheets, spreadsheetId, range, valueRenderOption) =>
+  sheets.spreadsheets.values.get({ spreadsheetId, range, valueRenderOption, dateTimeRenderOption: "SERIAL_NUMBER" }).then((r) => r.data.values || []);
+
+// Everything about one tab: the header block, the data rows (text, raw values, formulas) and the plan
+async function loadTab(sheets, spreadsheetId, tab) {
+  const headRange = `${quote(tab)}!A1:ZZ${HEAD_ROWS}`;
+  const [top, topF] = await Promise.all([get(sheets, spreadsheetId, headRange, "FORMATTED_VALUE"), get(sheets, spreadsheetId, headRange, "FORMULA")]);
+  const head = planFms(top, [], []);
+  const lastCol = Math.max(...head.steps.map((s) => Math.max(colIndex(s.actualCol), ...s.fields.map((f) => colIndex(f.col)))));
+  const range = `${quote(tab)}!A${head.firstDataRow}:${colLetter(lastCol)}`;
+  const [fmt, raw, rowsF] = await Promise.all(["FORMATTED_VALUE", "UNFORMATTED_VALUE", "FORMULA"].map((o) => get(sheets, spreadsheetId, range, o)));
+  const plan = applyFormulas(planFms(top, fmt, raw), top, topF, rowsF);
+  return { plan, fmt, raw };
 }
 
-async function readRows(sheets, spreadsheetId, tab, plan) {
-  const lastCol = Math.max(...plan.steps.map((s) => Math.max(colIndex(s.actualCol), ...s.fields.map((f) => colIndex(f.col)))));
-  const range = `${quote(tab)}!A${plan.firstDataRow}:${colLetter(lastCol)}`;
-  const [f, r] = await Promise.all(
-    ["FORMATTED_VALUE", "UNFORMATTED_VALUE"].map((valueRenderOption) =>
-      sheets.spreadsheets.values.get({ spreadsheetId, range, valueRenderOption, dateTimeRenderOption: "SERIAL_NUMBER" })
-    )
-  );
-  return { fmt: f.data.values || [], raw: r.data.values || [] };
-}
-
-// Rows that hold an entry (pre-made empty rows with only dropdowns are left out)
+// Rows that hold an entry. Pre-made empty rows are left out: dropdowns only, or only formula columns
+// (e.g. Days in Diff showing 0 on a row nobody filled)
 function entryRows(plan, fmt, raw) {
+  const typed = plan.fields.filter((f) => !f.formula && !f.sheetFormula);
   const rows = [];
   fmt.forEach((frow, i) => {
     const data = rowValues(plan.fields, frow, raw[i]);
-    if (Object.keys(data).length) rows.push({ sheetRow: plan.firstDataRow + i, data, frow, rrow: raw[i] });
+    if (!typed.some((f) => data[f.key] !== undefined)) return;
+    const closeStatus = plan.closure ? text(frow?.[colIndex(plan.closure.col)]) : "";
+    rows.push({ sheetRow: plan.firstDataRow + i, data, closeStatus, frow, rrow: raw[i] });
   });
   return rows;
 }
 
-async function previewSheetFms(sheets, spreadsheetId, tab) {
-  const top = await readTop(sheets, spreadsheetId, tab);
-  const head = planFms(top, [], []);
-  const { fmt, raw } = await readRows(sheets, spreadsheetId, tab, head);
-  const plan = planFms(top, fmt, raw);
+// The FMS definition the software saves, from the plan and what the admin changed in the preview
+function definition(plan, tab, body = {}) {
+  const over = body.steps || {};
+  return {
+    name: body.name,
+    description: `Imported from the Google Sheet tab "${tab}"`,
+    pc: body.pc || undefined,
+    active: true,
+    calendar: { mode: plan.calendar || "working" },
+    closure: plan.closure ? { enabled: true, label: plan.closure.label, options: plan.closure.options } : { enabled: true },
+    fields: plan.fields.map(({ col, sheetFormula, ...f }) => ({ ...f, help: sheetFormula ? `In the sheet: ${sheetFormula}`.slice(0, 300) : f.help })),
+    steps: plan.steps.map((s, i) => ({
+      key: s.key,
+      name: over[s.key]?.name || s.name,
+      doer: { mode: "fixed", user: over[s.key]?.doer || undefined, hint: s.doerHint },
+      ...(s.rule || { start: i === 0 ? { mode: "entry" } : { mode: "afterDone", step: plan.steps[i - 1].key } }),
+      tat: over[s.key]?.tat ?? s.tat,
+      tatUnit: "days",
+      fields: s.fields.map(({ col, ...f }) => f),
+    })),
+  };
+}
+
+// Each row's steps as the sheet has them, then moved on by the engine at `now` (what starts, what waits, what is not needed)
+function settleRows({ process, rows, plan, now, calendar, doerOf = () => null, fallbackDoer = null }) {
+  const counts = { entries: rows.length, done: 0, pending: 0, waiting: 0, skipped: 0, na: 0 };
+  const dateField = process.fields.find((f) => f.type === "date" || f.type === "datetime");
+  const out = rows.map((r) => {
+    const sheetSteps = rowTasks(plan, r.frow, r.rrow, { closed: Boolean(r.closeStatus) });
+    const startDate =
+      (dateField && r.data[dateField.key] && new Date(dateField.type === "date" ? `${r.data[dateField.key]}T00:00:00+05:30` : r.data[dateField.key])) ||
+      sheetSteps.find((t) => t.planned)?.planned ||
+      now;
+    const data = engine.computeFields(process.fields, r.data, startDate);
+    const tasks = {};
+    for (const t of sheetSteps) {
+      const done = t.status === "done";
+      tasks[t.step.key] = {
+        status: t.status,
+        planned: t.planned || undefined,
+        plannedDay: t.planned ? dayKey(t.planned) : undefined,
+        activatedAt: t.planned || undefined,
+        actual: done ? t.actual : undefined,
+        actualDay: done ? dayKey(t.actual) : undefined,
+        resolvedAt: done ? t.actual : t.status === "skipped" || t.status === "na" ? now : undefined,
+        skipReason: t.status === "skipped" ? (r.closeStatus ? "closed" : "condition") : undefined,
+        values: Object.keys(t.values).length ? t.values : undefined,
+        remarks: t.remarks,
+      };
+    }
+    const job = { startDate, data, closeStatus: r.closeStatus || undefined };
+    if (!r.closeStatus) engine.advance({ process, job, tasks, now, calendar, doerOf, fallbackDoer });
+    for (const t of Object.values(tasks)) counts[t.status]++;
+    return { row: r, job, tasks, open: !engine.allResolved(tasks) };
+  });
+  return { counts, rows: out };
+}
+
+async function previewSheetFms(sheets, spreadsheetId, tab, { now = new Date() } = {}) {
+  const { plan, fmt, raw } = await loadTab(sheets, spreadsheetId, tab);
   const users = await User.find({ active: true }).select("name username").lean();
   for (const s of plan.steps) {
     const u = matchUser(s.doerHint, users);
     s.doer = u ? String(u._id) : "";
   }
   const rows = entryRows(plan, fmt, raw);
-  const counts = { entries: rows.length, done: 0, pending: 0 };
-  for (const r of rows) for (const t of rowTasks(plan, r.frow, r.rrow)) if (t.status in counts) counts[t.status]++;
-  return { ...plan, counts, sample: rows.slice(-3).map((r) => ({ sheetRow: r.sheetRow, data: r.data })) };
+  const def = normalizeProcess({ ...definition(plan, tab, { name: tab }), active: false });
+  const { counts } = settleRows({ process: def, rows, plan, now, calendar: await loadCalendar() });
+  return { ...plan, counts, closedEntries: rows.filter((r) => r.closeStatus).length };
 }
 
 // Make the FMS and bring in the rows. body: { name, pc, steps: { s1: { name, tat, doer } } }
 async function importSheetFms(sheets, spreadsheetId, tab, body, user, { now = new Date() } = {}) {
-  const top = await readTop(sheets, spreadsheetId, tab);
-  const { fmt, raw } = await readRows(sheets, spreadsheetId, tab, planFms(top, [], []));
-  const plan = planFms(top, fmt, raw);
-  const over = body.steps || {}; // what the admin changed in the preview: { s1: { name, tat, doer } }
-  const active = await User.find({ active: true }).select("_id").lean();
-  const activeIds = new Set(active.map((u) => String(u._id)));
-
-  const def = normalizeProcess(
-    {
-      name: body.name,
-      description: `Imported from the Google Sheet tab "${tab}"`,
-      pc: body.pc || undefined,
-      active: true,
-      fields: plan.fields.map(({ col, ...f }) => f),
-      steps: plan.steps.map((s, i) => ({
-        key: s.key,
-        name: over[s.key]?.name || s.name,
-        doer: { mode: "fixed", user: over[s.key]?.doer, hint: s.doerHint },
-        start: i === 0 ? { mode: "entry" } : { mode: "afterDone", step: plan.steps[i - 1].key },
-        tat: over[s.key]?.tat ?? s.tat,
-        tatUnit: "days",
-        fields: s.fields.map(({ col, ...f }) => f),
-      })),
-    },
-    { activeIds }
-  );
+  const { plan, fmt, raw } = await loadTab(sheets, spreadsheetId, tab);
+  const active = await User.find({ active: true }).select("_id name active").lean();
+  const def = normalizeProcess(definition(plan, tab, body), { activeIds: new Set(active.map((u) => String(u._id))) });
   if (await Process.exists({ name: def.name })) throw fail("An FMS with this name already exists");
-  const source = { spreadsheetId, tabName: tab, firstDataRow: plan.firstDataRow, importedAt: now, map: { fields: plan.fields.map((f) => [f.key, f.col]), steps: plan.steps.map((s) => [s.key, s.plannedCol, s.actualCol, s.fields.map((f) => [f.key, f.col])]) } };
-  const process = await Process.create({ ...def, source });
+  const source = {
+    spreadsheetId,
+    tabName: tab,
+    firstDataRow: plan.firstDataRow,
+    importedAt: now,
+    closure: plan.closure?.col,
+    fields: plan.fields.map((f) => [f.key, f.col]),
+    steps: plan.steps.map((s) => ({ key: s.key, planned: s.plannedCol, actual: s.actualCol, formula: s.formula, fields: s.fields.map((f) => [f.key, f.col]) })),
+  };
+  const process = (await Process.create({ ...def, source })).toObject();
 
-  const rows = entryRows(plan, fmt, raw);
-  const dateField = plan.fields.find((f) => f.type === "date" || f.type === "datetime");
-  const stepByKey = new Map(process.steps.map((s) => [s.key, s]));
+  const dir = directory(active);
+  const { counts, rows } = settleRows({
+    process,
+    rows: entryRows(plan, fmt, raw),
+    plan,
+    now,
+    calendar: await loadCalendar(),
+    doerOf: (step, data) => resolveDoer(step.doer, data, dir),
+    fallbackDoer: process.pc || user?._id,
+  });
+  const stepIndex = new Map(process.steps.map((s, i) => [s.key, i]));
   let jobNo = 0;
-  const counts = { entries: 0, done: 0, pending: 0, waiting: 0, skipped: 0, na: 0 };
   for (let i = 0; i < rows.length; i += 500) {
     const jobs = [];
     const tasks = [];
     for (const r of rows.slice(i, i + 500)) {
-      const steps = rowTasks(plan, r.frow, r.rrow);
-      const start = (dateField && r.data[dateField.key] && new Date(dateField.type === "date" ? `${r.data[dateField.key]}T00:00:00+05:30` : r.data[dateField.key])) || steps.find((t) => t.planned)?.planned || now;
-      const open = steps.some((t) => t.status === "pending" || t.status === "waiting");
-      const job = new Job({ process: process._id, jobNo: String(++jobNo), startDate: start, data: r.data, createdBy: user?._id, status: open ? "open" : "closed", sheetRow: r.sheetRow, searchText: Object.values(r.data).join(" ").toLowerCase().slice(0, 2000) });
+      const job = new Job({
+        process: process._id,
+        jobNo: String(++jobNo),
+        startDate: r.job.startDate,
+        data: r.job.data,
+        createdBy: user?._id,
+        status: r.open ? "open" : "closed",
+        ...(r.job.closeStatus ? { closeStatus: r.job.closeStatus, closedAt: now, closedBy: user?._id } : {}),
+        sheetRow: r.row.sheetRow,
+        searchText: Object.values(r.job.data).join(" ").toLowerCase().slice(0, 2000),
+      });
       jobs.push(job);
-      counts.entries++;
-      steps.forEach((t, k) => {
-        const step = stepByKey.get(t.step.key);
-        counts[t.status]++;
+      for (const step of process.steps) {
+        const t = r.tasks[step.key];
+        const started = t.status === "pending" || t.status === "done";
         tasks.push({
           kind: "app",
           label: `${process.name} – ${step.name}`,
           process: process._id,
           job: job._id,
-          stepIndex: k,
+          stepIndex: stepIndex.get(step.key),
           stepKey: step.key,
           stepName: step.name,
-          status: t.status,
-          doer: t.status === "waiting" || t.status === "skipped" ? undefined : step.doer?.user || process.pc || user?._id,
-          planned: t.planned || undefined,
-          plannedDay: t.planned ? dayKey(t.planned) : undefined,
-          activatedAt: t.planned || undefined,
-          actual: t.status === "done" ? t.actual : undefined,
-          actualDay: t.status === "done" ? dayKey(t.actual) : undefined,
-          resolvedAt: t.status === "done" ? t.actual : t.status === "skipped" || t.status === "na" ? now : undefined,
-          skipReason: t.status === "skipped" ? "condition" : undefined,
-          tat: t.planned ? step.tat : undefined,
-          tatUnit: t.planned ? step.tatUnit : undefined,
-          values: Object.keys(t.values).length ? t.values : undefined,
-          remarks: t.remarks,
+          ...t,
+          doer: t.doer || (started ? step.doer?.user || process.pc || user?._id : undefined),
+          tat: t.tat ?? (t.planned ? step.tat : undefined),
+          tatUnit: t.tatUnit ?? (t.planned ? step.tatUnit : undefined),
         });
-      });
+      }
     }
     await Job.insertMany(jobs);
     await Task.insertMany(tasks);
@@ -280,4 +402,4 @@ async function importSheetFms(sheets, spreadsheetId, tab, body, user, { now = ne
   return { process: { _id: process._id, name: process.name }, counts };
 }
 
-module.exports = { planFms, rowTasks, rowValues, entryRows, matchUser, guessType, previewSheetFms, importSheetFms };
+module.exports = { planFms, applyFormulas, rowTasks, rowValues, entryRows, definition, settleRows, matchUser, guessType, previewSheetFms, importSheetFms };

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "../api";
 import DoerSelect from "../components/DoerSelect";
 import ShareWith from "../components/ShareWith";
+import { describeCondition, describePlan, describeStart } from "../fms";
 
 const TYPE_LABEL = { text: "Text", number: "Number", date: "Date", datetime: "Date + time", select: "Dropdown" };
 
@@ -161,6 +162,16 @@ export default function SheetFmsImport() {
 
           <div className="card">
             <h3>Steps</h3>
+            <p className="muted small">
+              The rules are read from the sheet's Planned formulas (hover a rule to see the formula). Dates count in{" "}
+              <b>{plan.calendar === "working" ? "working days" : "calendar days"}</b>
+              {plan.closure ? (
+                <>
+                  {" "}· “{plan.closure.label}” (column {plan.closure.col}) closes an entry – {plan.closedEntries} entries are already closed
+                </>
+              ) : null}
+              .
+            </p>
             <p className="muted small">Who the sheet names for each step is matched to a user. Choose the doer where it is empty (create the user first in Users if needed).</p>
             <div className="table-scroll">
               <table className="grid">
@@ -171,6 +182,7 @@ export default function SheetFmsImport() {
                     <th>Sheet says</th>
                     <th>Doer</th>
                     <th>TAT (days)</th>
+                    <th>Rule (from the sheet's formula)</th>
                     <th>Columns</th>
                     <th>Doer fills</th>
                   </tr>
@@ -188,6 +200,18 @@ export default function SheetFmsImport() {
                       </td>
                       <td>
                         <input type="number" min="0" step="0.5" style={{ width: 70 }} value={steps[s.key]?.tat ?? ""} onChange={(e) => setStep(s.key, { tat: Number(e.target.value) })} />
+                      </td>
+                      <td className="small rule-cell" title={s.formula || ""}>
+                        {s.rule ? (
+                          <>
+                            <div>{describeStart(s.rule, plan.steps)}</div>
+                            <div className="muted">{describePlan({ ...s.rule, tat: steps[s.key]?.tat ?? s.tat, tatUnit: "days" }, plan.steps, plan.fields, plan.calendar)}</div>
+                            {s.rule.when && <div>Only if {describeCondition(s.rule.when, plan.fields, plan.steps)}</div>}
+                          </>
+                        ) : (
+                          <span className="warn-text">{i === 0 ? "Starts with the entry" : "Starts after the step before it"} – {s.ruleNotes?.[0] || "no rule found"}</span>
+                        )}
+                        {s.rule && s.ruleNotes?.length > 0 && <div className="muted">{s.ruleNotes.join(" · ")}</div>}
                       </td>
                       <td className="nowrap small">
                         {s.plannedCol} / {s.actualCol}
@@ -215,7 +239,11 @@ export default function SheetFmsImport() {
                   {plan.fields.map((f) => (
                     <tr key={f.key}>
                       <td>{f.col}</td>
-                      <td>{f.label}</td>
+                      <td>
+                        {f.label}
+                        {f.formula && <div className="muted small">auto-calculated (as in the sheet)</div>}
+                        {f.sheetFormula && <div className="warn-text small" title={f.sheetFormula}>a sheet formula – filled in by hand in the software</div>}
+                      </td>
                       <td className="small">
                         {TYPE_LABEL[f.type] || f.type}
                         {f.type === "select" && <span className="muted"> · {f.options.join(", ")}</span>}
@@ -237,8 +265,8 @@ export default function SheetFmsImport() {
               <DoerSelect value={pc} onChange={setPc} placeholder="—" />
             </label>
             <p className="muted small span-all">
-              Steps run one after another (each step starts when the one before it is done; planned = previous actual + TAT). Conditions, escalations
-              and doer rules can be added afterwards in Master FMS.
+              Every step keeps the rule shown above. Rules, doers and TATs can be changed afterwards in Master FMS. Doers then mark their steps
+              done in the software.
             </p>
             <div className="span-all row">
               <button className="btn primary" onClick={create} disabled={busy === "import" || missing > 0 || !name.trim()}>

@@ -1011,3 +1011,5 @@ input.bad-input { border-color: var(--bad); }
 .sheet-find .chips { margin: 0; }
 .share-with { display: grid; gap: 6px; }
 .share-with code { user-select: all; word-break: break-all; }
+.rule-cell { min-width: 240px; max-width: 360px; }
+.rule-cell > div + div { margin-top: 2px; }
