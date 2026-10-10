@@ -1,6 +1,10 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const Process = require("../models/Process");
+const Job = require("../models/Job");
+const Task = require("../models/Task");
+const AutoComplete = require("../models/AutoComplete");
+const FmsReminder = require("../models/FmsReminder");
 const User = require("../models/User");
 const { Department } = require("../models/Org");
 const { auth, permit } = require("../middleware/auth");
@@ -82,6 +86,26 @@ router.put("/:id", auth, permit("fms", "edit"), async (req, res) => {
   const notes = [added.length && `added ${added.join(", ")}`, removed.length && `removed ${removed.join(", ")}`].filter(Boolean);
   audit(req, "fms.update", { entity: "Process", entityId: p._id, summary: `${p.name}${notes.length ? ": " + notes.join("; ") : ""}` });
   res.json(p);
+});
+
+// Delete an FMS from the software (admin only, body confirm: "DELETE"): the FMS, its entries, their steps and its
+// Auto Complete / reminder rules. Only the software's own data – a Google Sheet it was imported from is never touched.
+router.delete("/:id", auth, async (req, res) => {
+  if (req.user.role !== "admin") return res.status(403).json({ message: "Only an admin can delete an FMS" });
+  if (req.body?.confirm !== "DELETE") return res.status(400).json({ message: "Type DELETE to confirm" });
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: "Invalid ID" });
+  const p = await Process.findById(req.params.id).select("name").lean();
+  if (!p) return res.status(404).json({ message: "FMS not found" });
+  const [tasks, jobs, rules, reminders] = await Promise.all([
+    Task.deleteMany({ process: p._id }),
+    Job.deleteMany({ process: p._id }),
+    AutoComplete.deleteMany({ $or: [{ process: p._id }, { target: p._id }] }),
+    FmsReminder.deleteMany({ process: p._id }),
+  ]);
+  await Process.deleteOne({ _id: p._id });
+  const out = { entries: jobs.deletedCount, steps: tasks.deletedCount, rules: rules.deletedCount + reminders.deletedCount };
+  audit(req, "fms.delete", { entity: "Process", entityId: p._id, summary: `${p.name}: FMS deleted with ${out.entries} entries and ${out.steps} steps` });
+  res.json(out);
 });
 
 // A copy to start a similar FMS from; saved as a draft

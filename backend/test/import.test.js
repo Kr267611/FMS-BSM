@@ -80,3 +80,17 @@ test("import: entries made with the sheet's entry date; planned = entry + 7 work
   const again = await call("/jobs/import", { method: "POST", body: { process: pid, rows: ROWS.slice(0, 2), dryRun: false, uniqueField: "lot_number" } });
   assert.deepStrictEqual(again.data.results.map((x) => x.duplicate), [true, true]);
 });
+
+test("delete the FMS: admin only, needs DELETE, takes its entries and steps with it", async () => {
+  const before = (await call(`/jobs?process=${pid}&status=`)).data.total;
+  assert.ok(before > 0);
+  const no = await call(`/processes/${pid}`, { method: "DELETE", body: { confirm: "delete" } });
+  assert.strictEqual(no.status, 400);
+  assert.strictEqual((await call(`/jobs?process=${pid}&status=`)).data.total, before); // nothing went
+  const r = await call(`/processes/${pid}`, { method: "DELETE", body: { confirm: "DELETE" } });
+  assert.strictEqual(r.status, 200, r.data.message);
+  assert.deepStrictEqual([r.data.entries, r.data.steps > 0], [before, true]);
+  assert.strictEqual((await call(`/processes/${pid}`)).status, 404);
+  const Task = require("../models/Task");
+  assert.strictEqual(await Task.countDocuments({ process: pid }), 0);
+});
