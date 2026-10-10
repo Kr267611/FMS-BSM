@@ -1004,3 +1004,8 @@ a.disabled-link { opacity: 0.45; pointer-events: none; }
 .audit-form { display: grid; gap: 8px; justify-items: start; min-width: 220px; }
 @media (max-width: 900px) { .audit-form { grid-column: 1 / -1; } }
 input.bad-input { border-color: var(--bad); }
+
+/* Sheet Links: steps found from the pasted URL */
+.sheet-url > input { flex: 1; min-width: 0; }
+.sheet-find { display: grid; gap: 8px; padding: 10px 12px; border: 1px dashed var(--stroke-30); border-radius: 10px; background: var(--glass-8); }
+.sheet-find .chips { margin: 0; }

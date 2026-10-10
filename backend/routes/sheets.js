@@ -3,7 +3,8 @@ const SheetLink = require("../models/SheetLink");
 const Task = require("../models/Task");
 const User = require("../models/User");
 const { auth, permit } = require("../middleware/auth");
-const { syncLink, syncAll, extractSpreadsheetId, isColumn, serviceAccountEmail } = require("../services/sheetSync");
+const { syncLink, syncAll, extractSpreadsheetId, isColumn, serviceAccountEmail, getSheets, friendlyError } = require("../services/sheetSync");
+const { inspectSheet } = require("../services/sheetInspect");
 
 const router = express.Router();
 router.use(auth, permit("settings", "edit"));
@@ -74,6 +75,18 @@ router.delete("/:id", async (req, res) => {
   if (!link) return res.status(404).json({ message: "Sheet link not found" });
   await Task.deleteMany({ sheetLink: link._id });
   res.json({ message: "Sheet link removed" });
+});
+
+// Paste a URL -> its tabs and the steps found in the chosen tab (read-only)
+router.post("/inspect", async (req, res) => {
+  const spreadsheetId = extractSpreadsheetId(req.body?.sheetUrl);
+  if (!spreadsheetId) return res.status(400).json({ message: "Invalid Google Sheet URL. Paste the plain link." });
+  const gid = String(req.body.sheetUrl).match(/[#&?]gid=(\d+)/)?.[1];
+  try {
+    res.json(await inspectSheet(getSheets(), spreadsheetId, { tabName: req.body.tabName, gid }));
+  } catch (err) {
+    res.status(400).json({ message: friendlyError(err, { tabName: req.body.tabName }) });
+  }
 });
 
 router.post("/sync-all", async (req, res) => {

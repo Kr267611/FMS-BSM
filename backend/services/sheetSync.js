@@ -153,4 +153,4 @@ async function syncAll() {
   return results;
 }
 
-module.exports = { syncLink, syncAll, buildRows, extractSpreadsheetId, isColumn, serviceAccountEmail };
+module.exports = { syncLink, syncAll, buildRows, extractSpreadsheetId, isColumn, serviceAccountEmail, getSheets, friendlyError };

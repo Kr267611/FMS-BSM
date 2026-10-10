@@ -164,7 +164,43 @@ function LinkForm({ initial, onClose, onSaved }) {
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
   const isNew = !initial._id;
-  const set = (patch) => setV({ ...v, ...patch });
+  const set = (patch) => setV((prev) => ({ ...prev, ...patch }));
+  const [info, setInfo] = useState(null);
+  const [looking, setLooking] = useState(false);
+
+  // Paste the URL -> the software reads the sheet's tabs and finds the steps (Planned / Actual columns)
+  async function inspect(sheetUrl, tabName) {
+    if (!/\/spreadsheets\/d\//.test(sheetUrl)) return setInfo(null);
+    setLooking(true);
+    try {
+      const r = await api("/sheets/inspect", { method: "POST", body: { sheetUrl, tabName } });
+      setInfo(r);
+      setV((prev) => {
+        const next = { ...prev, tabName: r.tab || prev.tabName };
+        if (r.steps.length === 1) Object.assign(next, stepPatch(r, r.steps[0], prev));
+        return next;
+      });
+    } catch (err) {
+      setInfo({ error: err.message });
+    } finally {
+      setLooking(false);
+    }
+  }
+  useEffect(() => {
+    if (!isNew) return;
+    const t = setTimeout(() => inspect(v.sheetUrl), 500);
+    return () => clearTimeout(t);
+  }, [v.sheetUrl]); // only a new URL needs a new look at the sheet
+
+  function stepPatch(r, s, prev) {
+    return {
+      plannedCol: s.plannedCol,
+      actualCol: s.actualCol,
+      firstDataRow: r.firstDataRow || prev.firstDataRow,
+      name: !prev.name || prev.name.startsWith(`${r.tab} – `) ? `${r.tab} – ${s.name}` : prev.name,
+    };
+  }
+  const picked = (s) => v.plannedCol === s.plannedCol && v.actualCol === s.actualCol;
 
   async function save(e) {
     e.preventDefault();
@@ -197,11 +233,66 @@ function LinkForm({ initial, onClose, onSaved }) {
       </label>
       <label className="span-all">
         Google Sheet URL (donor sheet)
-        <input value={v.sheetUrl} onChange={(e) => set({ sheetUrl: e.target.value })} placeholder="https://docs.google.com/spreadsheets/d/…" required />
+        <div className="row sheet-url">
+          <input value={v.sheetUrl} onChange={(e) => set({ sheetUrl: e.target.value })} placeholder="Paste the sheet link – tabs and steps are found automatically" required />
+          {!isNew && (
+            <button type="button" className="btn ghost small" onClick={() => inspect(v.sheetUrl, v.tabName)} disabled={looking}>
+              Find steps
+            </button>
+          )}
+        </div>
       </label>
+      {(looking || info) && (
+        <div className="span-all sheet-find">
+          {looking && <span className="muted">Reading the sheet…</span>}
+          {!looking && info?.error && <span className="warn-text">{info.error}</span>}
+          {!looking && info?.tabs && (
+            <>
+              <div className="muted small">
+                <b>{info.title}</b> · {info.tabs.length} tab(s)
+                {info.headerRow ? ` · headers in row ${info.headerRow}, data from row ${info.firstDataRow}` : " · no Planned column found in this tab – pick another tab or fill the columns below"}
+              </div>
+              {info.steps.length > 0 && (
+                <>
+                  <div className="small">Choose the step:</div>
+                  <div className="chips">
+                    {info.steps.map((s) => (
+                      <button
+                        type="button"
+                        key={s.plannedCol}
+                        className={"chip check" + (picked(s) ? " on" : "")}
+                        onClick={() => setV((prev) => ({ ...prev, ...stepPatch(info, s, prev) }))}
+                        title={`Planned ${s.plannedCol} (${s.plannedHeader}) · Actual ${s.actualCol} (${s.actualHeader})`}
+                      >
+                        {s.name} <span className="muted small">{s.plannedCol}/{s.actualCol}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </div>
+      )}
       <label>
         Tab name
-        <input value={v.tabName} onChange={(e) => set({ tabName: e.target.value })} placeholder="Colour Chemical" required />
+        {info?.tabs?.length ? (
+          <select
+            value={v.tabName}
+            onChange={(e) => (set({ tabName: e.target.value, plannedCol: "", actualCol: "" }), inspect(v.sheetUrl, e.target.value))}
+            required
+          >
+            {!info.tabs.some((t) => t.name === v.tabName) && <option value={v.tabName}>{v.tabName || "—"}</option>}
+            {info.tabs.map((t) => (
+              <option key={t.gid} value={t.name}>
+                {t.name}
+                {t.hidden ? " (hidden)" : ""}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input value={v.tabName} onChange={(e) => set({ tabName: e.target.value })} placeholder="Colour Chemical" required />
+        )}
       </label>
       <label>
         First data row
