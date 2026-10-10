@@ -109,9 +109,9 @@ async function fetchColumns(link) {
   return { planned, actual, filter };
 }
 
-function friendlyError(err) {
+function friendlyError(err, link) {
   const msg = err?.errors?.[0]?.message || err?.message || String(err);
-  if (/Unable to parse range/i.test(msg)) return `Tab "${msg.split(":").pop().trim()}" not found - check the tab name`;
+  if (/Unable to parse range/i.test(msg)) return `Tab "${link?.tabName}" not found - check the tab name (spelling, spaces, capitals)`;
   if (err?.code === 403 || /permission/i.test(msg)) {
     return `No permission to read the sheet - share it as Viewer with ${serviceAccountEmail() || "the service account"}`;
   }
@@ -140,7 +140,7 @@ async function syncLink(linkOrId) {
     return { ok: true, count: rows.length };
   } catch (err) {
     link.lastSyncAt = new Date();
-    link.lastError = friendlyError(err);
+    link.lastError = friendlyError(err, link);
     await link.save();
     return { ok: false, error: link.lastError };
   }
