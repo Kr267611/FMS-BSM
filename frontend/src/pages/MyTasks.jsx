@@ -19,6 +19,15 @@ const PRIORITY_ORDER = { critical: 0, high: 1 };
 const MAX_REVISIONS = 2;
 const PAGE = 20; // tasks shown per group before "Show more"
 const OLD_DAYS = 7; // overdue for longer than this goes into a folded group
+// How late a pending task is: [key, label, from days late, to days late]
+const AGES = [
+  ["", "Any date"],
+  ["today", "Due today", 0, 0],
+  ["week", "1–7 days late", 1, 7],
+  ["month", "8–30 days late", 8, 30],
+  ["older", "More than 30 days late", 31, Infinity],
+  ["upcoming", "Upcoming", -Infinity, -1],
+];
 // Due day first, then critical / high before normal, then due time
 const byDue = (a, b) =>
   (a.plannedDay || "").localeCompare(b.plannedDay || "") || (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9) || new Date(a.planned || 0) - new Date(b.planned || 0);
@@ -34,6 +43,9 @@ export default function MyTasks() {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [q, setQ] = useState("");
+  const [fms, setFms] = useState("");
+  const [step, setStep] = useState("");
+  const [age, setAge] = useState("");
 
   const load = useCallback(() => {
     setError("");
@@ -59,7 +71,21 @@ export default function MyTasks() {
   const today = data?.today;
   const kindsHere = KINDS.filter(([k]) => !k || all.some((t) => t.kind === k));
   const words = q.trim().toLowerCase();
-  const tasks = (kind ? all.filter((t) => t.kind === kind) : all.slice()).filter((t) => !words || searchText(t).includes(words));
+  // FMS names and their steps in this list, for the filters
+  const fmsList = [...new Map(all.filter((t) => t.process).map((t) => [String(t.process._id), t.process.name])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  const stepList = [...new Set(all.filter((t) => t.process && (!fms || String(t.process._id) === fms)).map((t) => titleOf(t)))].sort();
+  const ageRange = AGES.find(([k]) => k === age);
+  const filtered = Boolean(words || fms || step || age);
+  const tasks = (kind ? all.filter((t) => t.kind === kind) : all.slice()).filter((t) => {
+    if (words && !searchText(t).includes(words)) return false;
+    if (fms && String(t.process?._id) !== fms) return false;
+    if (step && titleOf(t) !== step) return false;
+    if (ageRange?.[2] !== undefined && today) {
+      const late = daysBetween(t.plannedDay, today);
+      if (late < ageRange[2] || late > ageRange[3]) return false;
+    }
+    return true;
+  });
   if (tab === "pending") tasks.sort(byDue);
   // The last week's overdue first; older overdue folded away so today's work is not lost under it
   const oldFrom = today ? addDays(today, -OLD_DAYS) : "";
@@ -129,6 +155,49 @@ export default function MyTasks() {
         )}
         {all.length > 10 && <input className="task-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search item, machine, entry no…" />}
       </div>
+      {all.length > 10 && (
+        <div className="row wrap task-filter-row">
+          {fmsList.length > 0 && (
+            <select value={fms} onChange={(e) => (setFms(e.target.value), setStep(""))} aria-label="FMS">
+              <option value="">All FMS</option>
+              {fmsList.map(([id, name]) => (
+                <option key={id} value={id}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          )}
+          {stepList.length > 0 && (
+            <select value={step} onChange={(e) => setStep(e.target.value)} aria-label="Step">
+              <option value="">All steps</option>
+              {stepList.map((x) => (
+                <option key={x} value={x}>
+                  {x.length > 60 ? x.slice(0, 59) + "…" : x}
+                </option>
+              ))}
+            </select>
+          )}
+          {tab === "pending" && (
+            <select value={age} onChange={(e) => setAge(e.target.value)} aria-label="How late">
+              {AGES.map(([k, label]) => (
+                <option key={k} value={k}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          )}
+          {filtered && (
+            <>
+              <span className="muted small">
+                {tasks.length} of {all.length}
+              </span>
+              <button type="button" className="link-btn small" onClick={() => (setQ(""), setFms(""), setStep(""), setAge(""))}>
+                Clear filters
+              </button>
+            </>
+          )}
+        </div>
+      )}
       {error && <div className="error">{error}</div>}
       {!data && !error && <p className="muted">Loading…</p>}
       {data && !tasks.length && (
@@ -136,7 +205,7 @@ export default function MyTasks() {
       )}
       {groups.map(
         ([title, list, tone, folded]) =>
-          list.length > 0 && <TaskGroup key={title} title={title} list={list} tone={tone} folded={folded && !words} today={today} me={user._id} canReopen={canReopen} onChange={load} />
+          list.length > 0 && <TaskGroup key={title + (filtered ? ":f" : "")} title={title} list={list} tone={tone} folded={folded && !filtered} today={today} me={user._id} canReopen={canReopen} onChange={load} />
       )}
     </>
   );

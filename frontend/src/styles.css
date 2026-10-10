@@ -1051,3 +1051,5 @@ th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
 .group-title.old { opacity: 0.85; }
 .show-more { align-self: center; }
 .link-btn.small { font-size: 12px; color: var(--muted); }
+.task-filter-row { gap: 8px; margin: -4px 0 16px; align-items: center; }
+.task-filter-row select { width: auto; max-width: 260px; }
