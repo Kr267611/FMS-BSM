@@ -179,6 +179,30 @@ router.put("/:id", auth, permit("users", "edit"), async (req, res) => {
   res.json(strip(await populateUser(User.findById(user._id))));
 });
 
+// Delete a user who never had any work. Anyone with tasks, checklists, FMS steps or leave stays, so their history and
+// score stay right – make them Inactive instead (they can no longer sign in and get no new work).
+router.delete("/:id", auth, permit("users", "delete"), async (req, res) => {
+  if (!isId(req.params.id)) return res.status(400).json({ message: "Invalid ID" });
+  const user = await User.findById(req.params.id).lean();
+  if (!user) return res.status(404).json({ message: "User not found" });
+  if (String(user._id) === String(req.user._id)) return res.status(400).json({ message: "You cannot delete yourself" });
+  if (user.role === "admin" && req.user.role !== "admin") return res.status(403).json({ message: "Only an admin can delete an admin" });
+  if (!(await canSeeUser(req.user, user._id))) return res.status(403).json({ message: "You can only delete people in your department" });
+  const id = user._id;
+  const [tasks, checklists, fms, leaves, team] = await Promise.all([
+    require("../models/Task").countDocuments({ $or: [{ doer: id }, { assignedBy: id }, { auditor: id }, { pc: id }] }),
+    require("../models/Checklist").countDocuments({ $or: [{ doer: id }, { pc: id }, { auditor: id }] }),
+    require("../models/Process").countDocuments({ $or: [{ pc: id }, { auditor: id }, { "steps.doer.user": id }, { "steps.doer.fallback": id }] }),
+    require("../models/Leave").countDocuments({ user: id }),
+    User.countDocuments({ teamLeader: id }),
+  ]);
+  const uses = [tasks && `${tasks} task(s)`, checklists && `${checklists} checklist(s)`, fms && `${fms} FMS`, leaves && `${leaves} leave(s)`, team && `team leader of ${team}`].filter(Boolean);
+  if (uses.length) return res.status(400).json({ message: `${user.name} has ${uses.join(", ")}, so the history and score would break. Make them Inactive instead.` });
+  await User.deleteOne({ _id: id });
+  audit(req, "user.delete", { entity: "User", entityId: id, summary: `${user.name} (${user.username}) deleted` });
+  res.json({ message: "User deleted" });
+});
+
 // ---- bulk upload ----
 // rows: [{ name, email, username?, phone?, role?, department?, branch? }] (names, not ids).
 // Missing departments / branches are created when createMissing is true.

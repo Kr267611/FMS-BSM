@@ -23,16 +23,42 @@ const blank = {
 
 const idOf = (v) => (v && typeof v === "object" ? v._id : v || "");
 
+const PAGE = 50;
+const DAY = 86400000;
+// Small line icons (no icon library in the app)
+const Icon = ({ d }) => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d={d} />
+  </svg>
+);
+const EDIT = "M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z";
+const TRASH = "M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6";
+
+const COLUMNS = [
+  ["name", "Name", (u) => u.name.toLowerCase()],
+  ["username", "Username", (u) => u.username],
+  ["email", "Email", (u) => u.email || "~"],
+  ["phone", "Phone No", (u) => u.phone || "~"],
+  ["role", "Role", (u) => ROLE_LABELS[u.role] || u.role],
+  ["department", "Department", (u) => u.department?.name || "~"],
+  ["lastLoginAt", "Last Login", (u) => (u.lastLoginAt ? -Date.parse(u.lastLoginAt) : Infinity)],
+];
+
 export default function Users() {
   const { user } = useAuth();
   const [list, setList] = useState(null);
   const [meta, setMeta] = useState(null);
   const [org, setOrg] = useState({ branches: [], departments: [] });
   const [editing, setEditing] = useState(null);
-  const [q, setQ] = useState("");
-  const [dept, setDept] = useState("");
-  const [role, setRole] = useState("");
+  const [f, setF] = useState({ q: "", dept: "", role: "", branch: "", status: "active", login: "" });
+  const [filterOpen, setFilterOpen] = useState(true);
+  const [sort, setSort] = useState({ key: "name", dir: 1 });
+  const [page, setPage] = useState(1);
+  const [confirm, setConfirm] = useState(null); // { id, action: "delete" | "toggle" }
+  const [busy, setBusy] = useState(null);
+  const [msg, setMsg] = useState(null);
   const [error, setError] = useState("");
+  const set = (patch) => (setF((v) => ({ ...v, ...patch })), setPage(1));
 
   const load = () => api("/users").then(setList).catch((e) => setError(e.message));
   useEffect(() => {
@@ -42,14 +68,24 @@ export default function Users() {
   }, []);
 
   const shown = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    return (list || []).filter(
+    const needle = f.q.trim().toLowerCase();
+    const now = Date.now();
+    const rows = (list || []).filter(
       (u) =>
-        (!dept || idOf(u.department) === dept) &&
-        (!role || u.role === role) &&
+        (!f.dept || idOf(u.department) === f.dept) &&
+        (!f.role || u.role === f.role) &&
+        (!f.branch || idOf(u.branch) === f.branch) &&
+        (f.status === "" || (f.status === "active" ? u.active : !u.active)) &&
+        (f.login === "" ||
+          (f.login === "never" ? !u.lastLoginAt : f.login === "7" ? u.lastLoginAt && now - Date.parse(u.lastLoginAt) <= 7 * DAY : u.lastLoginAt && now - Date.parse(u.lastLoginAt) > 30 * DAY)) &&
         (!needle || [u.name, u.username, u.email, u.phone].some((x) => String(x || "").toLowerCase().includes(needle)))
     );
-  }, [list, q, dept, role]);
+    const col = COLUMNS.find(([k]) => k === sort.key);
+    return col ? [...rows].sort((a, b) => (col[2](a) < col[2](b) ? -1 : col[2](a) > col[2](b) ? 1 : 0) * sort.dir) : rows;
+  }, [list, f, sort]);
+  const pages = Math.max(1, Math.ceil(shown.length / PAGE));
+  const pageRows = shown.slice((page - 1) * PAGE, page * PAGE);
+  const filtersOn = [f.q, f.dept, f.role, f.branch, f.login].filter(Boolean).length + (f.status !== "active" ? 1 : 0);
 
   function startEdit(u) {
     setEditing({
@@ -63,6 +99,29 @@ export default function Users() {
       managedDepartments: (u.managedDepartments || []).map(idOf),
       permissions: u.permissions || null,
     });
+  }
+  const canEditUser = (u) => can(user, "users", "edit") && (u.role !== "admin" || user.role === "admin");
+  const canDeleteUser = (u) => can(user, "users", "delete") && String(u._id) !== String(user._id) && (u.role !== "admin" || user.role === "admin");
+
+  async function act(u, action) {
+    setBusy(u._id);
+    setMsg(null);
+    try {
+      if (action === "delete") {
+        await api(`/users/${u._id}`, { method: "DELETE" });
+        setMsg({ ok: `${u.name} was deleted.` });
+      } else {
+        await api(`/users/${u._id}`, { method: "PUT", body: { active: !u.active } });
+        setMsg({ ok: u.active ? `${u.name} is now Inactive: cannot sign in and gets no new work.` : `${u.name} is Active again.` });
+      }
+      clearUsersCache();
+      await load();
+    } catch (e) {
+      setMsg({ error: e.message });
+    } finally {
+      setBusy(null);
+      setConfirm(null);
+    }
   }
 
   return (
@@ -103,62 +162,130 @@ export default function Users() {
         />
       )}
 
-      <div className="row wrap filters">
-        <input placeholder="Search name, email, phone…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <select value={dept} onChange={(e) => setDept(e.target.value)}>
-          <option value="">All departments</option>
-          {org.departments.map((d) => (
-            <option key={d._id} value={d._id}>
-              {d.name}
-            </option>
-          ))}
-        </select>
-        <select value={role} onChange={(e) => setRole(e.target.value)}>
-          <option value="">All roles</option>
-          {Object.entries(ROLE_LABELS).map(([k, v]) => (
-            <option key={k} value={k}>
-              {v}
-            </option>
-          ))}
-        </select>
+      <div className="card filter-card">
+        <button type="button" className="filter-bar" onClick={() => setFilterOpen(!filterOpen)} aria-expanded={filterOpen}>
+          <span>FILTER{filtersOn ? ` (${filtersOn})` : ""}</span>
+          <span>{filterOpen ? "▴" : "▾"}</span>
+        </button>
+        {filterOpen && (
+          <div className="filter-body">
+            <input placeholder="Search name, username, email, phone…" value={f.q} onChange={(e) => set({ q: e.target.value })} />
+            <select value={f.dept} onChange={(e) => set({ dept: e.target.value })} aria-label="Department">
+              <option value="">All departments</option>
+              {org.departments.map((d) => (
+                <option key={d._id} value={d._id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+            <select value={f.role} onChange={(e) => set({ role: e.target.value })} aria-label="Role">
+              <option value="">All roles</option>
+              {Object.entries(ROLE_LABELS).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v}
+                </option>
+              ))}
+            </select>
+            {org.branches.length > 1 && (
+              <select value={f.branch} onChange={(e) => set({ branch: e.target.value })} aria-label="Branch">
+                <option value="">All branches</option>
+                {org.branches.map((b) => (
+                  <option key={b._id} value={b._id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            <select value={f.status} onChange={(e) => set({ status: e.target.value })} aria-label="Status">
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="">Active and inactive</option>
+            </select>
+            <select value={f.login} onChange={(e) => set({ login: e.target.value })} aria-label="Last login">
+              <option value="">Any last login</option>
+              <option value="7">Signed in this week</option>
+              <option value="30">Not signed in for 30+ days</option>
+              <option value="never">Never signed in</option>
+            </select>
+            {filtersOn > 0 && (
+              <button type="button" className="link-btn small" onClick={() => set({ q: "", dept: "", role: "", branch: "", status: "active", login: "" })}>
+                Clear
+              </button>
+            )}
+          </div>
+        )}
       </div>
+      {msg?.ok && <div className="notice">{msg.ok}</div>}
+      {msg?.error && <div className="error">{msg.error}</div>}
 
       <div className="card table-card">
+        <div className="row between pad">
+          <b className="caps">List users</b>
+          <span className="muted small">{list ? `${shown.length} user(s)` : "Loading…"}</span>
+        </div>
         <div className="table-scroll">
-          <table className="grid">
+          <table className="grid users-table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Email / username</th>
-                <th>Role</th>
-                <th>Department</th>
-                <th>Branch</th>
-                <th>Team leader</th>
-                <th>Last sign-in</th>
-                <th></th>
+                {COLUMNS.map(([k, label]) => (
+                  <th key={k} className="sortable" onClick={() => setSort({ key: k, dir: sort.key === k ? -sort.dir : 1 })}>
+                    {label} <span className={"sort-arrows" + (sort.key === k ? " on" : "")}>{sort.key === k ? (sort.dir === 1 ? "↑" : "↓") : "↑↓"}</span>
+                  </th>
+                ))}
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
-              {shown.map((u) => (
+              {pageRows.map((u) => (
                 <tr key={u._id} className={u.active ? "" : "inactive"}>
                   <td>
-                    {u.name} {!u.active && <span className="tag gray">Inactive</span>}
-                    {u.permissions && <span className="tag" title="Has custom permissions">custom</span>}
+                    <b>{u.name}</b>
+                    {u.permissions && (
+                      <span className="tag" title="Has custom permissions">
+                        custom
+                      </span>
+                    )}
+                    {(u.branch?.name || u.teamLeader?.name) && (
+                      <div className="muted small">{[u.branch?.name, u.teamLeader?.name && `TL: ${u.teamLeader.name}`].filter(Boolean).join(" · ")}</div>
+                    )}
                   </td>
-                  <td className="small">
-                    {u.email || <span className="muted">no email</span>}
-                    <div className="muted">{u.username}</div>
-                  </td>
+                  <td className="small">{u.username}</td>
+                  <td className="small">{u.email || <span className="muted">—</span>}</td>
+                  <td className="small nowrap">{u.phone || <span className="muted">—</span>}</td>
                   <td>{ROLE_LABELS[u.role] || u.role}</td>
                   <td>{u.department?.name || <span className="muted">—</span>}</td>
-                  <td>{u.branch?.name || <span className="muted">—</span>}</td>
-                  <td>{u.teamLeader?.name || <span className="muted">—</span>}</td>
                   <td className="small nowrap">{u.lastLoginAt ? showDateTime(u.lastLoginAt) : <span className="muted">never</span>}</td>
                   <td>
-                    {can(user, "users", "edit") && (u.role !== "admin" || user.role === "admin") && (
-                      <button className="btn ghost small" onClick={() => startEdit(u)}>
-                        Edit
-                      </button>
+                    {confirm?.id === u._id ? (
+                      <div className="row nowrap">
+                        <span className="small">{confirm.action === "delete" ? "Delete?" : u.active ? "Make Inactive?" : "Make Active?"}</span>
+                        <button className={"btn small " + (confirm.action === "delete" ? "danger-fill" : "primary")} disabled={busy === u._id} onClick={() => act(u, confirm.action)}>
+                          Yes
+                        </button>
+                        <button className="btn ghost small" onClick={() => setConfirm(null)}>
+                          No
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="row nowrap user-actions">
+                        {canEditUser(u) && (
+                          <button className="icon-btn" title="Edit" aria-label={`Edit ${u.name}`} onClick={() => startEdit(u)}>
+                            <Icon d={EDIT} />
+                          </button>
+                        )}
+                        {canDeleteUser(u) && (
+                          <button className="icon-btn" title="Delete (only someone with no work yet)" aria-label={`Delete ${u.name}`} onClick={() => setConfirm({ id: u._id, action: "delete" })}>
+                            <Icon d={TRASH} />
+                          </button>
+                        )}
+                        {canEditUser(u) && String(u._id) !== String(user._id) ? (
+                          <button className={"status-pill " + (u.active ? "on" : "off")} title={u.active ? "Click to make Inactive" : "Click to make Active"} onClick={() => setConfirm({ id: u._id, action: "toggle" })}>
+                            {u.active ? "ACTIVE" : "INACTIVE"}
+                          </button>
+                        ) : (
+                          <span className={"status-pill " + (u.active ? "on" : "off")}>{u.active ? "ACTIVE" : "INACTIVE"}</span>
+                        )}
+                      </div>
                     )}
                   </td>
                 </tr>
@@ -173,6 +300,21 @@ export default function Users() {
             </tbody>
           </table>
         </div>
+        {pages > 1 && (
+          <div className="row between pad">
+            <span className="muted small">
+              Page {page} of {pages}
+            </span>
+            <div className="row">
+              <button className="btn ghost small" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+                ‹ Previous
+              </button>
+              <button className="btn ghost small" disabled={page >= pages} onClick={() => setPage(page + 1)}>
+                Next ›
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );

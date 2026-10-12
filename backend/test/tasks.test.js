@@ -668,6 +668,19 @@ test("MIDAP list filters: priority, assigned by, department, detailed status; Au
   assert.deepStrictEqual(asc, [...asc].sort());
 });
 
+test("Delete user: only someone with no work; anyone with tasks must be made Inactive", async () => {
+  const busy = await call(`/users/${people.ankit}`, { session: sessions.admin, method: "DELETE" });
+  assert.strictEqual(busy.status, 400);
+  assert.match(busy.data.message, /task\(s\).*Inactive/);
+  const fresh = await call("/users", { session: sessions.admin, method: "POST", body: { name: "Typo User", username: "typo1", password: "1234", role: "doer" } });
+  assert.strictEqual(fresh.status, 201, fresh.data.message); // a 4-digit number is a fine password
+  assert.strictEqual((await call(`/users/${fresh.data._id}`, { session: sessions.sunil, method: "DELETE" })).status, 403);
+  assert.strictEqual((await call(`/users/${fresh.data._id}`, { session: sessions.admin, method: "DELETE" })).status, 200);
+  assert.strictEqual((await call(`/users/${fresh.data._id}`, { session: sessions.admin, method: "DELETE" })).status, 404);
+  const me = (await call("/auth/me", { session: sessions.admin })).data._id;
+  assert.match((await call(`/users/${me}`, { session: sessions.admin, method: "DELETE" })).data.message, /yourself/);
+});
+
 test("Department / doer filters on the score reports, delegations and checklists", async () => {
   const empty = await call("/org/departments", { session: sessions.admin, method: "POST", body: { name: "Empty dept" } });
   const dep = empty.data._id;
