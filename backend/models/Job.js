@@ -29,5 +29,6 @@ const jobSchema = new mongoose.Schema(
 );
 
 jobSchema.index({ process: 1, startDate: -1 });
+jobSchema.index({ status: 1 }); // open entries, for the dashboard
 
 module.exports = mongoose.model("Job", jobSchema);

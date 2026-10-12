@@ -89,6 +89,9 @@ taskSchema.index({ status: 1, triggerAt: 1 });
 // One task per checklist per day, so generating twice (or from two servers) never duplicates
 taskSchema.index({ checklist: 1, plannedDay: 1 }, { unique: true, partialFilterExpression: { checklist: { $exists: true } } });
 taskSchema.index({ status: 1, closeAt: 1 });
+// dashboard counts across many people: overdue (planned passed) and done this week
+taskSchema.index({ status: 1, planned: 1 });
+taskSchema.index({ status: 1, resolvedAt: 1 });
 taskSchema.index({ assignedBy: 1, kind: 1, status: 1 });
 taskSchema.index({ auditor: 1, "audit.status": 1 });
 

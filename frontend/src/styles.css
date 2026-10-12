@@ -1066,3 +1066,10 @@ th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
 /* Weekly MIS Meeting tables: "#" then the name – the name column reads left to right */
 .meeting-block table.mis td:nth-child(2), .meeting-block table.mis th:nth-child(2) { text-align: left; }
 .meeting-block table.mis td:first-child, .meeting-block table.mis th:first-child { width: 36px; }
+
+/* Searchable person picker (more than 200 people) */
+.people-search { position: relative; min-width: 200px; }
+.people-search input { width: 100%; }
+.people-search-list { position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 4px); max-height: 280px; overflow: auto; margin: 0; padding: 4px; list-style: none; background: #fff; border: 1px solid var(--stroke-22); border-radius: 10px; box-shadow: 0 10px 24px rgba(15, 27, 45, 0.12); }
+.people-search-list li { padding: 7px 10px; border-radius: 6px; cursor: pointer; }
+.people-search-list li.active, .people-search-list li[aria-selected="true"] { background: var(--tint-primary); }

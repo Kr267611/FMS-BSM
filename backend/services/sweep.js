@@ -14,15 +14,18 @@ async function sweepAll(now = new Date()) {
 
 let last = 0;
 let running = null;
-// At most once a minute per server; waits for a sweep already running
-function sweepSoon() {
-  if (running) return running;
-  if (Date.now() - last < 60 * 1000) return Promise.resolve(null);
-  last = Date.now();
-  running = sweepAll()
-    .catch((err) => (console.error("Sweep:", err.message), null))
-    .finally(() => (running = null));
-  return running;
+const MAX_WAIT_MS = 3000;
+// At most once a minute per server. A list waits for it at most MAX_WAIT_MS, so a long sweep (the first one of the
+// day makes every checklist's tasks) never keeps a page from opening; it finishes in the background.
+function sweepSoon({ maxWait = MAX_WAIT_MS } = {}) {
+  if (!running && Date.now() - last >= 60 * 1000) {
+    last = Date.now();
+    running = sweepAll()
+      .catch((err) => (console.error("Sweep:", err.message), null))
+      .finally(() => (running = null));
+  }
+  if (!running) return Promise.resolve(null);
+  return Promise.race([running, new Promise((r) => setTimeout(() => r(null), maxWait).unref?.())]);
 }
 
 module.exports = { sweepAll, sweepSoon };

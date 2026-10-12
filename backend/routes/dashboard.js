@@ -48,10 +48,10 @@ router.get("/", async (req, res) => {
   ]);
 
   // Per FMS: open entries, overdue steps, and how far the open entries have got (done ÷ started steps)
+  // starts from the open entries (indexed), so it stays quick however many finished entries there are
+  const openJobs = await Job.find({ status: "open" }).distinct("_id");
   const stepAgg = await Task.aggregate([
-    { $match: { kind: "app", status: { $in: ["pending", "done"] } } },
-    { $lookup: { from: "jobs", localField: "job", foreignField: "_id", as: "j", pipeline: [{ $project: { status: 1 } }] } },
-    { $match: { "j.status": "open" } },
+    { $match: { job: { $in: openJobs }, status: { $in: ["pending", "done"] } } },
     {
       $group: {
         _id: "$process",

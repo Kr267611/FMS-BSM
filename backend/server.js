@@ -10,6 +10,8 @@ const { startScheduler } = require("./services/scheduler");
 const { runMigrations } = require("./services/migrations");
 
 const app = express();
+// gzip the JSON: a company-wide MIS for 2000 people is ~1.4 MB, ~10x smaller compressed (files and photos are already compressed)
+app.use(require("compression")({ filter: (req, res) => !req.path.startsWith("/api/files") && require("compression").filter(req, res) }));
 // Behind Vercel's rewrite and Render's proxy: take the client IP from X-Forwarded-For (used by rate limits)
 app.set("trust proxy", true);
 app.disable("x-powered-by");

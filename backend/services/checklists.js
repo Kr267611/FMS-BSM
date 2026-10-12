@@ -148,12 +148,8 @@ function occurrence(c, day, now) {
   });
 }
 
-// Make the tasks of one checklist up to today + createBefore. Safe to run any number of times.
-// cal: the company calendar; calFor: (user) -> their own calendar (week-off, leave), loaded when not given
-async function generateChecklist(c, { now = new Date(), cal, calFor } = {}) {
-  if (!c.active) return 0;
-  const company = cal || (await loadCalendar());
-  const calendar = (calFor || (await loadDoerCalendars(company, { now })))(c.doer);
+// The task upserts one checklist needs up to today + createBefore, and the day it is then made until. Pure.
+function plannedOps(c, calendar, now) {
   const today = dayKey(now);
   const until = addDaysKey(today, c.createBefore || 0);
   let from = c.generatedUntil ? addDaysKey(c.generatedUntil, 1) : today;
@@ -161,25 +157,38 @@ async function generateChecklist(c, { now = new Date(), cal, calFor } = {}) {
   if (from < floor) from = floor;
   if (from < c.start) from = c.start;
   const last = c.end && c.end < until ? c.end : until;
+  const days = from <= last ? dueDays(c, from, last, calendar) : [];
+  const ops = days.map((day) => ({
+    updateOne: { filter: { checklist: c._id, plannedDay: day }, update: { $setOnInsert: occurrence(c, day, now) }, upsert: true },
+  }));
+  return { ops, until };
+}
 
+// Write task upserts in chunks; returns how many were new. Safe when two servers write at once:
+// the unique index keeps one task per checklist per day.
+async function writeOps(ops) {
   let created = 0;
-  if (from <= last) {
-    const days = dueDays(c, from, last, calendar);
-    if (days.length) {
-      const ops = days.map((day) => ({
-        updateOne: { filter: { checklist: c._id, plannedDay: day }, update: { $setOnInsert: occurrence(c, day, now) }, upsert: true },
-      }));
-      try {
-        const r = await Task.bulkWrite(ops, { ordered: false });
-        created = r.upsertedCount || 0;
-      } catch (err) {
-        // two servers generating at the same moment: the unique index keeps one task per day
-        const errors = err.writeErrors || err.result?.getWriteErrors?.() || [];
-        if (!(err.code === 11000 || (errors.length && errors.every((e) => e.code === 11000)))) throw err;
-        created = err.result?.upsertedCount || 0;
-      }
+  for (let i = 0; i < ops.length; i += 5000) {
+    try {
+      const r = await Task.bulkWrite(ops.slice(i, i + 5000), { ordered: false });
+      created += r.upsertedCount || 0;
+    } catch (err) {
+      const errors = err.writeErrors || err.result?.getWriteErrors?.() || [];
+      if (!(err.code === 11000 || (errors.length && errors.every((e) => e.code === 11000)))) throw err;
+      created += err.result?.upsertedCount || 0;
     }
   }
+  return created;
+}
+
+// Make the tasks of one checklist up to today + createBefore. Safe to run any number of times.
+// cal: the company calendar; calFor: (user) -> their own calendar (week-off, leave), loaded when not given
+async function generateChecklist(c, { now = new Date(), cal, calFor } = {}) {
+  if (!c.active) return 0;
+  const company = cal || (await loadCalendar());
+  const calendar = (calFor || (await loadDoerCalendars(company, { now })))(c.doer);
+  const { ops, until } = plannedOps(c, calendar, now);
+  const created = ops.length ? await writeOps(ops) : 0;
   if (!c.generatedUntil || c.generatedUntil < until) await Checklist.updateOne({ _id: c._id }, { generatedUntil: until });
   return created;
 }
@@ -190,15 +199,21 @@ async function sweepChecklists(now = new Date()) {
   const calFor = await loadDoerCalendars(cal, { now });
   const today = dayKey(now);
   const list = await Checklist.find({ active: true, $or: [{ generatedUntil: null }, { generatedUntil: { $lt: addDaysKey(today, 30) } }] }).lean();
-  let created = 0;
+  // every checklist that needs tasks, in a few bulk writes (thousands of checklists in seconds, not minutes)
+  const ops = [];
+  const marks = [];
   for (const c of list) {
     if (c.generatedUntil && c.generatedUntil >= addDaysKey(today, c.createBefore || 0)) continue;
     try {
-      created += await generateChecklist(c, { now, cal, calFor });
+      const p = plannedOps(c, calFor(c.doer), now);
+      ops.push(...p.ops);
+      marks.push({ updateOne: { filter: { _id: c._id }, update: { $set: { generatedUntil: p.until } } } });
     } catch (err) {
       console.error(`Checklist "${c.name}":`, err.message);
     }
   }
+  const created = ops.length ? await writeOps(ops) : 0;
+  for (let i = 0; i < marks.length; i += 5000) await Checklist.bulkWrite(marks.slice(i, i + 5000), { ordered: false });
 
   const due = await Task.find({ kind: "checklist", status: "pending", closeAt: { $ne: null, $lte: now } }).select("_id closeAt").lean();
   if (due.length) {
