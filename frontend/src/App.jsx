@@ -6,6 +6,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import MyTasks from "./pages/MyTasks";
 import Dashboard from "./pages/Dashboard";
+import InstallApp from "./components/InstallApp";
 import DoerTasks from "./pages/DoerTasks";
 import WeeklyMis from "./pages/WeeklyMis";
 import AuditorSettings from "./pages/AuditorSettings";
@@ -223,6 +224,7 @@ function Shell() {
             ☰
           </button>
           <div className="topbar-spacer" />
+          <InstallApp />
           <NavLink to="/account" className="who-name" title="My account">
             <b className="avatar">{initials(user.name)}</b>
             <span>

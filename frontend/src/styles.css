@@ -1088,3 +1088,27 @@ th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
 span.status-pill { cursor: default; }
 .status-pill.on { background: var(--tint-good); color: var(--good); }
 .status-pill.off { background: #e5e7eb; color: #6b7280; }
+
+/* Install app (top bar) */
+.install-app { position: relative; }
+.install-tip { position: absolute; right: 0; top: calc(100% + 8px); z-index: 40; width: 260px; display: grid; gap: 8px; font-size: 13px; }
+.install-tip ol { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+/* installed on iPhone: keep clear of the notch / home bar */
+@supports (padding: env(safe-area-inset-top)) {
+  .topbar { padding-top: env(safe-area-inset-top); height: calc(60px + env(safe-area-inset-top)); }
+  .main-col { padding-bottom: env(safe-area-inset-bottom); }
+}
+
+/* Phones: header buttons, tabs and filters wrap instead of pushing the page wider than the screen */
+@media (max-width: 640px) {
+  .page-head { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 10px; }
+  .page-head .row, .dash-top .row, .card .row { flex-wrap: wrap; }
+  .tabs { max-width: 100%; overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; }
+  .tabs button { flex: 0 0 auto; }
+  .page-head > *, .page-head .row > *, .tabs { min-width: 0; } /* let a long tab strip scroll instead of widening the page */
+  main select, main input:not([type="checkbox"]):not([type="radio"]) { max-width: 100%; }
+  .filters > *, .filter-body > * { flex: 1 1 160px; }
+  .btn { min-height: 40px; } /* a finger-sized tap target */
+  .install-app .btn { min-height: 34px; }
+  .install-tip { right: -60px; }
+}
