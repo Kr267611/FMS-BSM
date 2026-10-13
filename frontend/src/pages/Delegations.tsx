@@ -259,7 +259,7 @@ function DelegationForm({ task, onClose, onSaved }) {
           </label>
           <label>
             Auditor
-            <DoerSelect value={f.auditor} onChange={(v) => set({ auditor: v })} placeholder="—" />
+            <DoerSelect value={f.auditor} onChange={(v) => set({ auditor: v })} placeholder="—" auditors />
           </label>
           <label className="check">
             <input type="checkbox" checked={f.proofRequired} onChange={(e) => set({ proofRequired: e.target.checked })} /> Photo proof required

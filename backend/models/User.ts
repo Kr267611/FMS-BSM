@@ -29,6 +29,8 @@ const userSchema = new mongoose.Schema(
     joiningDate: { type: String, default: "" }, // "YYYY-MM-DD"
     doerType: { type: String, trim: true, default: "" },
     photo: { type: String, default: "" },
+    // MIDAP "Make Auditor": keeps their role and can also be chosen as the auditor of tasks
+    isAuditor: { type: Boolean, default: false },
     active: { type: Boolean, default: true },
 
     // Bumped on every password change or reset; tokens issued before that stop working

@@ -27,7 +27,7 @@ export default function AuditorSettings() {
 
   const set = (id, key, value) => setRows((prev) => ({ ...prev, [id]: { ...prev[id], [key]: value.replace(/[^\d]/g, "").slice(0, 3) } }));
   const configured = (u) => Object.values(rows[u._id] || {}).some((v) => v !== "");
-  const shown = (users || []).filter((u) => all || u.role === "auditor" || configured(u));
+  const shown = (users || []).filter((u) => all || u.role === "auditor" || u.isAuditor || configured(u));
 
   async function save() {
     setBusy(true);
@@ -94,6 +94,7 @@ export default function AuditorSettings() {
                       <b>{u.name}</b>
                       <div className="muted small">
                         {u.role}
+                        {u.isAuditor && u.role !== "auditor" ? " + auditor" : ""}
                         {u.department ? ` · ${u.department}` : ""}
                       </div>
                     </td>

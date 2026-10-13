@@ -14,6 +14,7 @@ const blank = {
   joiningDate: "",
   doerType: "",
   photo: "",
+  isAuditor: false,
   password: "",
   role: "doer",
   branch: "",
@@ -252,6 +253,11 @@ export default function Users() {
                   <td>
                     {u.photo ? <img className="avatar-sm" src={`/api/files/${u.photo}`} alt="" loading="lazy" /> : null}
                     <b>{u.name}</b>
+                    {u.isAuditor && u.role !== "auditor" && (
+                      <span className="tag" title="Can also be chosen as an auditor">
+                        auditor
+                      </span>
+                    )}
                     {u.permissions && (
                       <span className="tag" title="Has custom permissions">
                         custom
@@ -507,6 +513,12 @@ function UserForm({ initial, meta, org, me, onClose, onSaved, onOrgAdded }) {
         </div>
         <small className="muted">*File upload maximum limit 2MB</small>
       </div>
+      {!["auditor", "admin"].includes(v.role) && (
+        <label className="check span-all make-auditor">
+          <input type="checkbox" checked={Boolean(v.isAuditor)} onChange={(e) => set({ isAuditor: e.target.checked })} /> Make Auditor{" "}
+          <Help text="Keeps their role and can also be chosen as the auditor of checklists, delegations and FMS steps. They see only the tasks they audit." />
+        </label>
+      )}
 
       <div className="span-2 own-weekoff">
         <span>

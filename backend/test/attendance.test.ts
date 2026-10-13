@@ -263,3 +263,18 @@ test("add user (MIDAP form): 10-digit phone, joining date, doer type, profile ph
   assert.deepStrictEqual((await call("admin", "/users/doer-types", { method: "PUT", body: { types: ["Permanent", " Contract ", "Permanent", ""] } })).data, ["Permanent", "Contract"]);
   assert.strictEqual((await call("ravi", "/users/doer-types", { method: "PUT", body: { types: ["X"] } })).status, 403);
 });
+
+test("Make Auditor: keeps the role, shows in the people list and in Auditor Settings, sees only their own audits", async () => {
+  const u = await call("admin", "/users", { method: "POST", body: { name: "Arun", username: "arun", password: "1234", role: "doer", isAuditor: true } });
+  assert.strictEqual(u.status, 201, u.data.message);
+  assert.deepStrictEqual([u.data.role, u.data.isAuditor], ["doer", true]);
+  const listed = (await call("admin", "/users/list")).data.find((x) => x.name === "Arun");
+  assert.strictEqual(listed.isAuditor, true);
+  assert.strictEqual((await call("admin", "/audits/settings")).data.users.find((x) => x.name === "Arun").isAuditor, true);
+  await login("arun", "1234");
+  assert.strictEqual((await call("arun", "/audits")).status, 200); // their own (empty) audit list
+  assert.strictEqual((await call("arun", "/attendance/register")).status, 403); // no extra reach from being an auditor
+  const off = await call("admin", `/users/${u.data._id}`, { method: "PUT", body: { isAuditor: false } });
+  assert.strictEqual(off.status, 200, off.data.message);
+  assert.strictEqual((await call("admin", "/users/list")).data.find((x) => x.name === "Arun").isAuditor, false);
+});

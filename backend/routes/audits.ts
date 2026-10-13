@@ -74,8 +74,8 @@ router.get("/", async (req, res) => {
 
 // MIDAP "Auditor Settings": per auditor the share (%) of checklist / delegation / FMS tasks to audit and the Audit TAT
 router.get("/settings", permit("settings", "edit"), async (req, res) => {
-  const users = await User.find({ active: true }).select("name role department").populate("department", "name").sort({ name: 1 }).lean<any>();
-  res.json({ settings: await getAuditorSettings(), users: users.map((u) => ({ _id: u._id, name: u.name, role: u.role, department: u.department?.name || "" })) });
+  const users = await User.find({ active: true }).select("name role department isAuditor").populate("department", "name").sort({ name: 1 }).lean<any>();
+  res.json({ settings: await getAuditorSettings(), users: users.map((u) => ({ _id: u._id, name: u.name, role: u.role, isAuditor: Boolean(u.isAuditor), department: u.department?.name || "" })) });
 });
 
 router.put("/settings", permit("settings", "edit"), async (req, res) => {

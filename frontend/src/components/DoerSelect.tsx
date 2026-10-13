@@ -31,10 +31,19 @@ export interface DoerSelectProps {
   onChange: (id: string) => void;
   placeholder?: string;
   required?: boolean;
+  // only the people who audit (Auditor role, admins, "Make Auditor"); everyone when nobody is marked yet
+  auditors?: boolean;
 }
 
-export default function DoerSelect({ value, onChange, placeholder = "Select doer", required }: DoerSelectProps) {
-  const users = useUsers();
+const canAudit = (u) => u.role === "auditor" || u.role === "admin" || u.isAuditor;
+
+export default function DoerSelect({ value, onChange, placeholder = "Select doer", required, auditors }: DoerSelectProps) {
+  const everyone = useUsers();
+  const users = useMemo(() => {
+    if (!auditors) return everyone;
+    const list = everyone.filter((u) => canAudit(u) || u._id === value);
+    return list.some((u) => u.role !== "admin" && canAudit(u)) ? list : everyone;
+  }, [everyone, auditors, value]);
   if (users.length > SEARCH_FROM) return <PeopleSearch users={users} value={value} onChange={onChange} placeholder={placeholder} required={required} />;
   return (
     <select value={value || ""} onChange={(e) => onChange(e.target.value)} required={required} aria-label={placeholder}>

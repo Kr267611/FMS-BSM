@@ -368,7 +368,7 @@ export default function FmsBuilder() {
         </label>
         <label>
           Auditor <small className="muted">(checks a sample of finished steps)</small>
-          <DoerSelect value={p.auditor} onChange={(auditor) => set({ auditor })} placeholder="—" />
+          <DoerSelect value={p.auditor} onChange={(auditor) => set({ auditor })} placeholder="—" auditors />
         </label>
         <label>
           Department

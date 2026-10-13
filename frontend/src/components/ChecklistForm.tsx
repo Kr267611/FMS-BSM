@@ -211,7 +211,7 @@ export default function ChecklistForm({ id, groups, onClose, onSaved }: { id?: s
           </label>
           <label>
             Auditor
-            <DoerSelect value={c.auditor} onChange={(v) => set({ auditor: v })} placeholder="—" />
+            <DoerSelect value={c.auditor} onChange={(v) => set({ auditor: v })} placeholder="—" auditors />
           </label>
         </div>
 

@@ -116,8 +116,8 @@ router.put("/doer-types", auth, permit("settings", "edit"), async (req, res) => 
 
 // For dropdowns - every signed-in user needs the list of doers
 router.get("/list", auth, async (req, res) => {
-  const users = await User.find({ active: true }).select("name role department").populate("department", "name").sort({ name: 1 }).lean<any>();
-  res.json(users.map((u) => ({ ...u, department: u.department?.name || "" })));
+  const users = await User.find({ active: true }).select("name role department isAuditor").populate("department", "name").sort({ name: 1 }).lean<any>();
+  res.json(users.map((u) => ({ ...u, department: u.department?.name || "", isAuditor: Boolean(u.isAuditor) })));
 });
 
 router.get("/", auth, permit("users", "view"), async (req, res) => {
@@ -136,6 +136,7 @@ function userFields(body) {
     managedDepartments: Array.isArray(b.managedDepartments) ? b.managedDepartments.filter(Boolean) : [],
     teamLeader: b.teamLeader || undefined,
     phone: b.phone,
+    isAuditor: Boolean(b.isAuditor),
   };
 }
 
@@ -202,6 +203,7 @@ router.put("/:id", auth, permit("users", "edit"), async (req, res) => {
   const same = (a, c) => JSON.stringify(a ?? null) === JSON.stringify(c ?? null);
   const idStr = (x) => (x ? String(x) : null);
   for (const k of ["name", "phone"]) if (b[k] !== undefined && b[k] !== user[k]) (user[k] = b[k]), changes.push(k);
+  if (b.isAuditor !== undefined && Boolean(b.isAuditor) !== Boolean(user.isAuditor)) (user.isAuditor = Boolean(b.isAuditor)), changes.push(user.isAuditor ? "made auditor" : "no longer auditor");
   for (const [k, v] of Object.entries(profile.set)) if (v !== (user[k] || "")) (user[k] = v), changes.push(k === "photo" ? (v ? "photo" : "photo removed") : k);
   if (b.email !== undefined && cleanEmail(b.email) !== user.email) (user.email = cleanEmail(b.email)), changes.push("email");
   if (b.role !== undefined && b.role !== user.role) (user.role = b.role), changes.push(`role→${b.role}`);
