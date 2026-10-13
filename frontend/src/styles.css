@@ -1216,7 +1216,7 @@ tr.clickable:hover td { background: var(--tint-primary); }
 .perm-table td:first-child { min-width: 180px; }
 .perm-cell { display: flex; gap: 6px; align-items: flex-start; cursor: pointer; font-size: 12px; min-width: 110px; }
 .perm-cell input { margin-top: 2px; flex: none; }
-.perm-what { color: var(--muted); line-height: 1.3; }
+.perm-what { color: var(--muted); line-height: 1.3; text-transform: none; font-weight: 400; }
 .perm-custom td:first-child b { color: var(--primary); }
 .sees-all { margin: 8px 0 0; }
 .acc-table th { font-size: 11px; white-space: normal; min-width: 54px; }
@@ -1224,3 +1224,6 @@ tr.clickable:hover td { background: var(--tint-primary); }
 .acc-own { font-weight: 900; color: var(--primary); }
 .acc-dept { text-decoration: underline; text-underline-offset: 3px; }
 @media (max-width: 640px) { .perm-what { display: none; } .perm-cell { min-width: 0; } }
+.perm-grid .perm-table th:not(:first-child), .perm-grid .perm-table td:not(:first-child) { text-align: left; text-transform: none; }
+.perm-grid .link-btn + .link-btn { margin-left: 10px; }
+.perm-inherit .perm-cell input { opacity: 0.35; }

@@ -47,10 +47,10 @@ export default function PermissionGrid({ meta, value, base, baseLabel, onChange,
                 const custom = own[m] !== undefined;
                 const eff = effective(m);
                 return (
-                  <tr key={m} className={custom ? "perm-custom" : ""}>
+                  <tr key={m} className={custom ? "perm-custom" : base ? "" : "perm-inherit"}>
                     <td>
                       <b>{meta.modules[m]}</b>
-                      <div className="muted small">{custom ? "Set here" : base ? `${baseLabel}${eff.length ? "" : " (no access)"}` : baseLabel}</div>
+                      <div className="muted small">{custom ? "Set here" : base ? `${baseLabel}${eff.length ? "" : " (no access)"}` : `Not changed – ${baseLabel.toLowerCase()}`}</div>
                     </td>
                     {ACTIONS.map((a) =>
                       acts[a] ? (
