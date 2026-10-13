@@ -1239,3 +1239,50 @@ tr.clickable:hover td { background: var(--tint-primary); }
 .sync-col.bad { border-color: var(--bad); background: var(--tint-bad); }
 .sync-col .row { gap: 6px; align-items: center; }
 .col-letter { width: 54px; text-transform: uppercase; font-family: Consolas, monospace; text-align: center; }
+
+/* ---------- dashboard brand: Navy + Gold (our own look, not MIDAP's blue / salmon) ---------- */
+:root {
+  --navy: #13233a;
+  --navy-2: #22395a;
+  --gold: #c8902d;
+  --gold-deep: #94661a;
+  --gold-soft: #f3d9a4;
+  --gold-tint: #fbf6ea;
+  --gold-line: #ecdcb5;
+}
+.eyebrow { color: var(--gold-deep); }
+.dash-link { color: var(--gold-deep); }
+.dash-link:hover { color: var(--navy); }
+.hello-logo { background: linear-gradient(145deg, var(--navy), var(--navy-2)); color: var(--gold-soft); box-shadow: 0 0 0 3px var(--gold-tint), 0 0 0 4px var(--gold-line); }
+.week-tile { background: var(--gold-tint); border-color: var(--gold-line); }
+.wt-label { color: #5c4a22; }
+.wt-values i { background: var(--gold); }
+.wt-cur { color: var(--navy); }
+.wt-cur.good { color: #15803d; }
+.wt-cur.bad { color: #b91c1c; }
+.week-chart .bar-planned { fill: #eadfc4; }
+.week-chart .bar-done { fill: var(--navy); }
+.week-chart .bar-day.today { fill: var(--gold-deep); }
+.legend .key.planned { background: #eadfc4; }
+.legend .key.done { background: var(--navy); }
+.pending-card { background: linear-gradient(135deg, var(--navy) 0%, var(--navy-2) 100%); border-color: var(--navy); color: #fff; }
+.pending-card h3 { color: var(--gold-soft); }
+.pill { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22); }
+.pill-dot { border-color: var(--gold); color: var(--gold-deep); }
+.tile-icon.blue, .wf-icon { background: var(--gold-tint); color: var(--gold-deep); }
+.bar span { background: linear-gradient(90deg, var(--gold), #e2b763); }
+.tab-btn { background: #eef1f6; color: var(--navy); border: 1px solid #dde3ec; }
+.tab-btn:hover { border-color: var(--gold-line); background: var(--gold-tint); }
+.tab-btn.active { background: var(--navy); color: var(--gold-soft); border-color: var(--navy); }
+.switch .track { border-color: var(--navy); }
+.switch .track::after { background: var(--navy); }
+.switch input:checked + .track { background: var(--gold-tint); border-color: var(--gold); }
+.switch input:checked + .track::after { background: var(--gold); }
+.dash-top .btn.primary { background: var(--navy); border-color: var(--navy); color: var(--gold-soft); box-shadow: none; }
+.dash-top .btn.primary:hover { background: var(--navy-2); }
+.dash-top .tabs button.active { background: var(--navy); color: var(--gold-soft); }
+/* the same gold on the side menu and the top bar */
+.brand::before { background: linear-gradient(135deg, #e2b763, var(--gold-deep)); }
+.side-link.active { box-shadow: inset 3px 0 0 var(--gold); }
+@keyframes active-in { from { box-shadow: inset 0 0 0 var(--gold); } }
+.avatar { background: var(--gold-tint); color: var(--gold-deep); border-color: var(--gold-line); }
