@@ -1,7 +1,8 @@
 // Google Sheet FMS -> FMS: entry form, steps (TAT, doer, Status / Remarks), and each row's step status
 import test = require("node:test");
 import assert = require("node:assert");
-import { planFms, rowTasks, entryRows, matchUser } from "../services/sheetFms";
+import sheetFmsLib = require("../services/sheetFms");
+const { planFms, rowTasks, entryRows, matchUser } = sheetFmsLib;
 
 const top = [];
 top[0] = ["", "Repeat Spare Parts Entry"];

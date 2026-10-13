@@ -1,8 +1,11 @@
 import express = require("express");
 import Setting = require("../models/Setting");
-import { auth, permit } from "../middleware/auth";
-import { audit } from "../services/audit";
-import { DEFAULT_CALENDAR, isTime } from "../services/calendar";
+import authLib = require("../middleware/auth");
+const { auth, permit } = authLib;
+import auditLib = require("../services/audit");
+const { audit } = auditLib;
+import calendarLib = require("../services/calendar");
+const { DEFAULT_CALENDAR, isTime } = calendarLib;
 
 const router = express.Router();
 router.use(auth);

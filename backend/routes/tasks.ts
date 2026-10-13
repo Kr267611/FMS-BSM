@@ -1,18 +1,24 @@
 import express = require("express");
 import mongoose = require("mongoose");
 import Task = require("../models/Task");
-import { auth } from "../middleware/auth";
+import authLib = require("../middleware/auth");
+const { auth } = authLib;
 import wf = require("../services/workflow");
 import other = require("../services/taskActions");
 import autoComplete = require("../services/autoComplete");
-import { sweepSoon } from "../services/sweep";
-import { todayKey } from "../services/dates";
-import { canSeeUser } from "../services/scope";
-import { audit } from "../services/audit";
+import sweepLib = require("../services/sweep");
+const { sweepSoon } = sweepLib;
+import datesLib = require("../services/dates");
+const { todayKey } = datesLib;
+import scopeLib = require("../services/scope");
+const { canSeeUser } = scopeLib;
+import auditLib = require("../services/audit");
+const { audit } = auditLib;
 import Job = require("../models/Job");
 import Process = require("../models/Process");
 import User = require("../models/User");
-import { resolveDoer, directory } from "../services/fms/doers";
+import doersLib = require("../services/fms/doers");
+const { resolveDoer, directory } = doersLib;
 
 const router = express.Router();
 

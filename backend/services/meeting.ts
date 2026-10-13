@@ -3,9 +3,12 @@
 import Task = require("../models/Task");
 import User = require("../models/User");
 import Setting = require("../models/Setting");
-import { misReport, score } from "./scoring";
-import { todayKey, dayKey, addDaysKey } from "./dates";
-import { mailer, fromAddress } from "./mailer";
+import scoringLib = require("./scoring");
+const { misReport, score } = scoringLib;
+import datesLib = require("./dates");
+const { todayKey, dayKey, addDaysKey } = datesLib;
+import mailerLib = require("./mailer");
+const { mailer, fromAddress } = mailerLib;
 
 const TYPES = { checklist: "checklist", delegation: "delegation", app: "fms", sheet: "fms" };
 const zero = () => ({ planned: 0, done: 0, onTime: 0, late: 0, pending: 0, autoClosed: 0 });

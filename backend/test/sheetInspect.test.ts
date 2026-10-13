@@ -1,7 +1,8 @@
 // Finding the steps of a Google Sheet FMS from its top rows (Planned / Actual columns, header row, step name)
 import test = require("node:test");
 import assert = require("node:assert");
-import { findSteps, colLetter } from "../services/sheetInspect";
+import sheetInspectLib = require("../services/sheetInspect");
+const { findSteps, colLetter } = sheetInspectLib;
 
 test("column letters", () => {
   assert.deepStrictEqual([0, 25, 26, 33, 51, 52, 701, 702].map(colLetter), ["A", "Z", "AA", "AH", "AZ", "BA", "ZZ", "AAA"]);

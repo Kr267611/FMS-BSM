@@ -1,8 +1,10 @@
 import Task = require("../models/Task");
 import User = require("../models/User");
 import Setting = require("../models/Setting");
-import { todayKey } from "./dates";
-import { mailer, fromAddress } from "./mailer";
+import datesLib = require("./dates");
+const { todayKey } = datesLib;
+import mailerLib = require("./mailer");
+const { mailer, fromAddress } = mailerLib;
 
 // Each doer's pending tasks due up to today (overdue + due today)
 async function pendingByDoer() {

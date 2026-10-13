@@ -1,9 +1,13 @@
 // Validates a Master FMS sent by the builder and returns the clean definition that is saved.
 // Pure: the caller passes the ids of active users and departments.
-import { OPS, NO_VALUE_OPS, isGroup } from "./conditions";
-import { START_MODES, PLAN_FROM, FORMULA_OPS, fail } from "./engine";
-import { MODES } from "../calendar";
-import { FIELD_TYPES } from "../../models/Process";
+import conditionsLib = require("./conditions");
+const { OPS, NO_VALUE_OPS, isGroup } = conditionsLib;
+import engineLib = require("./engine");
+const { START_MODES, PLAN_FROM, FORMULA_OPS, fail } = engineLib;
+import calendarLib = require("../calendar");
+const { MODES } = calendarLib;
+import ProcessLib = require("../../models/Process");
+const { FIELD_TYPES } = ProcessLib;
 
 const STEP_FIELD_TYPES = FIELD_TYPES.filter((t) => t !== "user");
 const TAT_UNITS = ["minutes", "hours", "days"];

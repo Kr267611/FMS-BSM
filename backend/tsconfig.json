@@ -10,6 +10,8 @@
     "outDir": "dist",
     "strict": false,
     "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
     "sourceMap": true,
     "types": ["node"]

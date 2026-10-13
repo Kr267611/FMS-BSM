@@ -1,13 +1,21 @@
 import express = require("express");
-import { auth, permit } from "../middleware/auth";
+import authLib = require("../middleware/auth");
+const { auth, permit } = authLib;
 import meeting = require("../services/meeting");
-import { mailer } from "../services/mailer";
-import { audit } from "../services/audit";
-import { misReport, dailyReport, score } from "../services/scoring";
-import { todayKey, addDaysKey } from "../services/dates";
-import { visibleUserIds } from "../services/scope";
-import { sweepSoon } from "../services/sweep";
-import { peopleFor } from "../services/taskFilters";
+import mailerLib = require("../services/mailer");
+const { mailer } = mailerLib;
+import auditLib = require("../services/audit");
+const { audit } = auditLib;
+import scoringLib = require("../services/scoring");
+const { misReport, dailyReport, score } = scoringLib;
+import datesLib = require("../services/dates");
+const { todayKey, addDaysKey } = datesLib;
+import scopeLib = require("../services/scope");
+const { visibleUserIds } = scopeLib;
+import sweepLib = require("../services/sweep");
+const { sweepSoon } = sweepLib;
+import taskFiltersLib = require("../services/taskFilters");
+const { peopleFor } = taskFiltersLib;
 
 const router = express.Router();
 

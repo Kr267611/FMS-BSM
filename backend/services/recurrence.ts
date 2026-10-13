@@ -4,8 +4,10 @@
 //   monthly  { dates, every }  on these dates (31 = last day of the month), every `every` months from the start month
 //   interval { every }         every `every` days from the start day
 // onHoliday: a due day that is a week-off or holiday is skipped, or moves to the next / previous working day.
-import { addDaysKey } from "./dates";
-import { isOff, nextWorkingDay, prevWorkingDay } from "./calendar";
+import datesLib = require("./dates");
+const { addDaysKey } = datesLib;
+import calendarLib = require("./calendar");
+const { isOff, nextWorkingDay, prevWorkingDay } = calendarLib;
 
 const MAX_DAYS = 1100;
 const SHIFT_PAD = 14; // a moved day can come from just outside the range

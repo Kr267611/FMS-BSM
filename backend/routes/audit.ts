@@ -1,6 +1,7 @@
 import express = require("express");
 import AuditLog = require("../models/AuditLog");
-import { auth, permit } from "../middleware/auth";
+import authLib = require("../middleware/auth");
+const { auth, permit } = authLib;
 
 const router = express.Router();
 

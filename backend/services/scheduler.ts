@@ -1,8 +1,13 @@
-import { syncAll } from "./sheetSync";
-import { sendDailyReminders } from "./reminders";
-import { sweepAll } from "./sweep";
-import { TZ } from "./dates";
-import { maybeSendMeeting } from "./meeting";
+import sheetSyncLib = require("./sheetSync");
+const { syncAll } = sheetSyncLib;
+import remindersLib = require("./reminders");
+const { sendDailyReminders } = remindersLib;
+import sweepLib = require("./sweep");
+const { sweepAll } = sweepLib;
+import datesLib = require("./dates");
+const { TZ } = datesLib;
+import meetingLib = require("./meeting");
+const { maybeSendMeeting } = meetingLib;
 
 const timeFmt = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: false });
 

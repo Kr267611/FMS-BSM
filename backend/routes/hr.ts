@@ -4,10 +4,14 @@ import LeaveType = require("../models/LeaveType");
 import LeavePolicy = require("../models/LeavePolicy");
 import LeaveRequest = require("../models/LeaveRequest");
 import User = require("../models/User");
-import { auth, permit } from "../middleware/auth";
-import { visibleUserIds } from "../services/scope";
-import { audit } from "../services/audit";
-import { todayKey, addDaysKey } from "../services/dates";
+import authLib = require("../middleware/auth");
+const { auth, permit } = authLib;
+import scopeLib = require("../services/scope");
+const { visibleUserIds } = scopeLib;
+import auditLib = require("../services/audit");
+const { audit } = auditLib;
+import datesLib = require("../services/dates");
+const { todayKey, addDaysKey } = datesLib;
 import book = require("../services/leaveBook");
 
 // HRMS – Leave (MIDAP Leave Register + HRMS leave policies)

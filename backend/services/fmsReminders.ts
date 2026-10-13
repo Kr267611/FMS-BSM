@@ -4,9 +4,12 @@
 import FmsReminder = require("../models/FmsReminder");
 import Process = require("../models/Process");
 import Task = require("../models/Task");
-import { cleanCondition } from "./fms/definition";
-import { evaluate } from "./fms/conditions";
-import { mailer, fromAddress } from "./mailer";
+import definitionLib = require("./fms/definition");
+const { cleanCondition } = definitionLib;
+import conditionsLib = require("./fms/conditions");
+const { evaluate } = conditionsLib;
+import mailerLib = require("./mailer");
+const { mailer, fromAddress } = mailerLib;
 
 const HOUR = 60 * 60 * 1000;
 const DEFAULT_SUBJECT = "FMS: {task} – {status}";

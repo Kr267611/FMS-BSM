@@ -2,7 +2,8 @@
 import test = require("node:test");
 import assert = require("node:assert");
 import D = require("../services/sheetDoers");
-import { resolveDoer, directory, normKey } from "../services/fms/doers";
+import doersLib = require("../services/fms/doers");
+const { resolveDoer, directory, normKey } = doersLib;
 
 const fields = [
   { key: "item_name", label: "Item Name", type: "text" },

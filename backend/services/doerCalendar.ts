@@ -4,8 +4,10 @@
 import User = require("../models/User");
 import Leave = require("../models/Leave");
 import Task = require("../models/Task");
-import { addDaysKey, dayKey } from "./dates";
-import { isOff, fromIst, toIst } from "./calendar";
+import datesLib = require("./dates");
+const { addDaysKey, dayKey } = datesLib;
+import calendarLib = require("./calendar");
+const { isOff, fromIst, toIst } = calendarLib;
 
 const MAX_LEAVE_DAYS = 120;
 

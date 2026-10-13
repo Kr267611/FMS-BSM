@@ -1,6 +1,8 @@
 import express = require("express");
-import { auth, permit } from "../middleware/auth";
-import { pendingByDoer, messageFor, sendEmailReminders } from "../services/reminders";
+import authLib = require("../middleware/auth");
+const { auth, permit } = authLib;
+import remindersLib = require("../services/reminders");
+const { pendingByDoer, messageFor, sendEmailReminders } = remindersLib;
 
 const router = express.Router();
 router.use(auth, permit("settings", "view"));

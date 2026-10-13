@@ -7,7 +7,8 @@ import path = require("path");
 process.env.MONGOMS_DOWNLOAD_DIR ||= path.join(__dirname, "..", "..", "node_modules", ".cache", "mongodb-memory-server");
 import { MongoMemoryServer } from "mongodb-memory-server-core";
 import book = require("../services/leaveBook");
-import { normalizeCalendar } from "../services/calendar";
+import calendarLib = require("../services/calendar");
+const { normalizeCalendar } = calendarLib;
 
 test("working days skip week-offs and holidays; a half day is 0.5", () => {
   const cal = normalizeCalendar({ weekOff: [0], holidays: ["2027-03-03"] }); // Sunday off; Wed 3 March a holiday

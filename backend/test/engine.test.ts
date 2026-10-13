@@ -2,12 +2,17 @@
 // checked against the dates the real sheet shows.
 import test = require("node:test");
 import assert = require("node:assert");
-import { dayKey } from "../services/dates";
-import { normalizeCalendar, addTatCal } from "../services/calendar";
-import { evaluate, compare } from "../services/fms/conditions";
-import { resolveDoer, directory } from "../services/fms/doers";
+import datesLib = require("../services/dates");
+const { dayKey } = datesLib;
+import calendarLib = require("../services/calendar");
+const { normalizeCalendar, addTatCal } = calendarLib;
+import conditionsLib = require("../services/fms/conditions");
+const { evaluate, compare } = conditionsLib;
+import doersLib = require("../services/fms/doers");
+const { resolveDoer, directory } = doersLib;
 import engine = require("../services/fms/engine");
-import { normalizeProcess } from "../services/fms/definition";
+import definitionLib = require("../services/fms/definition");
+const { normalizeProcess } = definitionLib;
 import repeatSpare = require("../templates/repeatSpare");
 
 // IST wall-clock time -> Date

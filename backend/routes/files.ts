@@ -1,7 +1,10 @@
 import express = require("express");
-import { auth } from "../middleware/auth";
-import { rateLimit } from "../services/session";
-import { saveImage, findImage, openImage } from "../services/uploads";
+import authLib = require("../middleware/auth");
+const { auth } = authLib;
+import sessionLib = require("../services/session");
+const { rateLimit } = sessionLib;
+import uploadsLib = require("../services/uploads");
+const { saveImage, findImage, openImage } = uploadsLib;
 
 const router = express.Router();
 

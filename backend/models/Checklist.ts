@@ -1,6 +1,8 @@
 import mongoose = require("mongoose");
-import { fieldSchema } from "./Process";
-import { PRIORITIES } from "./Task";
+import ProcessLib = require("./Process");
+const { fieldSchema } = ProcessLib;
+import TaskLib = require("./Task");
+const { PRIORITIES } = TaskLib;
 
 const { ObjectId } = mongoose.Schema.Types;
 const FREQUENCIES = ["daily", "weekly", "monthly", "interval"];

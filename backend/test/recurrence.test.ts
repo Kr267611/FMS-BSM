@@ -1,8 +1,10 @@
 // Checklist schedules: which days a recurring task falls due. 28 Sep 2026 is a Monday.
 import test = require("node:test");
 import assert = require("node:assert");
-import { dueDays, nextDueDays } from "../services/recurrence";
-import { normalizeCalendar } from "../services/calendar";
+import recurrenceLib = require("../services/recurrence");
+const { dueDays, nextDueDays } = recurrenceLib;
+import calendarLib = require("../services/calendar");
+const { normalizeCalendar } = calendarLib;
 
 const sundayOff = normalizeCalendar({ weekOff: [0] });
 const withHoliday = normalizeCalendar({ weekOff: [0], holidays: [{ day: "2026-10-02", name: "Gandhi Jayanti" }] });

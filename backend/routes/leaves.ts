@@ -2,11 +2,16 @@ import express = require("express");
 import mongoose = require("mongoose");
 import Leave = require("../models/Leave");
 import User = require("../models/User");
-import { auth, permit } from "../middleware/auth";
-import { visibleUserIds, canSeeUser } from "../services/scope";
-import { audit } from "../services/audit";
-import { loadCalendar } from "../services/workflow";
-import { applyLeave, checkLeave } from "../services/doerCalendar";
+import authLib = require("../middleware/auth");
+const { auth, permit } = authLib;
+import scopeLib = require("../services/scope");
+const { visibleUserIds, canSeeUser } = scopeLib;
+import auditLib = require("../services/audit");
+const { audit } = auditLib;
+import workflowLib = require("../services/workflow");
+const { loadCalendar } = workflowLib;
+import doerCalendarLib = require("../services/doerCalendar");
+const { applyLeave, checkLeave } = doerCalendarLib;
 
 // MIDAP "Doer Holiday": days a person is away. Adding one frees their checklist tasks on those days and moves
 // their FMS steps and delegations due then to the first working day after.

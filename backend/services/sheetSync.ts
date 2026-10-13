@@ -2,7 +2,8 @@ import fs = require("fs");
 import path = require("path");
 import SheetLink = require("../models/SheetLink");
 import Task = require("../models/Task");
-import { dayKey, parseSheetDate } from "./dates";
+import datesLib = require("./dates");
+const { dayKey, parseSheetDate } = datesLib;
 
 // Accepts the sheet URL or the bare ID
 function extractSpreadsheetId(input) {

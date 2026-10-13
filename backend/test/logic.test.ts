@@ -1,8 +1,11 @@
 import test = require("node:test");
 import assert = require("node:assert");
-import { dayKey, addTat, parseSheetDate } from "../services/dates";
-import { score, classify } from "../services/scoring";
-import { buildRows, extractSpreadsheetId } from "../services/sheetSync";
+import datesLib = require("../services/dates");
+const { dayKey, addTat, parseSheetDate } = datesLib;
+import scoringLib = require("../services/scoring");
+const { score, classify } = scoringLib;
+import sheetSyncLib = require("../services/sheetSync");
+const { buildRows, extractSpreadsheetId } = sheetSyncLib;
 
 // Google Sheets serial number for a given IST wall-clock time
 const serial = (y, m, d, hh = 0, mm = 0) => (Date.UTC(y, m - 1, d, hh, mm) - Date.UTC(1899, 11, 30)) / 86400000;

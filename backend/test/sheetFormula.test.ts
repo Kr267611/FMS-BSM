@@ -1,7 +1,8 @@
 // Sheet formulas -> step rules, with the real formulas of "Repeat Spare part DAILY FMS" (tab SPARE PART)
 import test = require("node:test");
 import assert = require("node:assert");
-import { parseCommon, translate, fieldFormula, closureColumn, commonFormula } from "../services/sheetFormula";
+import sheetFormulaLib = require("../services/sheetFormula");
+const { parseCommon, translate, fieldFormula, closureColumn, commonFormula } = sheetFormulaLib;
 
 const cols = {
   A: { kind: "entryDate", key: "date" },

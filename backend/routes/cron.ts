@@ -1,8 +1,12 @@
 import express = require("express");
-import { syncAll } from "../services/sheetSync";
-import { sendDailyReminders } from "../services/reminders";
-import { sweepAll } from "../services/sweep";
-import { maybeSendMeeting } from "../services/meeting";
+import sheetSyncLib = require("../services/sheetSync");
+const { syncAll } = sheetSyncLib;
+import remindersLib = require("../services/reminders");
+const { sendDailyReminders } = remindersLib;
+import sweepLib = require("../services/sweep");
+const { sweepAll } = sweepLib;
+import meetingLib = require("../services/meeting");
+const { maybeSendMeeting } = meetingLib;
 
 // Called by Vercel Cron (see vercel.json). Vercel sends "Authorization: Bearer <CRON_SECRET>".
 const router = express.Router();

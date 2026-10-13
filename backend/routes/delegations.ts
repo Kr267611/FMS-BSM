@@ -1,12 +1,18 @@
 import express = require("express");
-import { applyTaskFilters } from "../services/taskFilters";
+import taskFiltersLib = require("../services/taskFilters");
+const { applyTaskFilters } = taskFiltersLib;
 import mongoose = require("mongoose");
 import Task = require("../models/Task");
-import { auth, permit } from "../middleware/auth";
-import { can } from "../services/permissions";
-import { visibleUserIds, canSeeUser } from "../services/scope";
-import { audit } from "../services/audit";
-import { todayKey } from "../services/dates";
+import authLib = require("../middleware/auth");
+const { auth, permit } = authLib;
+import permissionsLib = require("../services/permissions");
+const { can } = permissionsLib;
+import scopeLib = require("../services/scope");
+const { visibleUserIds, canSeeUser } = scopeLib;
+import auditLib = require("../services/audit");
+const { audit } = auditLib;
+import datesLib = require("../services/dates");
+const { todayKey } = datesLib;
 import d = require("../services/delegations");
 
 const router = express.Router();

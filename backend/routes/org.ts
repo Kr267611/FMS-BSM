@@ -1,8 +1,11 @@
 import express = require("express");
-import { Branch, Department } from "../models/Org";
+import OrgLib = require("../models/Org");
+const { Branch, Department } = OrgLib;
 import User = require("../models/User");
-import { auth, permit } from "../middleware/auth";
-import { audit } from "../services/audit";
+import authLib = require("../middleware/auth");
+const { auth, permit } = authLib;
+import auditLib = require("../services/audit");
+const { audit } = auditLib;
 
 const router = express.Router();
 router.use(auth);

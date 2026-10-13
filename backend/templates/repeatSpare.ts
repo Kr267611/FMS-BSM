@@ -13,7 +13,8 @@
 //   S4 AB: =IF(V="","",IF(OR(I>2,F>3000),IF(TODAY()-V>0,V+2,""),""))                    (Nikunjbhai)
 //   S5 AH: =IF(OR(I="",V=""),"",IF(I>=3,V+3,""))                                        (Ayush Sir)
 //   S6 AM: intended =IF(OR(AK="Permenant Solved",AH=""),"",IF(TODAY()-AH>0,IF(AI<>"",AI+3,AH+3),""))  (Bhaveshbhai)
-import { normKey } from "../services/fms/doers";
+import doersLib = require("../services/fms/doers");
+const { normKey } = doersLib;
 
 const range = (prefix, from, to) => Array.from({ length: to - from + 1 }, (_, i) => `${prefix}${from + i}`);
 

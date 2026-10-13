@@ -3,12 +3,18 @@ import crypto = require("crypto");
 import bcrypt = require("bcryptjs");
 import mongoose = require("mongoose");
 import User = require("../models/User");
-import { Branch, Department } from "../models/Org";
-import { auth, permit } from "../middleware/auth";
-import { passwordProblem } from "../services/passwords";
-import { ROLES, MODULES, ACTIONS, ROLE_DEFAULTS, cleanOverrides } from "../services/permissions";
-import { visibleUserIds, canSeeUser } from "../services/scope";
-import { audit } from "../services/audit";
+import OrgLib = require("../models/Org");
+const { Branch, Department } = OrgLib;
+import authLib = require("../middleware/auth");
+const { auth, permit } = authLib;
+import passwordsLib = require("../services/passwords");
+const { passwordProblem } = passwordsLib;
+import permissionsLib = require("../services/permissions");
+const { ROLES, MODULES, ACTIONS, ROLE_DEFAULTS, cleanOverrides } = permissionsLib;
+import scopeLib = require("../services/scope");
+const { visibleUserIds, canSeeUser } = scopeLib;
+import auditLib = require("../services/audit");
+const { audit } = auditLib;
 
 const router = express.Router();
 

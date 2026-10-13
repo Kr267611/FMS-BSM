@@ -5,8 +5,10 @@ import Process = require("../models/Process");
 import Job = require("../models/Job");
 import User = require("../models/User");
 import wf = require("./workflow");
-import { dayKey, parseSheetDate } from "./dates";
-import { peopleDirectory } from "./checklists";
+import datesLib = require("./dates");
+const { dayKey, parseSheetDate } = datesLib;
+import checklistsLib = require("./checklists");
+const { peopleDirectory } = checklistsLib;
 
 const norm = (s) => String(s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "");
 const DATE_COLUMNS = ["entrydate", "date"];

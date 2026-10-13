@@ -1,9 +1,12 @@
 import express = require("express");
 import mongoose = require("mongoose");
 import AutoComplete = require("../models/AutoComplete");
-import { auth, permit } from "../middleware/auth";
-import { audit } from "../services/audit";
-import { cleanRule } from "../services/autoComplete";
+import authLib = require("../middleware/auth");
+const { auth, permit } = authLib;
+import auditLib = require("../services/audit");
+const { audit } = auditLib;
+import autoCompleteLib = require("../services/autoComplete");
+const { cleanRule } = autoCompleteLib;
 import FmsReminder = require("../models/FmsReminder");
 import reminders = require("../services/fmsReminders");
 

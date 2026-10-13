@@ -2,13 +2,20 @@ import express = require("express");
 import crypto = require("crypto");
 import bcrypt = require("bcryptjs");
 import User = require("../models/User");
-import { auth } from "../middleware/auth";
-import { mailer, fromAddress } from "../services/mailer";
-import { passwordProblem } from "../services/passwords";
-import { startSession, endSession, rateLimit } from "../services/session";
-import { Department } from "../models/Org";
-import { permissionsFor } from "../services/permissions";
-import { audit } from "../services/audit";
+import authLib = require("../middleware/auth");
+const { auth } = authLib;
+import mailerLib = require("../services/mailer");
+const { mailer, fromAddress } = mailerLib;
+import passwordsLib = require("../services/passwords");
+const { passwordProblem } = passwordsLib;
+import sessionLib = require("../services/session");
+const { startSession, endSession, rateLimit } = sessionLib;
+import OrgLib = require("../models/Org");
+const { Department } = OrgLib;
+import permissionsLib = require("../services/permissions");
+const { permissionsFor } = permissionsLib;
+import auditLib = require("../services/audit");
+const { audit } = auditLib;
 
 const router = express.Router();
 

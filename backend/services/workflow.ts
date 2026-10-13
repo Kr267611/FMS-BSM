@@ -5,15 +5,23 @@ import Job = require("../models/Job");
 import Task = require("../models/Task");
 import User = require("../models/User");
 import Setting = require("../models/Setting");
-import { dayKey } from "./dates";
-import { normalizeCalendar, DEFAULT_CALENDAR } from "./calendar";
-import { withTransaction } from "./tx";
-import { can } from "./permissions";
-import { canSeeUser } from "./scope";
+import datesLib = require("./dates");
+const { dayKey } = datesLib;
+import calendarLib = require("./calendar");
+const { normalizeCalendar, DEFAULT_CALENDAR } = calendarLib;
+import txLib = require("./tx");
+const { withTransaction } = txLib;
+import permissionsLib = require("./permissions");
+const { can } = permissionsLib;
+import scopeLib = require("./scope");
+const { canSeeUser } = scopeLib;
 import engine = require("./fms/engine");
-import { resolveDoer, directory } from "./fms/doers";
-import { auditFor, getAuditorSettings } from "./auditSampling";
-import { loadDoerCalendars } from "./doerCalendar";
+import doersLib = require("./fms/doers");
+const { resolveDoer, directory } = doersLib;
+import auditSamplingLib = require("./auditSampling");
+const { auditFor, getAuditorSettings } = auditSamplingLib;
+import doerCalendarLib = require("./doerCalendar");
+const { loadDoerCalendars } = doerCalendarLib;
 
 class WorkflowError extends Error {
   constructor(message, status = 400) {

@@ -7,10 +7,14 @@
 //   withStart – together with step X (a parallel step)
 // When it is due to start, its condition is checked: true -> the task becomes pending with a planned
 // date and a doer; false -> it is skipped (not scored). Steps that depend on a skipped step are skipped too.
-import { dayKey, addDaysKey } from "../dates";
-import { addTatCal, startOfDay, normalizeCalendar } from "../calendar";
-import { outsideLeave } from "../doerCalendar";
-import { evaluate, stepRefs, isBlank, num, norm } from "./conditions";
+import datesLib = require("../dates");
+const { dayKey, addDaysKey } = datesLib;
+import calendarLib = require("../calendar");
+const { addTatCal, startOfDay, normalizeCalendar } = calendarLib;
+import doerCalendarLib = require("../doerCalendar");
+const { outsideLeave } = doerCalendarLib;
+import conditionsLib = require("./conditions");
+const { evaluate, stepRefs, isBlank, num, norm } = conditionsLib;
 
 const START_MODES = ["entry", "afterDone", "afterDue", "withStart"];
 const PLAN_FROM = ["entry", "stepPlanned", "stepActual", "stepActualOrPlanned", "field", "now"];

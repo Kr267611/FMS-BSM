@@ -3,11 +3,16 @@
 import mongoose = require("mongoose");
 import Task = require("../models/Task");
 import Checklist = require("../models/Checklist");
-import { dayKey } from "./dates";
-import { auditFor, getAuditorSettings } from "./auditSampling";
-import { can } from "./permissions";
-import { canSeeUser } from "./scope";
-import { cleanValues } from "./fms/engine";
+import datesLib = require("./dates");
+const { dayKey } = datesLib;
+import auditSamplingLib = require("./auditSampling");
+const { auditFor, getAuditorSettings } = auditSamplingLib;
+import permissionsLib = require("./permissions");
+const { can } = permissionsLib;
+import scopeLib = require("./scope");
+const { canSeeUser } = scopeLib;
+import engineLib = require("./fms/engine");
+const { cleanValues } = engineLib;
 import delegations = require("./delegations");
 
 const PROOF_FIELD = { key: "proof", label: "Proof (photo)", type: "photo", required: true };

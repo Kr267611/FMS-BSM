@@ -1,7 +1,8 @@
 // Weekly MIS meeting: highlights, the email settings and the email itself
 import test = require("node:test");
 import assert = require("node:assert");
-import { highlights, cleanSettings, renderHtml } from "../services/meeting";
+import meetingLib = require("../services/meeting");
+const { highlights, cleanSettings, renderHtml } = meetingLib;
 
 const row = (name, score, planned, last?) => ({ name, department: "Maint", total: { planned, done: planned, late: 0, pending: 0, score }, last: last === undefined ? { planned: 0, score: 0 } : { planned: 5, score: last } });
 

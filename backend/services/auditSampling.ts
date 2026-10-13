@@ -3,7 +3,8 @@
 // every task, as before. Which tasks are picked depends only on the task id, so it cannot be gamed by redoing one.
 import crypto = require("crypto");
 import Setting = require("../models/Setting");
-import { addDaysKey, dayKey } from "./dates";
+import datesLib = require("./dates");
+const { addDaysKey, dayKey } = datesLib;
 
 const KEY = "auditorSettings";
 const KINDS = { checklist: "checklist", delegation: "delegation", app: "fms" };

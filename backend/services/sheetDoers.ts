@@ -3,7 +3,8 @@
 //   - a lookup tab ("MACHINE WISE DOER": MACHINE -> DOER NAME), matched on an entry column (Installed Machine No)
 // Both become the software's doer table (mode "map") with the sheet's names, each linked to a user,
 // and the step's chosen doer as the fallback. Only reading: nothing is written to the sheet.
-import { normKey } from "./fms/doers";
+import doersLib = require("./fms/doers");
+const { normKey } = doersLib;
 
 const text = (v) => String(v ?? "").replace(/\s+/g, " ").trim();
 const PERSON = /person|doer|master|fitter|incharge|in-charge|accountable|responsible|operator|supervisor|wireman|technician|assigned/i;

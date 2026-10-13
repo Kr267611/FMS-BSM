@@ -6,11 +6,16 @@ import LeavePolicy = require("../models/LeavePolicy");
 import LeaveRequest = require("../models/LeaveRequest");
 import Leave = require("../models/Leave");
 import User = require("../models/User");
-import { addDaysKey, dayKey } from "./dates";
-import { isOff } from "./calendar";
-import { loadCalendar } from "./workflow";
-import { loadDoerCalendars, applyLeave, daysOf, checkLeave } from "./doerCalendar";
-import { canSeeUser } from "./scope";
+import datesLib = require("./dates");
+const { addDaysKey, dayKey } = datesLib;
+import calendarLib = require("./calendar");
+const { isOff } = calendarLib;
+import workflowLib = require("./workflow");
+const { loadCalendar } = workflowLib;
+import doerCalendarLib = require("./doerCalendar");
+const { loadDoerCalendars, applyLeave, daysOf, checkLeave } = doerCalendarLib;
+import scopeLib = require("./scope");
+const { canSeeUser } = scopeLib;
 
 const MANAGERS = ["admin", "hod", "pc", "tl"];
 const half = (n) => Math.round(n * 2) / 2; // leave counts in half days

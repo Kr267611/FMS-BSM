@@ -1,7 +1,9 @@
 import jwt = require("jsonwebtoken");
 import User = require("../models/User");
-import { readToken, endSession } from "../services/session";
-import { can } from "../services/permissions";
+import sessionLib = require("../services/session");
+const { readToken, endSession } = sessionLib;
+import permissionsLib = require("../services/permissions");
+const { can } = permissionsLib;
 
 async function auth(req, res, next) {
   const token = readToken(req);

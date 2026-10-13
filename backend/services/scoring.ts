@@ -1,7 +1,8 @@
 import mongoose = require("mongoose");
 import Task = require("../models/Task");
 import User = require("../models/User");
-import { todayKey } from "./dates";
+import datesLib = require("./dates");
+const { todayKey } = datesLib;
 
 // MIS formula: Score = -(50*Late + 100*Pending) / Planned. 0 = perfect.
 function score({ planned, late, pending }: any) {

@@ -5,8 +5,10 @@ import AutoComplete = require("../models/AutoComplete");
 import Process = require("../models/Process");
 import Job = require("../models/Job");
 import Task = require("../models/Task");
-import { cleanCondition } from "./fms/definition";
-import { evaluate } from "./fms/conditions";
+import definitionLib = require("./fms/definition");
+const { cleanCondition } = definitionLib;
+import conditionsLib = require("./fms/conditions");
+const { evaluate } = conditionsLib;
 import wf = require("./workflow");
 
 const MAX_DEPTH = 3;

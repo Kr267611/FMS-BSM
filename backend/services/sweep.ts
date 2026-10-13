@@ -1,9 +1,12 @@
 // Time-driven work: FMS escalations that are due, checklist tasks for the coming days, auto-close.
 // Runs from the scheduler, from cron and before task lists / entries / MIS are shown,
 // so a server that was asleep (free hosting) catches up on the first request.
-import { sweepDue } from "./workflow";
-import { sweepChecklists } from "./checklists";
-import { sweepReminders } from "./fmsReminders";
+import workflowLib = require("./workflow");
+const { sweepDue } = workflowLib;
+import checklistsLib = require("./checklists");
+const { sweepChecklists } = checklistsLib;
+import fmsRemindersLib = require("./fmsReminders");
+const { sweepReminders } = fmsRemindersLib;
 
 async function sweepAll(now = new Date()) {
   const escalated = await sweepDue(now);

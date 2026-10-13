@@ -7,8 +7,10 @@ import express = require("express");
 import bcrypt = require("bcryptjs");
 import connectDB = require("./config/db");
 import User = require("./models/User");
-import { startScheduler } from "./services/scheduler";
-import { runMigrations } from "./services/migrations";
+import schedulerLib = require("./services/scheduler");
+const { startScheduler } = schedulerLib;
+import migrationsLib = require("./services/migrations");
+const { runMigrations } = migrationsLib;
 
 const app = express();
 // gzip the JSON: a company-wide MIS for 2000 people is ~1.4 MB, ~10x smaller compressed (files and photos are already compressed)

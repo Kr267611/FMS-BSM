@@ -3,7 +3,8 @@
 //   "working"       – working time: days keep the time of day on working days, hours count only working hours
 //   "calendar_skip" – calendar days that skip week-offs and holidays (the v1 "skip Sundays" behaviour)
 //   "calendar"      – plain calendar time, 24 x 7 (what a formula like =A8+2 does in the sheets)
-import { addDaysKey } from "./dates";
+import datesLib = require("./dates");
+const { addDaysKey } = datesLib;
 
 const IST_OFFSET_MS = 330 * 60 * 1000;
 const MIN_MS = 60 * 1000;

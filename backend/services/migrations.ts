@@ -1,6 +1,7 @@
 import mongoose = require("mongoose");
 import User = require("../models/User");
-import { Department } from "../models/Org";
+import OrgLib = require("../models/Org");
+const { Department } = OrgLib;
 
 // Idempotent data upgrades, run on every start.
 async function runMigrations() {

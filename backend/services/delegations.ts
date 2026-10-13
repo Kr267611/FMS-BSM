@@ -7,9 +7,12 @@
 import mongoose = require("mongoose");
 import Task = require("../models/Task");
 import User = require("../models/User");
-import { dayKey } from "./dates";
-import { can } from "./permissions";
-import { canSeeUser } from "./scope";
+import datesLib = require("./dates");
+const { dayKey } = datesLib;
+import permissionsLib = require("./permissions");
+const { can } = permissionsLib;
+import scopeLib = require("./scope");
+const { canSeeUser } = scopeLib;
 
 const { PRIORITIES } = Task;
 const MAX_REVISIONS = 2;

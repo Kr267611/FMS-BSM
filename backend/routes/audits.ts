@@ -1,14 +1,20 @@
 import express = require("express");
 import mongoose = require("mongoose");
 import Task = require("../models/Task");
-import { auth, permit } from "../middleware/auth";
-import { visibleUserIds } from "../services/scope";
-import { audit } from "../services/audit";
+import authLib = require("../middleware/auth");
+const { auth, permit } = authLib;
+import scopeLib = require("../services/scope");
+const { visibleUserIds } = scopeLib;
+import auditLib = require("../services/audit");
+const { audit } = auditLib;
 import User = require("../models/User");
 import wf = require("../services/workflow");
-import { getAuditorSettings, saveAuditorSettings } from "../services/auditSampling";
-import { todayKey } from "../services/dates";
-import { applyTaskFilters, peopleFor } from "../services/taskFilters";
+import auditSamplingLib = require("../services/auditSampling");
+const { getAuditorSettings, saveAuditorSettings } = auditSamplingLib;
+import datesLib = require("../services/dates");
+const { todayKey } = datesLib;
+import taskFiltersLib = require("../services/taskFilters");
+const { applyTaskFilters, peopleFor } = taskFiltersLib;
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const router = express.Router();
