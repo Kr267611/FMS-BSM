@@ -69,27 +69,45 @@ function checkLeave(from, to) {
 }
 
 // What a leave does to the person's open tasks (dryRun: only count):
-//   checklist tasks on those days (pending, or auto-closed as not done) -> Not required "On leave"
-//   FMS steps and delegations due on those days -> the first working day after the leave, same time of day
-async function applyLeave({ user, from, to, reason }, company, { by, now = new Date(), dryRun = false } = {}) {
+//   checklist tasks on those days (pending, or auto-closed as not done) -> the checklist buddy, else Not required "On leave"
+//   FMS steps due on those days -> the FMS buddy, else the first working day after the leave (same time of day)
+//   delegations due on those days -> the delegation buddy, else moved the same way
+// buddies: { checklist, fms, delegation } user ids (MIDAP "Action on Assigned Tasks")
+async function applyLeave({ user, from, to, reason }, company, { by, now = new Date(), dryRun = false, buddies = {} } = {}) {
   const calFor = await loadDoerCalendars(company, { now });
   const base = calFor(user);
   const cal = personalCalendar(base, null, [...(base.leave || []), ...daysOf(from, to)]);
   const inRange = { doer: user, plannedDay: { $gte: from, $lte: to } };
   const [checklists, movable] = await Promise.all([
-    Task.find({ ...inRange, kind: "checklist", status: { $in: ["pending", "expired"] } }).select("_id").lean(),
+    Task.find({ ...inRange, kind: "checklist", status: { $in: ["pending", "expired"] } }).select("_id status").lean(),
     Task.find({ ...inRange, kind: { $in: ["app", "delegation"] }, status: "pending" }).select("_id kind planned plannedDay").lean(),
   ]);
-  const moves = movable.map((t) => ({ t, to: outsideLeave(t.planned || fromIst(t.plannedDay, 18 * 60), cal) }));
+  const buddyOf = (t) => (t.kind === "checklist" ? buddies.checklist : t.kind === "app" ? buddies.fms : buddies.delegation) || null;
+  const handed = [...checklists.map((t) => ({ ...t, kind: "checklist" })), ...movable].filter((t) => buddyOf(t) && String(buddyOf(t)) !== String(user));
+  const handedIds = new Set(handed.map((t) => String(t._id)));
+  const freed = checklists.filter((t) => !handedIds.has(String(t._id)));
+  const moves = movable.filter((t) => !handedIds.has(String(t._id))).map((t) => ({ t, to: outsideLeave(t.planned || fromIst(t.plannedDay, 18 * 60), cal) }));
   const movedTo = moves.length ? dayKey(moves.reduce((a, m) => (m.to < a ? m.to : a), moves[0].to)) : null;
-  const out = { notRequired: checklists.length, moved: moves.length, movedTo };
+  const out = { notRequired: freed.length, moved: moves.length, movedTo, handedOver: handed.length };
   if (dryRun) return out;
 
   const note = `On leave ${from}${to !== from ? ` to ${to}` : ""}${reason ? ` – ${reason}` : ""}`;
-  if (checklists.length) {
+  if (freed.length) {
     await Task.updateMany(
-      { _id: { $in: checklists.map((t) => t._id) }, status: { $in: ["pending", "expired"] } },
+      { _id: { $in: freed.map((t) => t._id) }, status: { $in: ["pending", "expired"] } },
       { $set: { status: "na", resolvedAt: now, remarks: note }, $inc: { __v: 1 } }
+    );
+  }
+  // the buddy does it on the same day; an auto-closed checklist task opens again for them
+  for (const t of handed) {
+    await Task.updateOne(
+      { _id: t._id, status: { $in: ["pending", "expired"] } },
+      {
+        $set: { doer: buddyOf(t), status: "pending" },
+        $unset: { resolvedAt: 1 },
+        $inc: { __v: 1 },
+        $push: { log: { $each: [{ at: now, by, action: "handed to buddy for leave", note }], $slice: -60 } },
+      }
     );
   }
   for (const { t, to: when } of moves) {

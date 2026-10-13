@@ -11,6 +11,11 @@ import DoerTasks from "./pages/DoerTasks";
 import WeeklyMis from "./pages/WeeklyMis";
 import AuditorSettings from "./pages/AuditorSettings";
 import Leaves from "./pages/Leaves";
+import LeaveApply from "./pages/hr/LeaveApply";
+import LeaveList from "./pages/hr/LeaveList";
+import LeaveTypes from "./pages/hr/LeaveTypes";
+import LeavePolicies from "./pages/hr/LeavePolicies";
+import PolicyAssignment from "./pages/hr/PolicyAssignment";
 import MeetingReport from "./pages/MeetingReport";
 import Performance from "./pages/Performance";
 import FmsTasks from "./pages/FmsTasks";
@@ -77,6 +82,8 @@ export default function App() {
   );
 }
 
+const LEAVE_MANAGERS = ["admin", "hod", "pc", "tl"]; // who approves leave (in their own scope)
+
 // Menu grouped the way MIDAP users know it. `soon` items are planned milestones, shown to admins only.
 function menuFor(user) {
   const groups = [
@@ -114,6 +121,16 @@ function menuFor(user) {
         { to: "/mis/performance", label: "Performance Score", show: can(user, "reports") },
         { to: "/reports/auditor", label: "Auditor Report", show: can(user, "reports") && user.role !== "doer" },
         { to: "/reports/effort", label: "List Effort Time", show: can(user, "reports") },
+      ],
+    },
+    {
+      title: "HRMS – Leave",
+      items: [
+        { to: "/hr/leave/apply", label: "Leave Apply" },
+        { to: "/hr/leave/list", label: "Leave List", show: LEAVE_MANAGERS.includes(user.role) },
+        { to: "/hr/leave/types", label: "Leave Types", show: can(user, "settings", "edit") },
+        { to: "/hr/leave/policies", label: "Leave Policies", show: can(user, "settings", "edit") },
+        { to: "/hr/leave/assignment", label: "Policy Assignment", show: can(user, "settings", "edit") },
       ],
     },
     {
@@ -278,7 +295,12 @@ function Shell() {
             <Route path="/users" element={guard(can(user, "users"), <Users />)} />
             <Route path="/users/bulk" element={guard(can(user, "users", "add"), <BulkUsers />)} />
             <Route path="/org" element={guard(can(user, "org"), <Org />)} />
-            <Route path="/users/leave" element={guard(can(user, "users"), <Leaves />)} />
+            <Route path="/hr/leave/apply" element={<LeaveApply />} />
+            <Route path="/hr/leave/list" element={guard(LEAVE_MANAGERS.includes(user.role), <LeaveList />)} />
+            <Route path="/hr/leave/types" element={guard(can(user, "settings", "edit"), <LeaveTypes />)} />
+            <Route path="/hr/leave/policies" element={guard(can(user, "settings", "edit"), <LeavePolicies />)} />
+            <Route path="/hr/leave/assignment" element={guard(can(user, "settings", "edit"), <PolicyAssignment />)} />
+            <Route path="/users/leave"element={guard(can(user, "users"), <Leaves />)} />
             <Route path="/sheets" element={guard(can(user, "settings", "edit"), <SheetLinks />)} />
             <Route path="/reminders" element={guard(can(user, "settings"), <Reminders />)} />
             <Route path="/audit" element={guard(can(user, "audit"), <Audit />)} />

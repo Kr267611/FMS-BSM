@@ -13,6 +13,10 @@ const userSchema = new mongoose.Schema(
     teamLeader: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     // MIDAP "Doer Weekoff": this person's own week-off days (0 = Sunday); not set = the company's
     weekOff: { type: [Number], default: undefined },
+    // HRMS: the leave policy that gives this person their leave quota, and gender (some leave types are for one gender)
+    leavePolicy: { type: mongoose.Schema.Types.ObjectId, ref: "LeavePolicy" },
+    leavePolicySince: String, // "YYYY-MM-DD" the policy was given: no carry forward from the years before
+    gender: { type: String, enum: ["", "male", "female", "other"], default: "" },
     // Per-user overrides of the role's default permissions: { module: ["view","add",...] }
     permissions: { type: mongoose.Schema.Types.Mixed },
     email: { type: String, trim: true, lowercase: true, default: "" },

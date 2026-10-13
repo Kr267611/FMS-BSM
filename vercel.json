@@ -44,6 +44,10 @@
       "destination": "/index.html"
     },
     {
+      "source": "/hr/:rest*",
+      "destination": "/index.html"
+    },
+    {
       "source": "/(.*)",
       "destination": {
         "service": "frontend"

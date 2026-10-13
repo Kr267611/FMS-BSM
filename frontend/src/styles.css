@@ -1112,3 +1112,18 @@ span.status-pill { cursor: default; }
   .install-app .btn { min-height: 34px; }
   .install-tip { right: -60px; }
 }
+
+/* HRMS – Leave */
+.leave-balances { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.leave-balance { border-top: 4px solid var(--primary); padding: 14px 16px; }
+.leave-balance .dash-value { margin: 4px 0; }
+.leave-preview { padding: 10px 14px; border-radius: 10px; background: var(--tint-good); border: 1px solid rgba(21, 128, 61, 0.3); display: grid; gap: 4px; }
+.leave-preview.bad { background: var(--tint-bad); border-color: rgba(220, 38, 38, 0.35); }
+.buddies { border-top: 1px dashed var(--stroke-22); padding-top: 12px; }
+.buddies .form-grid { padding: 0; margin-top: 8px; background: none; border: 0; box-shadow: none; }
+td .dot { display: inline-block; vertical-align: middle; }
+.decide-box { display: grid; gap: 6px; min-width: 190px; }
+.assign-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 12px 16px; margin-bottom: 12px; }
+.policy-rules input[type="number"] { width: 78px; }
+tr.picked td { background: var(--tint-primary); }
+@media (max-width: 640px) { .assign-bar { flex-direction: column; align-items: stretch; } }
