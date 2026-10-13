@@ -801,9 +801,9 @@ table.grid thead th { background: #f8fafc; color: #5f6f84; }
 .dash-link { color: var(--primary); font-weight: 600; font-size: 13px; text-decoration: none; white-space: nowrap; }
 .pad-y { padding: 16px 20px; margin: 0; }
 ul.wf-list, ul.act-list, ul.type-list { list-style: none; margin: 0; padding: 4px 0; }
-.wf-list li { display: grid; grid-template-columns: 40px 1fr auto; gap: 14px; align-items: center; padding: 12px 20px; }
+.wf-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 12px 20px; }
 .wf-icon { width: 40px; height: 40px; border-radius: 10px; background: #eef2fb; color: #3b6fd4; display: grid; place-items: center; }
-.wf-name { font-weight: 700; color: var(--text); text-decoration: none; }
+.wf-name { font-weight: 700; color: var(--text); text-decoration: none; overflow-wrap: anywhere; }
 .wf-name:hover { color: var(--primary); }
 .bar { height: 6px; border-radius: 999px; background: #e9edf2; margin-top: 8px; overflow: hidden; }
 .bar span { display: block; height: 100%; background: #4f72d8; border-radius: 999px; }
