@@ -21,6 +21,10 @@ import AttendanceRegister from "./pages/hr/AttendanceRegister";
 import BiometricUpload from "./pages/hr/BiometricUpload";
 import AttendanceSetup from "./pages/hr/AttendanceSetup";
 import AttendanceRequests from "./pages/hr/AttendanceRequests";
+import RaiseTicket from "./pages/tickets/RaiseTicket";
+import TicketList from "./pages/tickets/TicketList";
+import TicketCategories from "./pages/tickets/TicketCategories";
+import TicketReport from "./pages/tickets/TicketReport";
 import MeetingReport from "./pages/MeetingReport";
 import Performance from "./pages/Performance";
 import FmsTasks from "./pages/FmsTasks";
@@ -128,6 +132,16 @@ function menuFor(user) {
         { to: "/mis/performance", label: "Performance Score", show: can(user, "reports") },
         { to: "/reports/auditor", label: "Auditor Report", show: can(user, "reports") && user.role !== "doer" },
         { to: "/reports/effort", label: "List Effort Time", show: can(user, "reports") },
+      ],
+    },
+    {
+      title: "Help Ticket",
+      items: [
+        { to: "/tickets/new", label: "Raise Ticket" },
+        { to: "/tickets/mine", label: "My Tickets" },
+        { to: "/tickets", label: "Ticket List", end: true },
+        { to: "/tickets/report", label: "Ticket Report", show: LEAVE_MANAGERS.includes(user.role) },
+        { to: "/tickets/categories", label: "Ticket Categories", show: can(user, "settings", "edit") },
       ],
     },
     {
@@ -307,6 +321,11 @@ function Shell() {
             <Route path="/users" element={guard(can(user, "users"), <Users />)} />
             <Route path="/users/bulk" element={guard(can(user, "users", "add"), <BulkUsers />)} />
             <Route path="/org" element={guard(can(user, "org"), <Org />)} />
+            <Route path="/tickets/new" element={<RaiseTicket />} />
+            <Route path="/tickets/mine" element={<TicketList mode="mine" />} />
+            <Route path="/tickets" element={<TicketList mode="work" />} />
+            <Route path="/tickets/report" element={guard(LEAVE_MANAGERS.includes(user.role), <TicketReport />)} />
+            <Route path="/tickets/categories" element={guard(can(user, "settings", "edit"), <TicketCategories />)} />
             <Route path="/hr/attendance" element={<MyAttendance />} />
             <Route path="/hr/attendance/register" element={guard(LEAVE_MANAGERS.includes(user.role), <AttendanceRegister />)} />
             <Route path="/hr/attendance/requests" element={guard(LEAVE_MANAGERS.includes(user.role), <AttendanceRequests />)} />

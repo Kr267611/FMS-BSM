@@ -23,7 +23,7 @@ const { resolveDoer, directory } = doersLib;
 const router = express.Router();
 
 // ?kind=fms|checklist|delegation|sheet narrows the list; FMS steps are stored as kind "app"
-const KINDS = { fms: "app", checklist: "checklist", delegation: "delegation", sheet: "sheet" };
+const KINDS = { fms: "app", checklist: "checklist", delegation: "delegation", sheet: "sheet", ticket: "ticket" };
 
 // A doer's task list. HOD / PC / admin can pass ?doer= for someone they oversee.
 router.get("/", auth, async (req, res) => {

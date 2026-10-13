@@ -47,7 +47,7 @@ async function weeklyReport({ week, doerIds = null, group = "doer" }: any) {
     const r = rowFor(d);
     r.people += 1;
     add(r.total, d.total);
-    for (const x of d.rows) add(r.types[TYPES[x.kind] || "fms"], x);
+    for (const x of d.rows) if (TYPES[x.kind]) add(r.types[TYPES[x.kind]], x); // help tickets count in the total only
   }
   for (const d of prev.doers) add(rowFor(d).last, d.total);
   const company = { total: zero(), last: zero() };

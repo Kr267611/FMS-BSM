@@ -1189,3 +1189,22 @@ tr.picked td { background: var(--tint-primary); }
 .ask-box { margin-bottom: 14px; }
 .ask-box h3 { margin: 0; }
 @media (max-width: 640px) { .att-flags .att-req { display: inline; } .att-day .att-flags:has(.att-req) { display: flex; } }
+
+/* Help Ticket */
+.ticket-layout { display: grid; gap: 14px; }
+.ticket-layout.with-detail { grid-template-columns: minmax(0, 1fr) minmax(0, 440px); align-items: start; }
+.ticket-detail { padding: 16px; display: grid; gap: 12px; position: sticky; top: 76px; max-height: calc(100vh - 96px); overflow: auto; }
+.ticket-detail h3 { margin: 2px 0 0; }
+.ticket-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.ticket-facts > div { display: grid; gap: 1px; }
+.ticket-text { white-space: pre-wrap; margin: 0; }
+.ticket-solution { background: var(--tint-good); border-radius: 10px; padding: 10px 12px; display: grid; gap: 6px; }
+.ticket-form { display: grid; gap: 8px; border-top: 1px dashed var(--stroke-22); padding-top: 10px; }
+.ticket-history ul { list-style: none; padding: 0; margin: 6px 0; display: grid; gap: 6px; font-size: 13px; }
+.ticket-history .row input { flex: 1; }
+.stars button { all: unset; cursor: pointer; font-size: 26px; color: var(--stroke-22); padding: 0 2px; }
+.stars button.on { color: #f5a524; }
+tr.clickable { cursor: pointer; }
+tr.clickable:hover td { background: var(--tint-primary); }
+.tag.blue { background: rgba(47, 123, 229, 0.12); border-color: rgba(47, 123, 229, 0.35); color: #2f7be5; }
+@media (max-width: 1000px) { .ticket-layout.with-detail { grid-template-columns: minmax(0, 1fr); } .ticket-detail { position: static; max-height: none; } }

@@ -23,7 +23,7 @@ const { applyTaskFilters, peopleFor } = taskFiltersLib;
 const router = express.Router();
 router.use(auth, permit("reports", "view"));
 
-const KINDS = { fms: "app", checklist: "checklist", delegation: "delegation", sheet: "sheet" };
+const KINDS = { fms: "app", checklist: "checklist", delegation: "delegation", sheet: "sheet", ticket: "ticket" };
 const isDay = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ""));
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const MANAGERS = ["admin", "hod", "pc", "tl"];

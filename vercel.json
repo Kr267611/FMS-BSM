@@ -12,7 +12,7 @@
       "destination": "https://fms-bsm.onrender.com/api/:path*"
     },
     {
-      "source": "/(login|forgot-password|reset-password|jobs|mis|processes|sheets|reminders|users|org|audit|account|calendar|checklists|delegations|dashboard|audits)",
+      "source": "/(login|forgot-password|reset-password|jobs|mis|processes|sheets|reminders|users|org|audit|account|calendar|checklists|delegations|dashboard|audits|tickets)",
       "destination": "/index.html"
     },
     {
@@ -45,6 +45,10 @@
     },
     {
       "source": "/hr/:rest*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/tickets/:rest*",
       "destination": "/index.html"
     },
     {

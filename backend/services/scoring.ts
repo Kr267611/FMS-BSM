@@ -32,7 +32,9 @@ function addTask(row, t) {
 
 // Every delegation is a different task, so a doer's delegations share one MIS row
 const DELEGATION_ROW = "Delegations";
-const rowOf = (t) => (t.kind === "delegation" ? DELEGATION_ROW : t.label);
+// …and so do their help tickets
+const TICKET_ROW = "Help Tickets";
+const rowOf = (t) => (t.kind === "delegation" ? DELEGATION_ROW : t.kind === "ticket" ? TICKET_ROW : t.label);
 
 function finish(row) {
   row.score = score(row);
@@ -53,6 +55,7 @@ function baseMatch(from, to, doerId, doerIds?, now = new Date()) {
     plannedDay: { $gte: from, $lte: to },
     status: { $in: ["pending", "done", "expired"] }, // Not Required and skipped steps are not scored
     $or: [{ status: { $ne: "pending" } }, { planned: { $lte: now } }, { planned: null }],
+    unscored: { $ne: true }, // help tickets when the settings keep them out of the MIS
   };
   const oid = (id) => new mongoose.Types.ObjectId(String(id));
   if (doerId) match.doer = oid(doerId);
@@ -60,7 +63,7 @@ function baseMatch(from, to, doerId, doerIds?, now = new Date()) {
   return match;
 }
 
-const KIND_ORDER = { checklist: 0, delegation: 1, app: 2, sheet: 3 };
+const KIND_ORDER = { checklist: 0, delegation: 1, ticket: 2, app: 3, sheet: 4 };
 
 // Task Count + MIS Summary: every checklist, the delegations and every FMS step per doer, plus the doer's total
 async function misReport({ from, to, doerId, doerIds, now = new Date() }: any) {
@@ -101,6 +104,7 @@ async function dailyReport({ from, to, doerId, label }: any) {
   if (range.from > range.to) return { from: range.from, to: range.to, days: [] };
   const match = baseMatch(range.from, range.to, doerId);
   if (label === DELEGATION_ROW) match.kind = "delegation";
+  else if (label === TICKET_ROW) match.kind = "ticket";
   else if (label) match.label = label;
   const tasks = await Task.find(match).select("plannedDay actualDay status").lean<any>();
 

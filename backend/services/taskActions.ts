@@ -49,6 +49,11 @@ async function formFields(task) {
 
 async function markDone(taskId, user, { remarks = "", values, now = new Date() }: any = {}) {
   const task = await load(taskId);
+  // a help ticket: Done = solved, the remarks are what was done (the ticket closes the task)
+  if (task.kind === "ticket") {
+    await require("./tickets").solve(user, task.ticket, { solution: remarks, now });
+    return Task.findById(task._id);
+  }
   await checkCanAct(task, user);
   if (task.status !== "pending") throw fail(task.status === "expired" ? "This task was auto-closed as not done" : "This task is already finished");
   const clean = cleanValues(await formFields(task), values);
@@ -74,6 +79,7 @@ async function markDone(taskId, user, { remarks = "", values, now = new Date() }
 async function markNotRequired(taskId, user, remarks = "", { now = new Date() }: any = {}) {
   const task = await load(taskId);
   if (task.kind === "delegation") throw fail("A delegation cannot be marked Not Required. Ask the person who assigned it to cancel it.");
+  if (task.kind === "ticket") throw fail("A help ticket cannot be marked Not Required. Cancel it from the ticket.");
   await checkCanAct(task, user);
   const why = String(remarks || "").trim().slice(0, 1000);
   if (why.length < 3) throw fail("Write why it is not required");
@@ -89,6 +95,7 @@ async function markNotRequired(taskId, user, remarks = "", { now = new Date() }:
 async function reopen(taskId, user, { remarks }: any = {}) {
   const task = await load(taskId);
   if (task.kind === "delegation") return delegations.reopenDelegation(taskId, user, { remarks });
+  if (task.kind === "ticket") throw fail("Reopen it from the ticket (Help Ticket)");
   if (!(can(user, "checklist", "edit") && (await canSeeUser(user, task.doer)))) throw fail("You don't have permission to reopen tasks", 403);
   if (!["done", "na", "expired"].includes(task.status)) throw fail("This task is already open");
   return Task.findOneAndUpdate(

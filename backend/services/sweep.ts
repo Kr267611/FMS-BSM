@@ -12,7 +12,8 @@ async function sweepAll(now = new Date()) {
   const escalated = await sweepDue(now);
   const { created, expired } = await sweepChecklists(now);
   const reminders = await sweepReminders(now).catch((err) => (console.error("FMS reminders:", err.message), 0));
-  return { escalated, checklistTasks: created, autoClosed: expired, reminders };
+  const ticketsClosed = await require("./tickets").autoClose(now).catch((err) => (console.error("Help tickets:", err.message), 0));
+  return { escalated, checklistTasks: created, autoClosed: expired, reminders, ticketsClosed };
 }
 
 let last = 0;

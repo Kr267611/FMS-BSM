@@ -8,7 +8,7 @@ const PRIORITIES = ["normal", "high", "critical"];
 // so all scoring reads one collection (replacing Feeder + Performance-daily).
 const taskSchema = new mongoose.Schema(
   {
-    kind: { type: String, enum: ["app", "sheet", "checklist", "delegation"], required: true },
+    kind: { type: String, enum: ["app", "sheet", "checklist", "delegation", "ticket"], required: true },
     label: { type: String, required: true }, // Row name in the MIS, e.g. "Vendor Payment – Payment"; the task name for delegations
     doer: { type: ObjectId, ref: "User", index: true }, // set once the step starts
     priority: { type: String, enum: PRIORITIES, default: undefined },
@@ -19,6 +19,10 @@ const taskSchema = new mongoose.Schema(
     // checklist occurrences
     checklist: { type: ObjectId, ref: "Checklist" },
     closeAt: Date, // auto-close: still pending at this time -> "expired" (counted as not done)
+
+    // help tickets: the ticket this solver task belongs to; unscored = left out of the MIS (ticket settings)
+    ticket: { type: ObjectId, ref: "Ticket" },
+    unscored: Boolean,
 
     // delegations
     assignedBy: { type: ObjectId, ref: "User" },

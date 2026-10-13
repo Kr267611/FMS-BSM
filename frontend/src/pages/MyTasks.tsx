@@ -13,8 +13,9 @@ const KINDS = [
   ["delegation", "Delegations"],
   ["app", "FMS"],
   ["sheet", "Sheets"],
+  ["ticket", "Help Tickets"],
 ];
-const KIND_TAG = { checklist: "Checklist", delegation: "Delegation", sheet: "Google Sheet" };
+const KIND_TAG = { checklist: "Checklist", delegation: "Delegation", sheet: "Google Sheet", ticket: "Help Ticket" };
 const PRIORITY_ORDER = { critical: 0, high: 1 };
 const MAX_REVISIONS = 2;
 const PAGE = 20; // tasks shown per group before "Show more"
@@ -292,6 +293,7 @@ function subtitle(task) {
   if (task.kind === "sheet") return `Tab "${task.sheetLink?.tabName}" · Row ${task.sheetRow}`;
   if (task.kind === "checklist") return [describeFrequency(task.checklist?.frequency), task.checklist?.group?.name].filter(Boolean).join(" · ");
   if (task.kind === "delegation") return `Assigned by ${task.assignedBy?.name || "—"}`;
+  if (task.kind === "ticket") return `Raised by ${task.assignedBy?.name || "—"} · open it in Ticket List`;
   const s = jobSummary(task);
   return `Entry #${task.job?.jobNo}${s ? " · " + s : ""}`;
 }

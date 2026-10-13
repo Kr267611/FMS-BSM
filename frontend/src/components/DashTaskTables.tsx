@@ -56,7 +56,6 @@ export default function DashTaskTables({ onChange }: { onChange?: () => void }) 
   const [filter, setFilter] = useState({ process: "", step: "", q: "", from: "", to: "" });
 
   const load = useCallback(() => {
-    if (tab === "ticket") return setData({ tasks: [], today: "" });
     setError("");
     const req = tab === "pipeline" ? api("/tasks/pipeline") : api("/tasks", { query: { kind: tab, status: "pending" } });
     req.then(setData).catch((e) => setError(e.message));
@@ -156,7 +155,7 @@ export default function DashTaskTables({ onChange }: { onChange?: () => void }) 
   const empty = (cols) => (
     <tr>
       <td colSpan={cols} className="muted center">
-        {!data ? "Loading…" : tab === "ticket" ? "Help tickets are coming soon." : tab === "pipeline" ? "Nothing is on its way to you." : "No record found."}
+        {!data ? "Loading…" : tab === "pipeline" ? "Nothing is on its way to you." : "No record found."}
       </td>
     </tr>
   );
@@ -182,7 +181,7 @@ export default function DashTaskTables({ onChange }: { onChange?: () => void }) 
         <div className="row between pad">
           <b className="caps">{TABS.find(([k]) => k === tab)[1]}</b>
           <div className="row">
-            {data && tab !== "ticket" && <span className="muted small">{tasks.length} task(s)</span>}
+            {data && <span className="muted small">{tasks.length} task(s)</span>}
             <button className="btn ghost small" onClick={load} title="Refresh">
               ↻ Refresh
             </button>
