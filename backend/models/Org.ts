@@ -4,6 +4,12 @@ const branchSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true, unique: true },
     address: { type: String, trim: true, default: "" },
+    // HRMS attendance geo-fence: phone punches must be within `radius` metres of this point (when set)
+    location: {
+      lat: Number,
+      lng: Number,
+      radius: { type: Number, default: 200 },
+    },
     active: { type: Boolean, default: true },
   },
   { timestamps: true }

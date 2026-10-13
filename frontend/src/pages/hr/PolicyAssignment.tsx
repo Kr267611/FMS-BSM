@@ -12,6 +12,11 @@ export default function PolicyAssignment() {
   const [picked, setPicked] = useState(new Set<string>());
   const [policy, setPolicy] = useState("");
   const [gender, setGender] = useState("keep");
+  const [shift, setShift] = useState("");
+  const [late, setLate] = useState("");
+  const [shifts, setShifts] = useState([]);
+  const [latePolicies, setLatePolicies] = useState([]);
+  const [codes, setCodes] = useState<Record<string, string>>({});
   const [msg, setMsg] = useState(null);
 
   const load = () =>
@@ -21,6 +26,8 @@ export default function PolicyAssignment() {
   useEffect(() => {
     load();
     api("/hr/policies").then(setPolicies).catch(() => {});
+    api("/attendance/shifts").then(setShifts).catch(() => {});
+    api("/attendance/late-policies").then(setLatePolicies).catch(() => {});
   }, []);
 
   const shown = useMemo(() => {
@@ -47,14 +54,29 @@ export default function PolicyAssignment() {
       return n;
     });
   }
+  async function saveCode(u) {
+    const code = (codes[u._id] ?? u.employeeCode ?? "").trim();
+    if (code === (u.employeeCode || "")) return;
+    setMsg(null);
+    try {
+      await api(`/attendance/code/${u._id}`, { method: "PUT", body: { code } });
+      setPeople((list) => list.map((x) => (x._id === u._id ? { ...x, employeeCode: code } : x)));
+      setMsg({ ok: `${u.name}: employee code ${code ? `"${code}"` : "removed"}.` });
+    } catch (e) {
+      setCodes((c) => ({ ...c, [u._id]: u.employeeCode || "" }));
+      setMsg({ error: e.message });
+    }
+  }
   async function apply() {
     setMsg(null);
-    const body: { users: string[]; policy?: string | null; gender?: string } = { users: [...picked] };
+    const body: { users: string[]; policy?: string | null; gender?: string; shift?: string | null; latePolicy?: string | null } = { users: [...picked] };
     if (policy) body.policy = policy === "none" ? null : policy;
     if (gender !== "keep") body.gender = gender;
+    if (shift) body.shift = shift === "none" ? null : shift;
+    if (late) body.latePolicy = late === "none" ? null : late;
     try {
       const r = await api("/hr/assignment", { method: "PUT", body });
-      setMsg({ ok: `Saved for ${r.changed} person(s). A new policy counts from today; leave already taken this year still counts.` });
+      setMsg({ ok: `Saved for ${r.changed} person(s).${policy ? " A new leave policy counts from today; leave already taken this year still counts." : ""}` });
       setPicked(new Set());
       load();
       api("/hr/policies").then(setPolicies).catch(() => {});
@@ -68,7 +90,7 @@ export default function PolicyAssignment() {
       <div className="page-head">
         <div>
           <h2>Policy Assignment</h2>
-          <div className="muted small">Give a leave policy to many people at once. Gender decides who can take gender-only leave (e.g. maternity).</div>
+          <div className="muted small">Give a leave policy, shift and late policy to many people at once. Gender decides who can take gender-only leave (e.g. maternity). The employee code is the id the biometric machine uses.</div>
         </div>
       </div>
 
@@ -111,7 +133,35 @@ export default function PolicyAssignment() {
             <option value="">Not set</option>
           </select>
         </label>
-        <button className="btn primary" disabled={!picked.size || (!policy && gender === "keep")} onClick={apply}>
+        <label className="inline small">
+          Shift
+          <select value={shift} onChange={(e) => setShift(e.target.value)}>
+            <option value="">Keep as it is</option>
+            {shifts
+              .filter((s) => s.active)
+              .map((s) => (
+                <option key={s._id} value={s._id}>
+                  {s.name} {s.start}–{s.end}
+                </option>
+              ))}
+            <option value="none">Remove shift</option>
+          </select>
+        </label>
+        <label className="inline small">
+          Late policy
+          <select value={late} onChange={(e) => setLate(e.target.value)}>
+            <option value="">Keep as it is</option>
+            {latePolicies
+              .filter((p) => p.active)
+              .map((p) => (
+                <option key={p._id} value={p._id}>
+                  {p.name}
+                </option>
+              ))}
+            <option value="none">Remove late policy</option>
+          </select>
+        </label>
+        <button className="btn primary" disabled={!picked.size || (!policy && gender === "keep" && !shift && !late)} onClick={apply}>
           Apply to selected
         </button>
       </div>
@@ -131,19 +181,22 @@ export default function PolicyAssignment() {
                 <th>Department</th>
                 <th>Leave policy</th>
                 <th>Gender</th>
+                <th>Shift</th>
+                <th>Late policy</th>
+                <th title="The id the biometric machine knows them by">Employee code</th>
               </tr>
             </thead>
             <tbody>
               {!people && (
                 <tr>
-                  <td colSpan={6} className="muted center">
+                  <td colSpan={9} className="muted center">
                     Loading…
                   </td>
                 </tr>
               )}
               {people && !shown.length && (
                 <tr>
-                  <td colSpan={6} className="muted center">
+                  <td colSpan={9} className="muted center">
                     Nobody matches.
                   </td>
                 </tr>
@@ -160,6 +213,20 @@ export default function PolicyAssignment() {
                   <td className="small">{u.department?.name || "—"}</td>
                   <td>{u.leavePolicy ? u.leavePolicy.name : <span className="txt-bad">None</span>}</td>
                   <td className="small">{GENDER[u.gender] || "—"}</td>
+                  <td className="small">{u.shift ? `${u.shift.name} ${u.shift.start}–${u.shift.end}` : <span className="muted">Company hours</span>}</td>
+                  <td className="small">{u.latePolicy ? u.latePolicy.name : "—"}</td>
+                  <td onClick={(e) => e.stopPropagation()}>
+                    <input
+                      className="code-input"
+                      value={codes[u._id] ?? u.employeeCode ?? ""}
+                      onChange={(e) => setCodes((c) => ({ ...c, [u._id]: e.target.value }))}
+                      onBlur={() => saveCode(u)}
+                      onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+                      placeholder="E101"
+                      aria-label={`Employee code of ${u.name}`}
+                      maxLength={30}
+                    />
+                  </td>
                 </tr>
               ))}
             </tbody>

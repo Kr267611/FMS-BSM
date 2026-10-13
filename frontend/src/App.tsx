@@ -16,6 +16,10 @@ import LeaveList from "./pages/hr/LeaveList";
 import LeaveTypes from "./pages/hr/LeaveTypes";
 import LeavePolicies from "./pages/hr/LeavePolicies";
 import PolicyAssignment from "./pages/hr/PolicyAssignment";
+import MyAttendance from "./pages/hr/MyAttendance";
+import AttendanceRegister from "./pages/hr/AttendanceRegister";
+import BiometricUpload from "./pages/hr/BiometricUpload";
+import AttendanceSetup from "./pages/hr/AttendanceSetup";
 import MeetingReport from "./pages/MeetingReport";
 import Performance from "./pages/Performance";
 import FmsTasks from "./pages/FmsTasks";
@@ -82,11 +86,13 @@ export default function App() {
   );
 }
 
-const LEAVE_MANAGERS = ["admin", "hod", "pc", "tl"]; // who approves leave (in their own scope)
+const LEAVE_MANAGERS = ["admin", "hod", "pc", "tl"]; // who approves leave and sees the attendance register (in their own scope)
+
+type MenuItem = { to: string; label: string; end?: boolean; show?: boolean; soon?: boolean };
 
 // Menu grouped the way MIDAP users know it. `soon` items are planned milestones, shown to admins only.
 function menuFor(user) {
-  const groups = [
+  const groups: { title: string; items: MenuItem[] }[] = [
     { title: "My Work", items: [{ to: "/dashboard", label: "Dashboard" }, { to: "/", label: "My Tasks", end: true }] },
     {
       title: "Master Tasks",
@@ -124,10 +130,14 @@ function menuFor(user) {
       ],
     },
     {
-      title: "HRMS – Leave",
+      title: "HRMS",
       items: [
+        { to: "/hr/attendance", label: "My Attendance", end: true },
         { to: "/hr/leave/apply", label: "Leave Apply" },
+        { to: "/hr/attendance/register", label: "Attendance Register", show: LEAVE_MANAGERS.includes(user.role) },
         { to: "/hr/leave/list", label: "Leave List", show: LEAVE_MANAGERS.includes(user.role) },
+        { to: "/hr/attendance/biometric", label: "Biometric Upload", show: can(user, "settings", "edit") },
+        { to: "/hr/attendance/setup", label: "Shifts & Late Policy", show: can(user, "settings", "edit") },
         { to: "/hr/leave/types", label: "Leave Types", show: can(user, "settings", "edit") },
         { to: "/hr/leave/policies", label: "Leave Policies", show: can(user, "settings", "edit") },
         { to: "/hr/leave/assignment", label: "Policy Assignment", show: can(user, "settings", "edit") },
@@ -295,6 +305,10 @@ function Shell() {
             <Route path="/users" element={guard(can(user, "users"), <Users />)} />
             <Route path="/users/bulk" element={guard(can(user, "users", "add"), <BulkUsers />)} />
             <Route path="/org" element={guard(can(user, "org"), <Org />)} />
+            <Route path="/hr/attendance" element={<MyAttendance />} />
+            <Route path="/hr/attendance/register" element={guard(LEAVE_MANAGERS.includes(user.role), <AttendanceRegister />)} />
+            <Route path="/hr/attendance/biometric" element={guard(can(user, "settings", "edit"), <BiometricUpload />)} />
+            <Route path="/hr/attendance/setup" element={guard(can(user, "settings", "edit"), <AttendanceSetup />)} />
             <Route path="/hr/leave/apply" element={<LeaveApply />} />
             <Route path="/hr/leave/list" element={guard(LEAVE_MANAGERS.includes(user.role), <LeaveList />)} />
             <Route path="/hr/leave/types" element={guard(can(user, "settings", "edit"), <LeaveTypes />)} />

@@ -4,6 +4,8 @@ import LeaveType = require("../models/LeaveType");
 import LeavePolicy = require("../models/LeavePolicy");
 import LeaveRequest = require("../models/LeaveRequest");
 import User = require("../models/User");
+import Shift = require("../models/Shift");
+import LatePolicy = require("../models/LatePolicy");
 import authLib = require("../middleware/auth");
 const { auth, permit } = authLib;
 import scopeLib = require("../services/scope");
@@ -144,8 +146,15 @@ router.delete("/policies/:id", config, async (req, res) => {
 
 // ---------- who gets which policy ----------
 router.get("/assignment", config, async (req, res) => {
-  const users = await User.find({ active: true }).select("name role department leavePolicy gender").populate("department", "name").populate("leavePolicy", "name").sort({ name: 1 }).lean<any>();
-  res.json(users.map((u) => ({ _id: u._id, name: u.name, role: u.role, department: u.department, leavePolicy: u.leavePolicy, gender: u.gender || "" })));
+  const users = await User.find({ active: true })
+    .select("name role department leavePolicy gender shift latePolicy employeeCode")
+    .populate("department", "name")
+    .populate("leavePolicy", "name")
+    .populate("shift", "name start end")
+    .populate("latePolicy", "name")
+    .sort({ name: 1 })
+    .lean<any>();
+  res.json(users.map((u) => ({ _id: u._id, name: u.name, role: u.role, department: u.department, leavePolicy: u.leavePolicy, gender: u.gender || "", shift: u.shift || null, latePolicy: u.latePolicy || null, employeeCode: u.employeeCode || "" })));
 });
 // { users: [ids], policy: id | null, gender? }
 router.put("/assignment", config, async (req, res) => {
@@ -158,10 +167,21 @@ router.put("/assignment", config, async (req, res) => {
     set.leavePolicySince = req.body.policy ? todayKey() : null;
   }
   if (req.body.gender !== undefined) set.gender = ["male", "female", "other"].includes(req.body.gender) ? req.body.gender : "";
+  // attendance: shift and late policy (null removes)
+  for (const [key, Model] of [["shift", Shift], ["latePolicy", LatePolicy]] as const) {
+    if (req.body[key] === undefined) continue;
+    if (req.body[key] && !(mongoose.isValidObjectId(req.body[key]) && (await (Model as any).exists({ _id: req.body[key] })))) throw fail(key === "shift" ? "Shift not found" : "Late policy not found");
+    set[key] = req.body[key] || null;
+  }
   if (!Object.keys(set).length) throw fail("Choose the policy");
   const r = await User.updateMany({ _id: { $in: ids } }, { $set: set });
   const p = set.leavePolicy ? await LeavePolicy.findById(set.leavePolicy).select("name").lean<any>() : null;
-  audit(req, "leave.policy_assign", { entity: "User", summary: `${r.modifiedCount} person(s): leave policy ${p ? p.name : "removed"}${set.gender !== undefined ? `, gender ${set.gender || "—"}` : ""}` });
+  const parts = [];
+  if (set.leavePolicy !== undefined) parts.push(`leave policy ${p ? p.name : "removed"}`);
+  if (set.gender !== undefined) parts.push(`gender ${set.gender || "—"}`);
+  if (set.shift !== undefined) parts.push(`shift ${set.shift ? (await Shift.findById(set.shift).select("name").lean<any>())?.name : "removed"}`);
+  if (set.latePolicy !== undefined) parts.push(`late policy ${set.latePolicy ? (await LatePolicy.findById(set.latePolicy).select("name").lean<any>())?.name : "removed"}`);
+  audit(req, "leave.policy_assign", { entity: "User", summary: `${r.modifiedCount} person(s): ${parts.join(", ")}` });
   res.json({ changed: r.modifiedCount });
 });
 

@@ -17,6 +17,10 @@ const userSchema = new mongoose.Schema(
     leavePolicy: { type: mongoose.Schema.Types.ObjectId, ref: "LeavePolicy" },
     leavePolicySince: String, // "YYYY-MM-DD" the policy was given: no carry forward from the years before
     gender: { type: String, enum: ["", "male", "female", "other"], default: "" },
+    // HRMS attendance: their shift, late policy, and the code the biometric machine knows them by
+    shift: { type: mongoose.Schema.Types.ObjectId, ref: "Shift" },
+    latePolicy: { type: mongoose.Schema.Types.ObjectId, ref: "LatePolicy" },
+    employeeCode: { type: String, trim: true, default: "" },
     // Per-user overrides of the role's default permissions: { module: ["view","add",...] }
     permissions: { type: mongoose.Schema.Types.Mixed },
     email: { type: String, trim: true, lowercase: true, default: "" },

@@ -1127,3 +1127,47 @@ td .dot { display: inline-block; vertical-align: middle; }
 .policy-rules input[type="number"] { width: 78px; }
 tr.picked td { background: var(--tint-primary); }
 @media (max-width: 640px) { .assign-bar { flex-direction: column; align-items: stretch; } }
+
+/* HRMS – Attendance */
+.punch-card { display: grid; justify-items: center; gap: 12px; padding: 22px 16px; margin-bottom: 14px; text-align: center; }
+.punch-time { font-size: 38px; font-weight: 800; letter-spacing: 0.5px; font-variant-numeric: tabular-nums; }
+.punch-list { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.punch-btn { font-size: 18px; padding: 14px 44px; border-radius: 999px; min-width: 220px; }
+.month-nav { margin: 6px 0 12px; gap: 8px; }
+.att-summary { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.att-summary .card { display: grid; gap: 2px; padding: 12px 14px; }
+.att-summary b { font-size: 22px; }
+.att-calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; padding: 12px; margin-bottom: 8px; }
+.att-wday { text-align: center; font-size: 12px; font-weight: 700; color: var(--muted); }
+.att-day { border-radius: 10px; padding: 6px 7px; min-height: 64px; border: 1px solid var(--stroke-22); font-size: 12px; display: grid; align-content: start; gap: 2px; }
+.att-day.today { outline: 2px solid var(--primary); }
+.att-num { font-weight: 700; }
+.att-code { font-weight: 800; }
+.att-times { font-size: 11px; color: var(--muted); }
+.att-flags { display: flex; flex-wrap: wrap; gap: 4px; font-size: 11px; }
+.att-p { background: var(--tint-good); }
+.att-h { background: rgba(217, 119, 6, 0.1); }
+.att-a { background: var(--tint-bad); }
+.att-l { background: rgba(99, 102, 241, 0.12); }
+.att-off { background: var(--glass-10); color: var(--muted); }
+.att-mp { background: rgba(217, 119, 6, 0.18); }
+.att-in { background: var(--tint-primary); }
+.att-none { background: transparent; }
+.att-grid th, .att-grid td { padding: 4px; text-align: center; }
+.att-grid .sticky-col { position: sticky; left: 0; z-index: 1; background: var(--card, #fff); text-align: left; min-width: 150px; }
+.att-dh { font-size: 11px; min-width: 28px; }
+.att-dh.today { color: var(--primary); }
+.att-cell button { all: unset; cursor: pointer; display: block; width: 100%; min-width: 26px; padding: 4px 0; font-size: 11px; font-weight: 700; border-radius: 6px; }
+.att-cell.late button { box-shadow: inset 0 -3px 0 var(--warn); }
+.att-cell.open button { outline: 2px solid var(--primary); }
+.att-daybox { padding: 14px 16px; margin-top: 12px; display: grid; gap: 10px; }
+.att-selfie { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; }
+.att-mark { border-top: 1px dashed var(--stroke-22); padding-top: 10px; display: grid; gap: 6px; }
+.att-mark input { flex: 1; min-width: 200px; }
+.att-tag { border: 0; }
+.code-input { width: 90px; }
+@media (max-width: 640px) {
+  .punch-time { font-size: 30px; }
+  .att-day { min-height: 52px; padding: 4px; }
+  .att-times, .att-flags { display: none; }
+}

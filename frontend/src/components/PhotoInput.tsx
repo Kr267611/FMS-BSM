@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { api } from "../api";
 
 // Shrink a phone photo to at most 1600 px and ~0.3 MB before upload
-async function compress(file) {
+export async function compress(file, maxSide = 1600) {
   const url = URL.createObjectURL(file);
   try {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -11,7 +11,7 @@ async function compress(file) {
       i.onerror = () => reject(new Error("This file is not an image"));
       i.src = url;
     });
-    const scale = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+    const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
     const canvas = document.createElement("canvas");
     canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
     canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
