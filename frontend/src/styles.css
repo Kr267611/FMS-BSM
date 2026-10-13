@@ -1182,3 +1182,10 @@ tr.picked td { background: var(--tint-primary); }
 .avatar-sm { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; vertical-align: middle; margin-right: 6px; }
 @media (max-width: 900px) { .user-form { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 640px) { .user-form { grid-template-columns: minmax(0, 1fr); } }
+.att-day.fixable { cursor: pointer; }
+.att-day.fixable:hover { border-color: var(--primary); }
+.att-day.picked { outline: 2px solid var(--primary); }
+.att-req { background: var(--tint-warn); color: var(--warn); border-radius: 6px; padding: 0 4px; font-weight: 700; }
+.ask-box { margin-bottom: 14px; }
+.ask-box h3 { margin: 0; }
+@media (max-width: 640px) { .att-flags .att-req { display: inline; } .att-day .att-flags:has(.att-req) { display: flex; } }

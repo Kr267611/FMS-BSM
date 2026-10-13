@@ -14,6 +14,7 @@ const { audit } = auditLib;
 import datesLib = require("../services/dates");
 const { todayKey } = datesLib;
 import att = require("../services/attendance");
+import requests = require("../services/attendanceRequests");
 
 // HRMS – Attendance: punch in / out, the register, biometric upload, shifts, late policies, geo-fence
 const router = express.Router();
@@ -29,7 +30,8 @@ const config = permit("settings", "edit"); // shifts, late policies, geo-fence, 
 // ---------- me ----------
 router.get("/me", async (req, res) => {
   const month = isMonth(req.query.month) ? (req.query.month as string) : todayKey().slice(0, 7);
-  res.json(await att.myMonth(req.user._id, month));
+  const [data, mine] = await Promise.all([att.myMonth(req.user._id, month), requests.list(req.user, { view: "mine", month })]);
+  res.json({ ...data, requests: mine, maxBackDays: requests.MAX_BACK_DAYS });
 });
 
 router.post("/punch", async (req, res) => {
@@ -74,6 +76,30 @@ router.put("/manual", async (req, res) => {
   audit(req, "attendance.manual", { entity: "Attendance", summary: `${who?.name}: ${r.day} ${r.status ? `set to ${r.status} – ${text(b.note, 120)}` : "mark removed"}` });
   res.json(r);
 });
+
+// ---------- regularization: missed punch / on duty ----------
+// ?view=mine|approve|all &state= &user= &month=YYYY-MM
+router.get("/requests", async (req, res) => {
+  const q: any = req.query;
+  res.json(await requests.list(req.user, { view: String(q.view || "mine"), state: String(q.state || ""), user: mongoose.isValidObjectId(q.user) ? String(q.user) : "", month: isMonth(q.month) ? String(q.month) : "" }));
+});
+router.get("/requests/count", async (req, res) => {
+  res.json({ pending: await requests.pendingCount(req.user) });
+});
+router.post("/requests", async (req, res) => {
+  const r = await requests.create(req.user, req.body);
+  const who = await User.findById(r.user).select("name").lean<any>();
+  audit(req, "attendance.request", { entity: "AttendanceRequest", entityId: r._id, summary: `${who?.name}: ${r.day} ${r.kind === "missed" ? `missed punch ${[r.inTime && `in ${r.inTime}`, r.outTime && `out ${r.outTime}`].filter(Boolean).join(", ")}` : `on duty (${r.status})`} – ${r.reason}` });
+  res.status(201).json(r);
+});
+for (const action of ["approve", "reject", "cancel"]) {
+  router.post(`/requests/:id/${action}`, async (req, res) => {
+    if (!mongoose.isValidObjectId(req.params.id)) throw fail("Invalid ID");
+    const r = action === "cancel" ? await requests.cancel(req.params.id, req.user) : await requests[action](req.params.id, req.user, { note: req.body?.note });
+    audit(req, `attendance.request_${action}`, { entity: "AttendanceRequest", entityId: r._id, summary: `${r.user?.name}: ${r.day} ${r.state}${r.note ? ` – ${r.note}` : ""}` });
+    res.json(r);
+  });
+}
 
 // ---------- biometric machine ----------
 router.post("/biometric/preview", config, async (req, res) => {

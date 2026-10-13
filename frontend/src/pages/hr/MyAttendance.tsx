@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, showDay, todayKey } from "../../api";
+import { addDays, api, showDay, todayKey } from "../../api";
 import { compress } from "../../components/PhotoInput";
 import { STATUS, hm, monthName, shiftMonth, showTime, weekdayOf, fmtDays, type DayCell, type MonthSummary } from "./attendanceUi";
 
@@ -12,7 +12,29 @@ interface MyMonth {
   today: { day: string; punches: { at: string; source: string; outside: boolean; distance?: number }[]; next: "in" | "out" };
   cells: DayCell[];
   summary: MonthSummary;
+  requests: AttRequest[];
+  maxBackDays: number;
 }
+
+export interface AttRequest {
+  _id: string;
+  user?: { _id: string; name: string; department?: { name: string } };
+  day: string;
+  kind: "missed" | "onduty";
+  inTime?: string;
+  outTime?: string;
+  status?: "P" | "H";
+  reason: string;
+  state: "pending" | "approved" | "rejected" | "cancelled";
+  decidedBy?: { name: string };
+  decidedAt?: string;
+  note?: string;
+  createdAt: string;
+  canDecide?: boolean;
+}
+export const REQ_STATE = { pending: ["amber", "Waiting"], approved: ["green", "Approved"], rejected: ["red", "Rejected"], cancelled: ["gray", "Cancelled"] };
+export const requestText = (r: AttRequest) =>
+  r.kind === "missed" ? `Missed punch: ${[r.inTime && `in ${r.inTime}`, r.outTime && `out ${r.outTime}`].filter(Boolean).join(", ")}` : `On duty – mark ${r.status === "H" ? "Half day" : "Present"}`;
 
 // Where the phone is: { lat, lng, accuracy } – or an error the person can act on
 function locate(): Promise<{ lat: number; lng: number; accuracy: number }> {
@@ -36,6 +58,7 @@ export default function MyAttendance() {
   const [msg, setMsg] = useState<{ ok?: string; error?: string } | null>(null);
   const [clock, setClock] = useState(new Date());
   const camera = useRef<HTMLInputElement>(null);
+  const [pick, setPick] = useState<DayCell | null>(null);
 
   const load = useCallback(() => {
     api<MyMonth>("/attendance/me", { query: { month } })
@@ -69,6 +92,14 @@ export default function MyAttendance() {
       setBusy("");
     }
   }
+  async function cancelRequest(id) {
+    try {
+      await api(`/attendance/requests/${id}/cancel`, { method: "POST" });
+      load();
+    } catch (e) {
+      setMsg({ error: e.message });
+    }
+  }
   function startPunch() {
     if (data?.settings.selfieRequired) camera.current?.click();
     else send();
@@ -91,6 +122,10 @@ export default function MyAttendance() {
   const lead = cells.length ? weekdayOf(cells[0].day) : 0;
   const today = todayKey();
   const next = data?.today.next || "in";
+  const oldest = data ? addDays(today, -data.maxBackDays) : today;
+  // a day of the last N days that is not leave or a holiday (a week-off can be fixed too: someone may have worked)
+  const fixable = (c: DayCell) => c.day <= today && c.day >= oldest && !c.before && c.status !== "L" && c.status !== "HO";
+  const pendingDays = new Set((data?.requests || []).filter((r) => r.state === "pending").map((r) => r.day));
 
   return (
     <>
@@ -195,7 +230,15 @@ export default function MyAttendance() {
         {cells.map((c) => {
           const st = STATUS[c.status] || STATUS[""];
           return (
-            <div key={c.day} className={"att-day " + st.cls + (c.day === today ? " today" : "")} title={`${showDay(c.day)}: ${st.label}${c.manual ? ` (set by manager: ${c.note})` : ""}`}>
+            <div
+              key={c.day}
+              className={"att-day " + st.cls + (c.day === today ? " today" : "") + (fixable(c) ? " fixable" : "") + (pick?.day === c.day ? " picked" : "")}
+              title={`${showDay(c.day)}: ${st.label}${c.manual ? ` (set by manager: ${c.note})` : ""}${fixable(c) ? " – click to ask for a correction" : ""}`}
+              onClick={() => fixable(c) && setPick(c)}
+              role={fixable(c) ? "button" : undefined}
+              tabIndex={fixable(c) ? 0 : undefined}
+              onKeyDown={(e) => e.key === "Enter" && fixable(c) && setPick(c)}
+            >
               <div className="row between">
                 <span className="att-num">{Number(c.day.slice(8))}</span>
                 <span className="att-code">
@@ -213,14 +256,142 @@ export default function MyAttendance() {
                 {c.late && <span className="txt-warn">Late {c.lateMinutes}m</span>}
                 {c.early && <span className="txt-warn">Early {c.earlyMinutes}m</span>}
                 {c.halfLeave && <span>½ leave</span>}
+                {pendingDays.has(c.day) && <span className="att-req">Asked</span>}
               </div>
             </div>
           );
         })}
       </div>
       <div className="muted small">
-        P Present · H Half day · A Absent · L Leave · WO Week-off · HO Holiday · MP Missed punch (punched in, not out) · * set by your manager
+        P Present · H Half day · A Absent · L Leave · WO Week-off · HO Holiday · MP Missed punch (punched in, not out) · * set by your manager · click a day of the last {data?.maxBackDays || 30} days to ask for a correction
       </div>
+
+      {pick && (
+        <AskCorrection
+          key={pick.day}
+          cell={pick}
+          onClose={() => setPick(null)}
+          onSent={() => {
+            setMsg({ ok: `Request sent for ${showDay(pick.day)}. Your manager will approve or reject it.` });
+            setPick(null);
+            load();
+          }}
+        />
+      )}
+
+      {data?.requests?.length > 0 && (
+        <div className="card table-card">
+          <div className="pad">
+            <b>My correction requests · {monthName(month)}</b>
+          </div>
+          <div className="table-scroll">
+            <table className="grid">
+              <thead>
+                <tr>
+                  <th>Day</th>
+                  <th>Asked for</th>
+                  <th>Reason</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.requests.map((r) => (
+                  <tr key={r._id}>
+                    <td className="nowrap">{showDay(r.day)}</td>
+                    <td className="small">{requestText(r)}</td>
+                    <td className="small">{r.reason}</td>
+                    <td>
+                      <span className={"tag " + REQ_STATE[r.state][0]}>{REQ_STATE[r.state][1]}</span>
+                      {r.decidedBy && <div className="muted small">{r.decidedBy.name}{r.note ? `: “${r.note}”` : ""}</div>}
+                    </td>
+                    <td>
+                      {r.state === "pending" && (
+                        <button className="btn ghost small" onClick={() => cancelRequest(r._id)}>
+                          Take back
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </>
+  );
+}
+
+// Ask to fix a day: the punch time(s) I missed, or that I was on duty elsewhere
+function AskCorrection({ cell, onClose, onSent }: { cell: DayCell; onClose: () => void; onSent: () => void }) {
+  const [v, setV] = useState({ kind: "missed", inTime: "", outTime: "", status: "P", reason: "" });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const set = (p) => setV((x) => ({ ...x, ...p }));
+  async function send(e) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await api("/attendance/requests", { method: "POST", body: { day: cell.day, kind: v.kind, inTime: v.kind === "missed" ? v.inTime : undefined, outTime: v.kind === "missed" ? v.outTime : undefined, status: v.kind === "onduty" ? v.status : undefined, reason: v.reason } });
+      onSent();
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+    }
+  }
+  const st = STATUS[cell.status] || STATUS[""];
+  return (
+    <form className="card form-grid ask-box" onSubmit={send}>
+      <div className="span-all row between">
+        <h3>Ask for a correction · {showDay(cell.day)}</h3>
+        <button type="button" className="btn ghost small" onClick={onClose}>
+          Close
+        </button>
+      </div>
+      <div className="span-all muted small">
+        Now: <b>{st.label}</b>
+        {cell.firstIn ? ` · in ${showTime(cell.firstIn)}${cell.lastOut ? `, out ${showTime(cell.lastOut)}` : ", no punch out"}` : " · no punch"}
+      </div>
+      <div className="span-all row wrap">
+        <label className="check">
+          <input type="radio" name="kind" checked={v.kind === "missed"} onChange={() => set({ kind: "missed" })} /> I forgot to punch
+        </label>
+        <label className="check">
+          <input type="radio" name="kind" checked={v.kind === "onduty"} onChange={() => set({ kind: "onduty" })} /> I was on duty elsewhere (site, client, training)
+        </label>
+      </div>
+      {v.kind === "missed" ? (
+        <>
+          <label>
+            Punch-in time {cell.firstIn && <small className="muted">(already there – leave empty)</small>}
+            <input type="time" value={v.inTime} onChange={(e) => set({ inTime: e.target.value })} />
+          </label>
+          <label>
+            Punch-out time
+            <input type="time" value={v.outTime} onChange={(e) => set({ outTime: e.target.value })} />
+          </label>
+        </>
+      ) : (
+        <label>
+          Mark the day as
+          <select value={v.status} onChange={(e) => set({ status: e.target.value })}>
+            <option value="P">Present</option>
+            <option value="H">Half day</option>
+          </select>
+        </label>
+      )}
+      <label className="span-all">
+        Reason
+        <input value={v.reason} onChange={(e) => set({ reason: e.target.value })} placeholder="e.g. Phone battery was dead / Visited the client at Vapi" required minLength={3} maxLength={300} />
+      </label>
+      {error && <div className="error span-all">{error}</div>}
+      <div className="span-all">
+        <button className="btn primary" disabled={busy || (v.kind === "missed" && !v.inTime && !v.outTime)}>
+          {busy ? "Sending…" : "Send to my manager"}
+        </button>
+      </div>
+    </form>
   );
 }

@@ -28,6 +28,7 @@ export interface DayCell {
   halfLeave: boolean;
   shift: string;
   note: string;
+  before?: boolean; // before the person joined / attendance started
 }
 
 export interface MonthSummary {

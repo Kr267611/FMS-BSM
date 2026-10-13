@@ -278,3 +278,53 @@ test("Make Auditor: keeps the role, shows in the people list and in Auditor Sett
   assert.strictEqual(off.status, 200, off.data.message);
   assert.strictEqual((await call("admin", "/users/list")).data.find((x) => x.name === "Arun").isAuditor, false);
 });
+
+test("regularization: a missed out-time on a night shift is the next morning", () => {
+  const rq = require("../services/attendanceRequests");
+  const [i, o] = rq.requestedPunches({ day: D, inTime: "22:00", outTime: "06:10" }, night);
+  assert.deepStrictEqual([+i, +o], [+at(D, "22:00"), +at("2027-03-03", "06:10")]);
+  assert.strictEqual(+rq.requestedPunches({ day: D, outTime: "05:50" }, night)[0], +at("2027-03-03", "05:50")); // only the out time
+  assert.strictEqual(+rq.requestedPunches({ day: D, outTime: "18:40" }, general)[0], +at(D, "18:40"));
+});
+
+test("regularization: ask, rules, approve / reject / cancel; approved punches fix the day", async () => {
+  const { dayKey, addDaysKey } = require("../services/dates");
+  const today = dayKey(new Date());
+  const d3 = addDaysKey(today, -3);
+  const d4 = addDaysKey(today, -4);
+  const ask = (who, body) => call(who, "/attendance/requests", { method: "POST", body });
+  assert.match((await ask("ravi", { day: addDaysKey(today, 1), kind: "missed", inTime: "09:30", reason: "forgot" })).data.message, /today or a day before/);
+  assert.match((await ask("ravi", { day: addDaysKey(today, -31), kind: "missed", inTime: "09:30", reason: "forgot" })).data.message, /last 30 days/);
+  assert.match((await ask("ravi", { day: d3, kind: "missed", reason: "forgot" })).data.message, /punch-in or punch-out/);
+  assert.match((await ask("ravi", { day: d3, kind: "missed", inTime: "09:25" })).data.message, /reason/);
+  const r1 = await ask("ravi", { day: d3, kind: "missed", inTime: "09:25", outTime: "18:40", reason: "Phone battery dead" });
+  assert.strictEqual(r1.status, 201, r1.data.message);
+  assert.match((await ask("ravi", { day: d3, kind: "onduty", status: "P", reason: "again" })).data.message, /already waiting/);
+
+  assert.strictEqual((await call("neha", "/attendance/requests?view=approve")).data.length, 0); // a doer approves nothing
+  assert.strictEqual((await call("neha", `/attendance/requests/${r1.data._id}/approve`, { method: "POST" })).status, 403);
+  assert.strictEqual((await call("admin", "/attendance/requests/count")).data.pending, 1);
+  const waiting = (await call("admin", "/attendance/requests?view=approve")).data;
+  assert.strictEqual(waiting[0].canDecide, true);
+  const ok = await call("admin", `/attendance/requests/${r1.data._id}/approve`, { method: "POST", body: { note: "ok" } });
+  assert.strictEqual(ok.data.state, "approved", ok.data.message);
+  const month = d3.slice(0, 7);
+  const cell = (await call("admin", `/attendance/register?month=${month}&user=${ids.ravi}`)).data.people[0].cells.find((c) => c.day === d3);
+  assert.deepStrictEqual([cell.status, cell.punches, cell.late], ["P", 2, false]); // 9:25 – 18:40 (on a week-off too: worked = P)
+  const detail = (await call("admin", `/attendance/day?user=${ids.ravi}&day=${d3}`)).data;
+  assert.deepStrictEqual(detail.punches.map((p) => p.source), ["manual", "manual"]);
+
+  // on duty -> the day is marked; reject needs a reason; cancel by the person
+  const r2 = await ask("neha", { day: d4, kind: "onduty", status: "H", reason: "Client visit in Vapi" });
+  await call("admin", `/attendance/requests/${r2.data._id}/approve`, { method: "POST" });
+  const c2 = (await call("admin", `/attendance/register?month=${d4.slice(0, 7)}&user=${ids.neha}`)).data.people[0].cells.find((c) => c.day === d4);
+  assert.deepStrictEqual([c2.status, c2.manual, c2.note], ["H", true, "On duty: Client visit in Vapi"]);
+  const r3 = await ask("neha", { day: d3, kind: "missed", outTime: "18:30", reason: "forgot" });
+  assert.match((await call("admin", `/attendance/requests/${r3.data._id}/reject`, { method: "POST", body: { note: "" } })).data.message, /why/);
+  assert.strictEqual((await call("admin", `/attendance/requests/${r3.data._id}/reject`, { method: "POST", body: { note: "No proof" } })).data.state, "rejected");
+  const r4 = await ask("neha", { day: d3, kind: "missed", outTime: "18:30", reason: "forgot again" });
+  assert.strictEqual((await call("ravi", `/attendance/requests/${r4.data._id}/cancel`, { method: "POST" })).status, 403);
+  assert.strictEqual((await call("neha", `/attendance/requests/${r4.data._id}/cancel`, { method: "POST" })).data.state, "cancelled");
+  const mine = (await call("neha", `/attendance/me?month=${d3.slice(0, 7)}`)).data.requests;
+  assert.ok(mine.length >= 2 && mine.every((r) => r.user.name === "Neha"));
+});
