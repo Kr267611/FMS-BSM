@@ -1171,3 +1171,14 @@ tr.picked td { background: var(--tint-primary); }
   .att-day { min-height: 52px; padding: 4px; }
   .att-times, .att-flags { display: none; }
 }
+
+/* Add / Edit user (MIDAP "Add User" layout) */
+.user-form { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
+.user-form > label > span:first-child, .profile-photo > span { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.user-form-title { text-transform: uppercase; letter-spacing: 0.06em; font-size: 13px; border-bottom: 1px solid var(--stroke-22); padding-bottom: 10px; }
+.help-i { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: #2f7be5; color: #fff; font: 700 11px/1 serif; font-style: italic; cursor: help; flex: none; }
+.profile-photo { display: grid; gap: 6px; }
+.avatar-lg { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; display: inline-grid; place-items: center; background: var(--tint-primary); color: var(--primary); font-weight: 700; }
+.avatar-sm { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; vertical-align: middle; margin-right: 6px; }
+@media (max-width: 900px) { .user-form { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .user-form { grid-template-columns: minmax(0, 1fr); } }

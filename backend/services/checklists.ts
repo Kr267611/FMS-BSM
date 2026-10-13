@@ -33,7 +33,7 @@ const idOf = (v) => {
   const s = v && typeof v === "object" && v._id ? String(v._id) : v ? String(v) : "";
   return ID_RE.test(s) ? s : undefined;
 };
-const isDay = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || "")) && !isNaN(Date.parse(s));
+const isDay = (s) => datesLib.isRealDay(s);
 const blank = (v) => v === undefined || v === null || String(v).trim() === "";
 function int(v, min, max, dflt) {
   if (blank(v)) return dflt;

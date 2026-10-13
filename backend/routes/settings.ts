@@ -6,6 +6,7 @@ import auditLib = require("../services/audit");
 const { audit } = auditLib;
 import calendarLib = require("../services/calendar");
 const { DEFAULT_CALENDAR, isTime } = calendarLib;
+import datesLib = require("../services/dates");
 
 const router = express.Router();
 router.use(auth);
@@ -32,7 +33,7 @@ router.put("/calendar", permit("settings", "edit"), async (req, res) => {
   const seen = new Set<any>();
   const holidays = (Array.isArray(b.holidays) ? b.holidays : [])
     .map((h) => ({ day: String(h?.day || "").trim(), name: String(h?.name || "").trim().slice(0, 80) }))
-    .filter((h) => DAY_RE.test(h.day) && !isNaN(Date.parse(h.day)) && !seen.has(h.day) && seen.add(h.day))
+    .filter((h) => DAY_RE.test(h.day) && datesLib.isRealDay(h.day) && !seen.has(h.day) && seen.add(h.day))
     .sort((a, b2) => a.day.localeCompare(b2.day))
     .slice(0, 500);
   const value = { weekOff: weekOff.sort(), start: b.start, end: b.end, holidays };

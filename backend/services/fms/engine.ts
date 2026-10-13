@@ -99,7 +99,7 @@ function cleanValue(f, raw) {
     }
     case "date": {
       const s = String(raw).slice(0, 10);
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(s) || isNaN(Date.parse(s))) throw fail(`"${f.label}" must be a date`);
+      if (!datesLib.isRealDay(s)) throw fail(`"${f.label}" must be a date`);
       return s;
     }
     case "datetime": {

@@ -90,4 +90,11 @@ function parseSheetDate(value) {
   return isNaN(+d) ? null : d;
 }
 
-export = { dayKey, todayKey, addDaysKey, addTat, parseSheetDate, sheetSerialToDate, TZ };
+// "YYYY-MM-DD" that is a real calendar day – "2026-02-30" is not, though Date.parse rolls it over to 2 March
+function isRealDay(s) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(s || ""))) return false;
+  const d = new Date(s + "T00:00:00Z");
+  return !isNaN(+d) && d.toISOString().slice(0, 10) === s;
+}
+
+export = { dayKey, todayKey, addDaysKey, addTat, parseSheetDate, sheetSerialToDate, isRealDay, TZ };

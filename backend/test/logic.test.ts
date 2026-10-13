@@ -72,3 +72,13 @@ test("spreadsheet id from URL or raw id", () => {
   assert.strictEqual(extractSpreadsheetId(id), id);
   assert.strictEqual(extractSpreadsheetId("Vendor Payment"), null);
 });
+
+test("a day key must be a real calendar day (no 30 February)", () => {
+  const { isRealDay } = require("../services/dates");
+  assert.strictEqual(isRealDay("2026-02-28"), true);
+  assert.strictEqual(isRealDay("2028-02-29"), true); // leap year
+  assert.strictEqual(isRealDay("2026-02-29"), false);
+  assert.strictEqual(isRealDay("2026-02-30"), false);
+  assert.strictEqual(isRealDay("2026-13-01"), false);
+  assert.strictEqual(isRealDay("13/10/2026"), false);
+});

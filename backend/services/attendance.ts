@@ -209,8 +209,8 @@ async function loadContext(users, from, to, now = new Date()) {
   const byUser = new Map<any, any>(users.map((u) => [String(u._id), u]));
   const calOf = new Map();
   const info = (u, rec?) => shiftInfo(shiftById.get(String(rec?.shift || u.shift || "")), company);
-  // nothing counts before the person joined or before attendance started (settings "since")
-  const startOf = (u) => [u?.createdAt ? dayKey(u.createdAt) : "", settings.since || ""].sort().pop();
+  // nothing counts before the person joined (joining date, or when they were added) or before attendance started (settings "since")
+  const startOf = (u) => [u?.joiningDate || (u?.createdAt ? dayKey(u.createdAt) : ""), settings.since || ""].sort().pop();
   const cell = (userId, day) => {
     const u = byUser.get(String(userId));
     const k = `${userId}|${day}`;
@@ -225,7 +225,7 @@ async function loadContext(users, from, to, now = new Date()) {
   return { cell, info, policyOf: (u) => policyById.get(String(u.latePolicy || "")) || null, recordOf: (u, d) => recordOf.get(`${u}|${d}`) || null, company };
 }
 
-const USER_FIELDS = "name username role department branch shift latePolicy weekOff employeeCode active createdAt";
+const USER_FIELDS = "name username role department branch shift latePolicy weekOff employeeCode active createdAt joiningDate";
 
 // The register: people × days, with each person's month summary
 async function register({ userIds = null, from, to, department = "", branch = "", now = new Date() }: any) {

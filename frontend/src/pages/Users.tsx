@@ -4,12 +4,16 @@ import { ROLE_LABELS, api, can, showDateTime } from "../api";
 import { useAuth } from "../App";
 import { WEEKDAYS } from "../tasks";
 import DoerSelect, { clearUsersCache } from "../components/DoerSelect";
+import { compress } from "../components/PhotoInput";
 
 const blank = {
   name: "",
   username: "",
   email: "",
   phone: "",
+  joiningDate: "",
+  doerType: "",
+  photo: "",
   password: "",
   role: "doer",
   branch: "",
@@ -20,6 +24,13 @@ const blank = {
   active: true,
   permissions: null,
 };
+
+// The (i) next to a field: hover / tap shows what it is for
+const Help = ({ text }: { text: string }) => (
+  <span className="help-i" title={text} aria-label={text} tabIndex={0}>
+    i
+  </span>
+);
 
 const idOf = (v) => (v && typeof v === "object" ? v._id : v || "");
 
@@ -239,6 +250,7 @@ export default function Users() {
               {pageRows.map((u) => (
                 <tr key={u._id} className={u.active ? "" : "inactive"}>
                   <td>
+                    {u.photo ? <img className="avatar-sm" src={`/api/files/${u.photo}`} alt="" loading="lazy" /> : null}
                     <b>{u.name}</b>
                     {u.permissions && (
                       <span className="tag" title="Has custom permissions">
@@ -328,6 +340,30 @@ function UserForm({ initial, meta, org, me, onClose, onSaved, onOrgAdded }) {
   const set = (patch) => setV({ ...v, ...patch });
   const oversees = v.role === "hod" || v.role === "pc";
   const roles = Object.entries(meta.roles as Record<string, string>).filter(([k]) => k !== "admin" || me.role === "admin");
+  const [types, setTypes] = useState<string[]>(meta.doerTypes || []);
+  const photoSrc = v.photo ? (String(v.photo).startsWith("data:") ? v.photo : `/api/files/${v.photo}`) : "";
+  async function choosePhoto(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) return setError("The photo can be 2 MB at most");
+    try {
+      set({ photo: await compress(file, 600) });
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+  async function editTypes() {
+    const text = window.prompt("Doer types, one per comma", types.join(", "));
+    if (text === null) return;
+    try {
+      const list = await api("/users/doer-types", { method: "PUT", body: { types: text.split(",") } });
+      setTypes(list);
+      meta.doerTypes = list;
+    } catch (err) {
+      setError(err.message);
+    }
+  }
 
   // Permissions: null = role defaults; otherwise explicit overrides per module
   const defaults = meta.roleDefaults[v.role] || {};
@@ -356,28 +392,44 @@ function UserForm({ initial, meta, org, me, onClose, onSaved, onOrgAdded }) {
   }
 
   return (
-    <form className="card form-grid" onSubmit={save}>
-      <h3 className="span-all">{isNew ? "New User" : `Edit: ${initial.name}`}</h3>
+    <form className="card form-grid user-form" onSubmit={save}>
+      <h3 className="span-all user-form-title">{isNew ? "Add User" : `Edit User: ${initial.name}`}</h3>
       <label>
-        Name
+        <span>
+          Name <b className="req">*</b> <Help text="Full name, as it should appear on tasks and reports" />
+        </span>
         <input value={v.name} onChange={(e) => set({ name: e.target.value })} required />
       </label>
       <label>
-        Email (sign-in, password reset, reminders)
-        <input type="email" value={v.email} onChange={(e) => set({ email: e.target.value })} />
-      </label>
-      <label>
-        Username
+        <span>
+          Username <b className="req">*</b> <Help text="Used to sign in. It cannot be changed later" />
+        </span>
         <input value={v.username} onChange={(e) => set({ username: e.target.value })} required disabled={!isNew} />
       </label>
       <label>
-        Phone (WhatsApp)
-        <input value={v.phone} onChange={(e) => set({ phone: e.target.value })} />
+        <span>
+          Email <Help text="Optional. Can also be used to sign in, for password reset and email reminders" />
+        </span>
+        <input type="email" value={v.email} onChange={(e) => set({ email: e.target.value })} />
       </label>
 
       <label>
-        Role
-        <select value={v.role} onChange={(e) => set({ role: e.target.value })}>
+        <span>
+          Phone {isNew && <b className="req">*</b>} <small className="muted">(10 digits mobile number)</small> <Help text="WhatsApp reminders go to this number" />
+        </span>
+        <input type="tel" inputMode="numeric" value={v.phone} onChange={(e) => set({ phone: e.target.value })} required={isNew} placeholder="98765 43210" title="10-digit mobile number" />
+      </label>
+      <label>
+        <span>
+          {isNew ? "Password" : "New password"} {isNew ? <b className="req">*</b> : <small className="muted">(blank = keep)</small>} <Help text="At least 4 characters. The person can change it from My account" />
+        </span>
+        <input type="password" value={v.password} onChange={(e) => set({ password: e.target.value })} required={isNew} minLength={4} autoComplete="new-password" />
+      </label>
+      <label>
+        <span>
+          Role <b className="req">*</b> <Help text="Admin: everything · HOD / PC: their departments · Team Leader: their team · Auditor: checks work · Doer: own work" />
+        </span>
+        <select value={v.role} onChange={(e) => set({ role: e.target.value })} required>
           {roles.map(([k, label]) => (
             <option key={k} value={k}>
               {label}
@@ -385,6 +437,16 @@ function UserForm({ initial, meta, org, me, onClose, onSaved, onOrgAdded }) {
           ))}
         </select>
       </label>
+
+      <OrgSelect
+        label="Branch"
+        path="/org/branches"
+        items={org.branches}
+        value={v.branch}
+        canAdd={can(me, "org", "add")}
+        onChange={(id) => set({ branch: id })}
+        onAdded={(b) => onOrgAdded("branches", b)}
+      />
       <OrgSelect
         label="Department"
         path="/org/departments"
@@ -395,19 +457,57 @@ function UserForm({ initial, meta, org, me, onClose, onSaved, onOrgAdded }) {
         onChange={(id) => set({ department: id })}
         onAdded={(d) => onOrgAdded("departments", d)}
       />
-      <OrgSelect
-        label="Branch"
-        path="/org/branches"
-        items={org.branches}
-        value={v.branch}
-        canAdd={can(me, "org", "add")}
-        onChange={(id) => set({ branch: id })}
-        onAdded={(b) => onOrgAdded("branches", b)}
-      />
       <label>
-        Team leader
-        <DoerSelect value={v.teamLeader} onChange={(id) => set({ teamLeader: id })} placeholder="—" />
+        <span>
+          Joining Date {isNew && <b className="req">*</b>} <Help text="Attendance is counted from this day" />
+        </span>
+        <input type="date" value={v.joiningDate || ""} onChange={(e) => set({ joiningDate: e.target.value })} required={isNew} />
       </label>
+
+      <label>
+        <span>
+          Doer type <Help text="Permanent, Contract, Intern… (Admin can change this list)" />
+          {me.role === "admin" && (
+            <button type="button" className="link-btn small" onClick={editTypes}>
+              Edit list
+            </button>
+          )}
+        </span>
+        <select value={v.doerType || ""} onChange={(e) => set({ doerType: e.target.value })}>
+          <option value="">Select doer type</option>
+          {types.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+          {v.doerType && !types.includes(v.doerType) && <option value={v.doerType}>{v.doerType}</option>}
+        </select>
+      </label>
+      <label>
+        <span>
+          Team Leader <Help text="The Team Leader sees and follows up this person's work" />
+        </span>
+        <DoerSelect value={v.teamLeader} onChange={(id) => set({ teamLeader: id })} placeholder="Select One" />
+      </label>
+      <div className="profile-photo">
+        <span>
+          Profile Photo <Help text="A clear face photo. File upload maximum limit 2 MB" />
+        </span>
+        <div className="row">
+          {photoSrc ? <img className="avatar-lg" src={photoSrc} alt="" /> : <span className="avatar-lg empty">{(v.name || "?").slice(0, 1).toUpperCase()}</span>}
+          <label className="btn ghost small">
+            {photoSrc ? "Change" : "Choose File"}
+            <input type="file" accept="image/*" hidden onChange={choosePhoto} />
+          </label>
+          {photoSrc && (
+            <button type="button" className="btn ghost small danger" onClick={() => set({ photo: "" })}>
+              Remove
+            </button>
+          )}
+        </div>
+        <small className="muted">*File upload maximum limit 2MB</small>
+      </div>
+
       <div className="span-2 own-weekoff">
         <span>
           Own week-off <small className="muted">— none ticked = the company's week-off</small>
@@ -455,17 +555,6 @@ function UserForm({ initial, meta, org, me, onClose, onSaved, onOrgAdded }) {
         </div>
       )}
 
-      <label>
-        {isNew ? "Password" : "New password (leave blank to keep)"}
-        <input
-          type="password"
-          value={v.password}
-          onChange={(e) => set({ password: e.target.value })}
-          required={isNew}
-          minLength={4}
-          autoComplete="new-password"
-        />
-      </label>
       {!isNew && (
         <label className="check">
           <input type="checkbox" checked={v.active} onChange={(e) => set({ active: e.target.checked })} />

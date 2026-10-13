@@ -238,3 +238,28 @@ test("shift and late policy in use cannot be deleted", async () => {
   assert.match((await call("admin", `/attendance/shifts/${ids.shift}`, { method: "DELETE" })).data.message, /2 person/);
   assert.match((await call("admin", `/attendance/late-policies/${ids.late}`, { method: "DELETE" })).data.message, /2 person/);
 });
+
+test("add user (MIDAP form): 10-digit phone, joining date, doer type, profile photo", async () => {
+  const add = (body) => call("admin", "/users", { method: "POST", body: { password: "1234", role: "doer", ...body } });
+  assert.match((await add({ name: "P1", username: "p1", phone: "12345" })).data.message, /10-digit/);
+  assert.match((await add({ name: "P1", username: "p1", joiningDate: "2026-02-30" })).data.message, /joining date/);
+  assert.match((await add({ name: "P1", username: "p1", doerType: "Pirate" })).data.message, /not a doer type/);
+  const meta = (await call("admin", "/users/meta")).data;
+  assert.ok(meta.doerTypes.includes("Permanent") && meta.doerTypes.includes("Intern / Trainee"));
+  const u = await add({ name: "Pooja", username: "pooja", phone: "+91 98765 43210", joiningDate: "2026-03-10", doerType: "Permanent", photo: SELFIE });
+  assert.strictEqual(u.status, 201, u.data.message);
+  assert.deepStrictEqual([u.data.phone, u.data.joiningDate, u.data.doerType], ["9876543210", "2026-03-10", "Permanent"]);
+  assert.match(u.data.photo, /^[a-f0-9]{24}$/);
+  // edit keeps the photo unless a new one or "" comes
+  const e = await call("admin", `/users/${u.data._id}`, { method: "PUT", body: { name: "Pooja S", photo: u.data.photo, doerType: "Contract" } });
+  assert.strictEqual(e.status, 200, e.data.message);
+  const list = (await call("admin", "/users")).data.find((x) => x._id === u.data._id);
+  assert.deepStrictEqual([list.photo, list.doerType], [u.data.photo, "Contract"]);
+  // attendance counts from the joining date
+  const reg = (await call("admin", `/attendance/register?month=2026-03&user=${u.data._id}`)).data.people[0];
+  assert.strictEqual(reg.cells.find((c) => c.day === "2026-03-09").before, true);
+  assert.strictEqual(reg.cells.find((c) => c.day === "2026-03-10").status, "A");
+  // the admin keeps the doer type list
+  assert.deepStrictEqual((await call("admin", "/users/doer-types", { method: "PUT", body: { types: ["Permanent", " Contract ", "Permanent", ""] } })).data, ["Permanent", "Contract"]);
+  assert.strictEqual((await call("ravi", "/users/doer-types", { method: "PUT", body: { types: ["X"] } })).status, 403);
+});

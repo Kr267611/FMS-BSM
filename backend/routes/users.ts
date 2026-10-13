@@ -15,6 +15,9 @@ import scopeLib = require("../services/scope");
 const { visibleUserIds, canSeeUser } = scopeLib;
 import auditLib = require("../services/audit");
 const { audit } = auditLib;
+import uploadsLib = require("../services/uploads");
+const { saveImage, decodeDataUrl } = uploadsLib;
+import Setting = require("../models/Setting");
 
 const router = express.Router();
 
@@ -48,6 +51,46 @@ async function refsProblem({ branch, department, managedDepartments, teamLeader 
   return null;
 }
 
+// Phone: 10-digit mobile number; +91 / 0 in front and spaces are dropped. -> { phone } or { problem }
+function cleanPhone(raw) {
+  const digits = String(raw ?? "").replace(/[\s-]/g, "").replace(/^(\+91|0091|91(?=\d{10}$)|0(?=\d{10}$))/, "");
+  if (!digits) return { phone: "" };
+  if (!/^\d{10}$/.test(digits)) return { problem: "Enter a 10-digit mobile number" };
+  return { phone: digits };
+}
+// a real calendar day ("2026-02-30" is not one, though Date would roll it over to 2 March)
+const isDay = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || "")) && new Date(s + "T00:00:00Z").toISOString().slice(0, 10) === s;
+
+// MIDAP "Doer type": the list admins keep in the settings
+const DEFAULT_DOER_TYPES = ["Consultant", "Contract", "Intern / Trainee", "Outsourced / Agency", "Part-Time", "Permanent", "Probation", "Temporary"];
+async function doerTypes() {
+  const s = await Setting.findOne({ key: "doerTypes" }).lean<any>();
+  return Array.isArray(s?.value) && s.value.length ? s.value : DEFAULT_DOER_TYPES;
+}
+
+// joining date, doer type, profile photo – the checks shared by add and edit. -> { set, problem }
+async function profileFields(b, actorId) {
+  const set: Record<string, any> = {};
+  if (b.joiningDate !== undefined) {
+    if (b.joiningDate && !isDay(b.joiningDate)) return { problem: "Enter the joining date" };
+    set.joiningDate = b.joiningDate || "";
+  }
+  if (b.doerType !== undefined) {
+    const t = String(b.doerType || "").trim();
+    if (t && !(await doerTypes()).includes(t)) return { problem: `"${t}" is not a doer type` };
+    set.doerType = t;
+  }
+  if (b.photo !== undefined) {
+    if (!b.photo) set.photo = "";
+    else if (String(b.photo).startsWith("data:")) {
+      const { buffer } = decodeDataUrl(b.photo);
+      if (buffer.length > 2 * 1024 * 1024) return { problem: "The photo can be 2 MB at most" };
+      set.photo = ((await saveImage({ dataUrl: b.photo, filename: "profile.jpg", userId: actorId })) as any).id;
+    }
+  }
+  return { set };
+}
+
 const populateUser = (q) =>
   q.populate("department", "name").populate("branch", "name").populate("teamLeader", "name").populate("managedDepartments", "name");
 
@@ -58,8 +101,17 @@ function strip(u) {
 }
 
 // Roles, modules and default permissions, for the user form
-router.get("/meta", auth, (req, res) => {
-  res.json({ roles: ROLES, modules: MODULES, actions: ACTIONS, roleDefaults: ROLE_DEFAULTS });
+router.get("/meta", auth, async (req, res) => {
+  res.json({ roles: ROLES, modules: MODULES, actions: ACTIONS, roleDefaults: ROLE_DEFAULTS, doerTypes: await doerTypes() });
+});
+
+// The doer type list (admin): ["Staff", "Worker", …]
+router.put("/doer-types", auth, permit("settings", "edit"), async (req, res) => {
+  const list = [...new Set<any>((Array.isArray(req.body?.types) ? req.body.types : []).map((t) => String(t || "").trim().slice(0, 40)).filter(Boolean))].slice(0, 30);
+  if (!list.length) return res.status(400).json({ message: "Keep at least one doer type" });
+  await Setting.updateOne({ key: "doerTypes" }, { $set: { value: list } }, { upsert: true });
+  audit(req, "user.doer_types", { entity: "Setting", summary: list.join(", ") });
+  res.json(list);
 });
 
 // For dropdowns - every signed-in user needs the list of doers
@@ -92,6 +144,11 @@ router.post("/", auth, permit("users", "add"), async (req, res) => {
   const f = userFields(req.body);
   const email = cleanEmail(req.body?.email);
   if (!f.name || !username || !password) return res.status(400).json({ message: "Name, username and password are required" });
+  const ph = cleanPhone(req.body?.phone);
+  if (ph.problem) return res.status(400).json({ message: ph.problem });
+  f.phone = ph.phone;
+  const profile = await profileFields(req.body || {}, req.user._id);
+  if (profile.problem) return res.status(400).json({ message: profile.problem });
   const problem =
     passwordProblem(password) ||
     roleProblem(req.user, f.role) ||
@@ -102,6 +159,7 @@ router.post("/", auth, permit("users", "add"), async (req, res) => {
 
   const user = await User.create({
     ...f,
+    ...profile.set,
     username,
     email,
     password: await bcrypt.hash(String(password), 10),
@@ -124,6 +182,13 @@ router.put("/:id", auth, permit("users", "edit"), async (req, res) => {
     return res.status(400).json({ message: "You cannot deactivate yourself or change your own role" });
   }
 
+  if (b.phone !== undefined) {
+    const ph = cleanPhone(b.phone);
+    if (ph.problem) return res.status(400).json({ message: ph.problem });
+    b.phone = ph.phone;
+  }
+  const profile = await profileFields(b, req.user._id);
+  if (profile.problem) return res.status(400).json({ message: profile.problem });
   const f = userFields({ ...user.toObject(), ...b });
   const problem =
     (b.role !== undefined ? roleProblem(req.user, b.role) : null) ||
@@ -137,6 +202,7 @@ router.put("/:id", auth, permit("users", "edit"), async (req, res) => {
   const same = (a, c) => JSON.stringify(a ?? null) === JSON.stringify(c ?? null);
   const idStr = (x) => (x ? String(x) : null);
   for (const k of ["name", "phone"]) if (b[k] !== undefined && b[k] !== user[k]) (user[k] = b[k]), changes.push(k);
+  for (const [k, v] of Object.entries(profile.set)) if (v !== (user[k] || "")) (user[k] = v), changes.push(k === "photo" ? (v ? "photo" : "photo removed") : k);
   if (b.email !== undefined && cleanEmail(b.email) !== user.email) (user.email = cleanEmail(b.email)), changes.push("email");
   if (b.role !== undefined && b.role !== user.role) (user.role = b.role), changes.push(`role→${b.role}`);
   for (const k of ["branch", "department", "teamLeader"]) {

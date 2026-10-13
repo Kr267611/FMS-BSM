@@ -25,6 +25,10 @@ const userSchema = new mongoose.Schema(
     permissions: { type: mongoose.Schema.Types.Mixed },
     email: { type: String, trim: true, lowercase: true, default: "" },
     phone: { type: String, trim: true, default: "" },
+    // MIDAP "Add User": joining date (attendance counts from it), doer type (Staff / Worker…), profile photo (uploads id)
+    joiningDate: { type: String, default: "" }, // "YYYY-MM-DD"
+    doerType: { type: String, trim: true, default: "" },
+    photo: { type: String, default: "" },
     active: { type: Boolean, default: true },
 
     // Bumped on every password change or reset; tokens issued before that stop working

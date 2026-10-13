@@ -64,7 +64,7 @@ function outsideLeave(planned, cal) {
 }
 
 function checkLeave(from, to) {
-  const ok = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || "")) && !isNaN(Date.parse(s));
+  const ok = (s) => datesLib.isRealDay(s);
   if (!ok(from) || !ok(to)) throw Object.assign(new Error("Enter the first and last day away"), { status: 400 });
   if (to < from) throw Object.assign(new Error("The last day cannot be before the first day"), { status: 400 });
   if (daysOf(from, to).length > MAX_LEAVE_DAYS) throw Object.assign(new Error(`A leave can be at most ${MAX_LEAVE_DAYS} days. Add longer ones in parts.`), { status: 400 });
