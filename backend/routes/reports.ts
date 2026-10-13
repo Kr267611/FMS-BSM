@@ -15,6 +15,8 @@ import authLib = require("../middleware/auth");
 const { auth, permit } = authLib;
 import scopeLib = require("../services/scope");
 const { visibleUserIds, canSeeUser } = scopeLib;
+import permissionsLib = require("../services/permissions");
+const { can } = permissionsLib;
 import auditLib = require("../services/audit");
 const { audit } = auditLib;
 import taskFiltersLib = require("../services/taskFilters");
@@ -26,7 +28,6 @@ router.use(auth, permit("reports", "view"));
 const KINDS = { fms: "app", checklist: "checklist", delegation: "delegation", sheet: "sheet", ticket: "ticket" };
 const isDay = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ""));
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const MANAGERS = ["admin", "hod", "pc", "tl"];
 
 function fail(message, status = 400) {
   const err = new Error(message);
@@ -107,7 +108,7 @@ router.get("/tasks", async (req, res) => {
 // Give pending tasks to someone else. A task whose planned time has passed keeps its doer (its late / pending
 // stays in that doer's score) – only an admin can move it, and that is recorded.
 router.post("/tasks/switch", async (req, res) => {
-  if (!MANAGERS.includes(req.user.role)) throw fail("Only an admin, HOD, PC or Team Leader can switch doers", 403);
+  if (!can(req.user, "reports", "edit")) throw fail("Switching doers needs PC reports & MIS (edit). Ask your admin.", 403);
   const ids = (Array.isArray(req.body?.ids) ? req.body.ids : []).filter((id) => mongoose.isValidObjectId(id)).slice(0, 500);
   const to = req.body?.doer;
   if (!ids.length) throw fail("Select the tasks first");
@@ -138,9 +139,9 @@ router.post("/tasks/switch", async (req, res) => {
   res.json({ moved, results });
 });
 
-// Admin only: remove checklist / delegation tasks (an FMS step goes with its entry)
+// PC reports & MIS (delete), admin by default: remove checklist / delegation tasks (an FMS step goes with its entry)
 router.post("/tasks/delete", async (req, res) => {
-  if (req.user.role !== "admin") throw fail("Only an admin can delete tasks", 403);
+  if (!can(req.user, "reports", "delete")) throw fail("Deleting tasks needs PC reports & MIS (delete). Ask your admin.", 403);
   const ids = (Array.isArray(req.body?.ids) ? req.body.ids : []).filter((id) => mongoose.isValidObjectId(id)).slice(0, 500);
   if (!ids.length) throw fail("Select the tasks first");
   const r = await Task.deleteMany({ _id: { $in: ids }, kind: { $in: ["checklist", "delegation"] } });

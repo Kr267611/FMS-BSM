@@ -41,12 +41,12 @@ async function params(req) {
 }
 
 // Task Count + MIS Summary
-router.get("/", auth, async (req, res) => {
+router.get("/", auth, permit("reports", "view"), async (req, res) => {
   res.json(await misReport(await params(req)));
 });
 
 // Performance-daily
-router.get("/daily", auth, async (req, res) => {
+router.get("/daily", auth, permit("reports", "view"), async (req, res) => {
   const p = await params(req);
   const doerId = p.doerId || (p.doerIds?.length === 1 ? p.doerIds[0] : null);
   if (!doerId) return res.status(400).json({ message: "Choose a doer" });
@@ -72,13 +72,13 @@ const monday = (day) => addDaysKey(day, -((new Date(day + "T00:00:00Z").getUTCDa
 
 // ?week=YYYY-MM-DD (any day of the week; default this week) &group=doer|department
 const { weeklyReport } = meeting;
-router.get("/weekly", auth, async (req, res) => {
+router.get("/weekly", auth, permit("reports", "view"), async (req, res) => {
   const p = await params(req);
   res.json(await weeklyReport({ week: isDay(req.query.week) ? req.query.week : todayKey(), doerIds: p.doerIds, group: req.query.group }));
 });
 
 // ---- Weekly MIS meeting: one report for the meeting, and its weekly email ----
-router.get("/meeting", auth, async (req, res) => {
+router.get("/meeting", auth, permit("reports", "view"), async (req, res) => {
   const p = await params(req);
   res.json(await meeting.meetingReport({ week: isDay(req.query.week) ? req.query.week : todayKey(), doerIds: p.doerIds }));
 });
@@ -110,7 +110,7 @@ router.post("/meeting/send", auth, permit("settings", "edit"), async (req, res) 
 
 // ---- Performance Score (MIDAP): performance = 100 + MIS score, with a weekly trend ----
 // ?from= &to= (max 92 days; default this month) &group=doer|department
-router.get("/performance", auth, async (req, res) => {
+router.get("/performance", auth, permit("reports", "view"), async (req, res) => {
   const p = await params(req);
   let { from, to } = p;
   if (from > to) [from, to] = [to, from];

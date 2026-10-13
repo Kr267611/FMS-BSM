@@ -21,6 +21,7 @@ import AttendanceRegister from "./pages/hr/AttendanceRegister";
 import BiometricUpload from "./pages/hr/BiometricUpload";
 import AttendanceSetup from "./pages/hr/AttendanceSetup";
 import AttendanceRequests from "./pages/hr/AttendanceRequests";
+import AccessOverview from "./pages/AccessOverview";
 import RaiseTicket from "./pages/tickets/RaiseTicket";
 import TicketList from "./pages/tickets/TicketList";
 import TicketCategories from "./pages/tickets/TicketCategories";
@@ -91,8 +92,6 @@ export default function App() {
   );
 }
 
-const LEAVE_MANAGERS = ["admin", "hod", "pc", "tl"]; // who approves leave and sees the attendance register (in their own scope)
-
 type MenuItem = { to: string; label: string; end?: boolean; show?: boolean; soon?: boolean };
 
 // Menu grouped the way MIDAP users know it. `soon` items are planned milestones, shown to admins only.
@@ -120,7 +119,7 @@ function menuFor(user) {
         { to: "/jobs", label: "FMS Entries", show: can(user, "fmsEntries") },
       ],
     },
-    { title: "Audit", items: [{ to: "/audits", label: "Audit List" }, { to: "/audits/settings", label: "Auditor Settings", show: can(user, "settings", "edit") }] },
+    { title: "Audit", items: [{ to: "/audits", label: "Audit List", show: user.role === "admin" || user.role === "auditor" || Boolean(user.isAuditor) }, { to: "/audits/settings", label: "Auditor Settings", show: can(user, "settings", "edit") }] },
     {
       title: "PC Reports",
       items: [
@@ -137,26 +136,26 @@ function menuFor(user) {
     {
       title: "Help Ticket",
       items: [
-        { to: "/tickets/new", label: "Raise Ticket" },
-        { to: "/tickets/mine", label: "My Tickets" },
-        { to: "/tickets", label: "Ticket List", end: true },
-        { to: "/tickets/report", label: "Ticket Report", show: LEAVE_MANAGERS.includes(user.role) },
-        { to: "/tickets/categories", label: "Ticket Categories", show: can(user, "settings", "edit") },
+        { to: "/tickets/new", label: "Raise Ticket", show: can(user, "myTickets") },
+        { to: "/tickets/mine", label: "My Tickets", show: can(user, "myTickets") },
+        { to: "/tickets", label: "Ticket List", end: true, show: can(user, "myTickets") || can(user, "tickets") },
+        { to: "/tickets/report", label: "Ticket Report", show: can(user, "tickets") },
+        { to: "/tickets/categories", label: "Ticket Categories", show: can(user, "ticketSetup", "edit") },
       ],
     },
     {
       title: "HRMS",
       items: [
-        { to: "/hr/attendance", label: "My Attendance", end: true },
-        { to: "/hr/leave/apply", label: "Leave Apply" },
-        { to: "/hr/attendance/register", label: "Attendance Register", show: LEAVE_MANAGERS.includes(user.role) },
-        { to: "/hr/attendance/requests", label: "Attendance Requests", show: LEAVE_MANAGERS.includes(user.role) },
-        { to: "/hr/leave/list", label: "Leave List", show: LEAVE_MANAGERS.includes(user.role) },
-        { to: "/hr/attendance/biometric", label: "Biometric Upload", show: can(user, "settings", "edit") },
-        { to: "/hr/attendance/setup", label: "Shifts & Late Policy", show: can(user, "settings", "edit") },
-        { to: "/hr/leave/types", label: "Leave Types", show: can(user, "settings", "edit") },
-        { to: "/hr/leave/policies", label: "Leave Policies", show: can(user, "settings", "edit") },
-        { to: "/hr/leave/assignment", label: "Policy Assignment", show: can(user, "settings", "edit") },
+        { to: "/hr/attendance", label: "My Attendance", end: true, show: can(user, "myAttendance") },
+        { to: "/hr/leave/apply", label: "Leave Apply", show: can(user, "myLeave") || can(user, "leave", "add") },
+        { to: "/hr/attendance/register", label: "Attendance Register", show: can(user, "attendance") },
+        { to: "/hr/attendance/requests", label: "Attendance Requests", show: can(user, "attendance") },
+        { to: "/hr/leave/list", label: "Leave List", show: can(user, "leave") },
+        { to: "/hr/attendance/biometric", label: "Biometric Upload", show: can(user, "attendance", "add") },
+        { to: "/hr/attendance/setup", label: "Shifts & Late Policy", show: can(user, "hrSetup") },
+        { to: "/hr/leave/types", label: "Leave Types", show: can(user, "hrSetup") },
+        { to: "/hr/leave/policies", label: "Leave Policies", show: can(user, "hrSetup") },
+        { to: "/hr/leave/assignment", label: "Policy Assignment", show: can(user, "hrSetup") },
       ],
     },
     {
@@ -166,6 +165,7 @@ function menuFor(user) {
         { to: "/users/bulk", label: "Bulk Upload", show: can(user, "users", "add") },
         { to: "/org", label: "Branches & Departments", show: can(user, "org") },
         { to: "/users/leave", label: "Doer Leave", show: can(user, "users") },
+        { to: "/users/access", label: "Access Overview", show: user.role === "admin" },
       ],
     },
     {
@@ -303,7 +303,7 @@ function Shell() {
             <Route path="/fms/bulk" element={guard(can(user, "fmsEntries"), <BulkFms />)} />
             <Route path="/fms/auto-complete" element={guard(can(user, "fms"), <AutoComplete />)} />
             <Route path="/fms/auto-calculate" element={guard(can(user, "fms"), <FmsRules kind="calc" />)} />
-            <Route path="/audits" element={<AuditList />} />
+            <Route path="/audits" element={guard(user.role === "admin" || user.role === "auditor" || Boolean(user.isAuditor), <AuditList />)} />
             <Route path="/audits/settings" element={guard(can(user, "settings", "edit"), <AuditorSettings />)} />
             <Route path="/reports/effort" element={guard(can(user, "reports"), <EffortReport />)} />
             <Route path="/reports/auditor" element={guard(can(user, "reports"), <AuditorReport />)} />
@@ -321,22 +321,23 @@ function Shell() {
             <Route path="/users" element={guard(can(user, "users"), <Users />)} />
             <Route path="/users/bulk" element={guard(can(user, "users", "add"), <BulkUsers />)} />
             <Route path="/org" element={guard(can(user, "org"), <Org />)} />
-            <Route path="/tickets/new" element={<RaiseTicket />} />
-            <Route path="/tickets/mine" element={<TicketList mode="mine" />} />
-            <Route path="/tickets" element={<TicketList mode="work" />} />
-            <Route path="/tickets/report" element={guard(LEAVE_MANAGERS.includes(user.role), <TicketReport />)} />
-            <Route path="/tickets/categories" element={guard(can(user, "settings", "edit"), <TicketCategories />)} />
-            <Route path="/hr/attendance" element={<MyAttendance />} />
-            <Route path="/hr/attendance/register" element={guard(LEAVE_MANAGERS.includes(user.role), <AttendanceRegister />)} />
-            <Route path="/hr/attendance/requests" element={guard(LEAVE_MANAGERS.includes(user.role), <AttendanceRequests />)} />
-            <Route path="/hr/attendance/biometric" element={guard(can(user, "settings", "edit"), <BiometricUpload />)} />
-            <Route path="/hr/attendance/setup" element={guard(can(user, "settings", "edit"), <AttendanceSetup />)} />
-            <Route path="/hr/leave/apply" element={<LeaveApply />} />
-            <Route path="/hr/leave/list" element={guard(LEAVE_MANAGERS.includes(user.role), <LeaveList />)} />
-            <Route path="/hr/leave/types" element={guard(can(user, "settings", "edit"), <LeaveTypes />)} />
-            <Route path="/hr/leave/policies" element={guard(can(user, "settings", "edit"), <LeavePolicies />)} />
-            <Route path="/hr/leave/assignment" element={guard(can(user, "settings", "edit"), <PolicyAssignment />)} />
-            <Route path="/users/leave"element={guard(can(user, "users"), <Leaves />)} />
+            <Route path="/tickets/new" element={guard(can(user, "myTickets"), <RaiseTicket />)} />
+            <Route path="/tickets/mine" element={guard(can(user, "myTickets"), <TicketList mode="mine" />)} />
+            <Route path="/tickets" element={guard(can(user, "myTickets") || can(user, "tickets"), <TicketList mode="work" />)} />
+            <Route path="/tickets/report" element={guard(can(user, "tickets"), <TicketReport />)} />
+            <Route path="/tickets/categories" element={guard(can(user, "ticketSetup", "edit"), <TicketCategories />)} />
+            <Route path="/hr/attendance" element={guard(can(user, "myAttendance"), <MyAttendance />)} />
+            <Route path="/hr/attendance/register" element={guard(can(user, "attendance"), <AttendanceRegister />)} />
+            <Route path="/hr/attendance/requests" element={guard(can(user, "attendance"), <AttendanceRequests />)} />
+            <Route path="/hr/attendance/biometric" element={guard(can(user, "attendance", "add"), <BiometricUpload />)} />
+            <Route path="/hr/attendance/setup" element={guard(can(user, "hrSetup"), <AttendanceSetup />)} />
+            <Route path="/hr/leave/apply" element={guard(can(user, "myLeave") || can(user, "leave", "add"), <LeaveApply />)} />
+            <Route path="/hr/leave/list" element={guard(can(user, "leave"), <LeaveList />)} />
+            <Route path="/hr/leave/types" element={guard(can(user, "hrSetup"), <LeaveTypes />)} />
+            <Route path="/hr/leave/policies" element={guard(can(user, "hrSetup"), <LeavePolicies />)} />
+            <Route path="/hr/leave/assignment" element={guard(can(user, "hrSetup"), <PolicyAssignment />)} />
+            <Route path="/users/access" element={guard(user.role === "admin", <AccessOverview />)} />
+            <Route path="/users/leave" element={guard(can(user, "users"), <Leaves />)} />
             <Route path="/sheets" element={guard(can(user, "settings", "edit"), <SheetLinks />)} />
             <Route path="/reminders" element={guard(can(user, "settings"), <Reminders />)} />
             <Route path="/audit" element={guard(can(user, "audit"), <Audit />)} />

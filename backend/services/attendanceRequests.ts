@@ -13,6 +13,8 @@ const { loadCalendar } = workflowLib;
 import scopeLib = require("./scope");
 const { visibleUserIds } = scopeLib;
 import att = require("./attendance");
+import permissionsLib = require("./permissions");
+const { can } = permissionsLib;
 
 const MAX_BACK_DAYS = 30; // a correction can be asked for up to 30 days back
 const MIN = 60 * 1000;
@@ -71,7 +73,7 @@ async function create(me, body: any = {}, now = new Date()) {
 // view: "approve" (waiting for me) | "mine" | "all" (managers: everyone they can see)
 async function list(me, { view = "mine", state = "", user = "", month = "" }: any = {}) {
   const filter: Record<string, any> = {};
-  if (view === "mine" || !att.MANAGERS.includes(me.role)) filter.user = me._id;
+  if (view === "mine" || !can(me, "attendance", "view")) filter.user = me._id;
   else {
     const visible = await visibleUserIds(me);
     if (visible !== null) filter.user = { $in: visible };
@@ -151,7 +153,7 @@ async function cancel(id, me) {
 }
 
 async function pendingCount(me) {
-  if (!att.MANAGERS.includes(me.role)) return 0;
+  if (!can(me, "attendance", "edit")) return 0;
   const visible = await visibleUserIds(me);
   const filter: Record<string, any> = { state: "pending" };
   if (visible !== null) filter.user = { $in: visible.filter((id) => me.role === "admin" || id !== String(me._id)) };

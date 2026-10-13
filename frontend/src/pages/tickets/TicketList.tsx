@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, showDateTime } from "../../api";
+import { api, can, showDateTime } from "../../api";
 import { useAuth } from "../../App";
 import { csvCell, download } from "../../csv";
 import TicketDetail, { PRIORITY, StatusTag, TICKET_STATUS } from "./TicketDetail";
 
-const MANAGERS = ["admin", "hod", "pc", "tl"];
 
 // mode "mine": the tickets I raised. mode "work": the tickets I solve, and (managers / solvers) all I may manage.
 export default function TicketList({ mode }: { mode: "mine" | "work" }) {
@@ -41,7 +40,7 @@ export default function TicketList({ mode }: { mode: "mine" | "work" }) {
     download("help-tickets.csv", [head, ...rows].map((r) => r.map(csvCell).join(",")).join("\n"));
   }
 
-  const tabs = mode === "mine" ? [] : [["assigned", "Assigned to me"], ["all", MANAGERS.includes(user.role) ? "All tickets" : "Tickets I handle"], ["unassigned", "Not assigned"]];
+  const tabs = mode === "mine" ? [] : [["assigned", "Assigned to me"], ["all", can(user, "tickets") ? "All tickets" : "Tickets I handle"], ["unassigned", "Not assigned"]];
   return (
     <>
       <div className="page-head">

@@ -6,6 +6,8 @@ import authLib = require("../middleware/auth");
 const { auth, permit } = authLib;
 import auditLib = require("../services/audit");
 const { audit } = auditLib;
+import permissionsLib = require("../services/permissions");
+const { cleanOverrides } = permissionsLib;
 
 const router = express.Router();
 router.use(auth);
@@ -88,6 +90,19 @@ router.put("/departments/:id", permit("org", "edit"), async (req, res) => {
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
+});
+
+// The department's access (admin): { permissions: { module: [actions] } } – {} or null clears it
+router.put("/departments/:id/permissions", async (req, res) => {
+  if (req.user.role !== "admin") return res.status(403).json({ message: "Only an admin can change access" });
+  const d = await Department.findById(req.params.id);
+  if (!d) return res.status(404).json({ message: "Department not found" });
+  const next = cleanOverrides(req.body?.permissions);
+  d.permissions = next || undefined;
+  d.markModified("permissions");
+  await d.save();
+  audit(req, "department.access", { entity: "Department", entityId: d._id, summary: `${d.name}: ${next ? Object.entries(next).map(([m, a]: any) => `${m} ${a.join("/") || "none"}`).join(", ") : "role defaults"}` });
+  res.json(d);
 });
 
 export = router;

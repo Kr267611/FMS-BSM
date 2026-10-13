@@ -72,7 +72,7 @@ export async function api<T = any>(path: string, { method = "GET", body, query }
 }
 
 // Permission check for showing menu items and buttons (the server enforces the same rules)
-export type Role = "admin" | "hod" | "pc" | "tl" | "auditor" | "doer";
+export type Role = "admin" | "hod" | "pc" | "tl" | "hr" | "auditor" | "doer";
 export type Action = "view" | "add" | "edit" | "delete";
 export interface SessionUser {
   _id: string;
@@ -88,7 +88,7 @@ export function can(user: SessionUser | null | undefined, module: string, action
   return Boolean((user?.permissions?.[module] as string[] | undefined)?.includes(action));
 }
 
-export const ROLE_LABELS: Record<string, string> = { admin: "Admin", hod: "HOD", pc: "PC", tl: "Team Leader", auditor: "Auditor", doer: "Doer" };
+export const ROLE_LABELS: Record<string, string> = { admin: "Admin", hod: "HOD", pc: "PC", tl: "Team Leader", hr: "HR", auditor: "Auditor", doer: "Doer" };
 
 // ---- date helpers (IST) ----
 const dayFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" });

@@ -16,8 +16,9 @@ import doerCalendarLib = require("./doerCalendar");
 const { loadDoerCalendars, applyLeave, daysOf, checkLeave } = doerCalendarLib;
 import scopeLib = require("./scope");
 const { canSeeUser } = scopeLib;
+import permissionsLib = require("./permissions");
+const { can } = permissionsLib;
 
-const MANAGERS = ["admin", "hod", "pc", "tl"];
 const half = (n) => Math.round(n * 2) / 2; // leave counts in half days
 
 function fail(message, status = 400) {
@@ -108,7 +109,7 @@ async function previewRequest(me, body: any = {}, { now = new Date(), excludeReq
   const userId = String(body.user || me._id);
   if (!mongoose.isValidObjectId(userId)) throw fail("Choose the person");
   if (userId !== String(me._id)) {
-    if (!MANAGERS.includes(me.role) || !(await canSeeUser(me, userId))) throw fail("You can apply for yourself, or a manager for their people", 403);
+    if (!can(me, "leave", "add") || !(await canSeeUser(me, userId))) throw fail("You can apply for yourself; applying for others needs HRMS – Leave (add)", 403);
   }
   const { from, to } = body;
   checkLeave(from, to);
@@ -173,11 +174,11 @@ async function createRequest(me, body: any = {}, { now = new Date() }: any = {})
   });
 }
 
-// The manager who may approve: admin, or a HOD / PC / Team Leader who oversees the person (never for themselves)
+// Who may approve: someone with HRMS – Leave (edit) who reaches the person (never for themselves, except an admin)
 async function canDecide(me, request) {
   if (String(request.user._id || request.user) === String(me._id)) return me.role === "admin";
   if (me.role === "admin") return true;
-  return MANAGERS.includes(me.role) && (await canSeeUser(me, request.user._id || request.user));
+  return can(me, "leave", "edit") && (await canSeeUser(me, request.user._id || request.user));
 }
 
 async function load(id): Promise<any> {
@@ -231,4 +232,4 @@ async function cancel(id, me, { now = new Date() }: any = {}) {
   return r;
 }
 
-export = { countDays, credited, balanceOf, checkAgainst, balancesFor, previewRequest, createRequest, canDecide, approve, reject, cancel, MANAGERS, half };
+export = { countDays, credited, balanceOf, checkAgainst, balancesFor, previewRequest, createRequest, canDecide, approve, reject, cancel, half };

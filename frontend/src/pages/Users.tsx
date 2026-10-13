@@ -5,6 +5,7 @@ import { useAuth } from "../App";
 import { WEEKDAYS } from "../tasks";
 import DoerSelect, { clearUsersCache } from "../components/DoerSelect";
 import { compress } from "../components/PhotoInput";
+import PermissionGrid from "../components/PermissionGrid";
 
 const blank = {
   name: "",
@@ -15,6 +16,7 @@ const blank = {
   doerType: "",
   photo: "",
   isAuditor: false,
+  seesAll: false,
   password: "",
   role: "doer",
   branch: "",
@@ -164,6 +166,7 @@ export default function Users() {
           meta={meta}
           org={org}
           me={user}
+          people={list}
           onOrgAdded={(kind, item) => setOrg((o) => ({ ...o, [kind]: [...o[kind], item].sort((a, b) => a.name.localeCompare(b.name)) }))}
           onClose={() => setEditing(null)}
           onSaved={() => {
@@ -338,7 +341,7 @@ export default function Users() {
   );
 }
 
-function UserForm({ initial, meta, org, me, onClose, onSaved, onOrgAdded }) {
+function UserForm({ initial, meta, org, me, people, onClose, onSaved, onOrgAdded }) {
   const [v, setV] = useState(initial);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -371,13 +374,13 @@ function UserForm({ initial, meta, org, me, onClose, onSaved, onOrgAdded }) {
     }
   }
 
-  // Permissions: null = role defaults; otherwise explicit overrides per module
-  const defaults = meta.roleDefaults[v.role] || {};
-  const effective = v.permissions ? { ...defaults, ...v.permissions } : defaults;
-  function toggle(mod, act) {
-    const current = new Set(effective[mod] || []);
-    current.has(act) ? current.delete(act) : current.add(act);
-    set({ permissions: { ...(v.permissions || {}), [mod]: [...current] } });
+  // Access: the role's defaults, then the department's access, then what is set here for this person
+  const dept = org.departments.find((d) => d._id === v.department);
+  const base = { ...(meta.roleDefaults[v.role] || {}), ...(dept?.permissions || {}) };
+  function copyFrom(id) {
+    const other = (people || []).find((p) => p._id === id);
+    if (!other) return;
+    set({ permissions: other.permissions && Object.keys(other.permissions).length ? { ...other.permissions } : null, seesAll: Boolean(other.seesAll) });
   }
 
   async function save(e) {
@@ -576,40 +579,37 @@ function UserForm({ initial, meta, org, me, onClose, onSaved, onOrgAdded }) {
 
       {me.role === "admin" && v.role !== "admin" && (
         <div className="span-all perm-box">
-          <div className="row between">
-            <b>Permissions</b>
-            <label className="check small">
-              <input type="checkbox" checked={!v.permissions} onChange={(e) => set({ permissions: e.target.checked ? null : { ...defaults } })} />
-              Use {meta.roles[v.role]} defaults
-            </label>
-          </div>
-          <table className="grid perm-table">
-            <thead>
-              <tr>
-                <th>Module</th>
-                {meta.actions.map((a) => (
-                  <th key={a}>{a}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {Object.entries(meta.modules as Record<string, string>).map(([mod, label]) => (
-                <tr key={mod}>
-                  <td>{label}</td>
-                  {meta.actions.map((a) => (
-                    <td key={a}>
-                      <input
-                        type="checkbox"
-                        disabled={!v.permissions}
-                        checked={(effective[mod] || []).includes(a)}
-                        onChange={() => toggle(mod, a)}
-                      />
-                    </td>
+          <div className="row between wrap">
+            <div>
+              <b>Access</b>
+              <div className="muted small">
+                Only what is ticked shows for this person – menu, pages and buttons. Not changed here = the {meta.roles[v.role]} role's defaults
+                {dept?.permissions ? ` and the ${dept.name} department's access` : ""}.
+              </div>
+            </div>
+            <div className="row wrap">
+              <select value="" onChange={(e) => e.target.value && copyFrom(e.target.value)} aria-label="Copy access from">
+                <option value="">Copy access from…</option>
+                {(people || [])
+                  .filter((p) => p._id !== v._id && p.role !== "admin")
+                  .map((p) => (
+                    <option key={p._id} value={p._id}>
+                      {p.name}
+                    </option>
                   ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+              </select>
+              {v.permissions && Object.keys(v.permissions).length > 0 && (
+                <button type="button" className="btn ghost small" onClick={() => set({ permissions: null })}>
+                  Back to defaults
+                </button>
+              )}
+            </div>
+          </div>
+          <label className="check sees-all">
+            <input type="checkbox" checked={["auditor", "hr"].includes(v.role) || Boolean(v.seesAll)} disabled={["auditor", "hr"].includes(v.role)} onChange={(e) => set({ seesAll: e.target.checked })} /> Sees everyone (whole company){" "}
+            <Help text="Without this, what they may do reaches only their department / team (HOD, PC) or their team (Team Leader) or themselves. HR and Auditor always see everyone." />
+          </label>
+          <PermissionGrid meta={meta} value={v.permissions} base={base} baseLabel={dept?.permissions ? "Role / department default" : "Role default"} onChange={(permissions) => set({ permissions })} />
         </div>
       )}
 

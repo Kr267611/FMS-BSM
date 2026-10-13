@@ -37,7 +37,8 @@ const resetLimiter = rateLimit({
 
 // What the app needs about the signed-in user, including effective permissions for the menu
 async function publicUser(u) {
-  const dept = u.department ? await Department.findById(u.department).select("name").lean<any>() : null;
+  const dept = u.department ? await Department.findById(u.department).select("name permissions").lean<any>() : null;
+  const withDept = { ...(u.toObject ? u.toObject() : u), deptPermissions: dept?.permissions || undefined };
   return {
     _id: u._id,
     name: u.name,
@@ -45,7 +46,8 @@ async function publicUser(u) {
     email: u.email,
     role: u.role,
     department: dept?.name || "",
-    permissions: permissionsFor(u),
+    permissions: permissionsFor(withDept),
+    isAuditor: Boolean(u.isAuditor),
   };
 }
 

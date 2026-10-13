@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, showDay, showDateTime, todayKey } from "../../api";
+import { api, can, showDay, showDateTime, todayKey } from "../../api";
 import { useAuth } from "../../App";
 import DoerSelect from "../../components/DoerSelect";
 import FieldInput, { FieldValue } from "../../components/FieldInput";
 
-const MANAGERS = ["admin", "hod", "pc", "tl"];
 const STATUS = { pending: ["amber", "Pending"], approved: ["green", "Approved"], rejected: ["red", "Rejected"], cancelled: ["gray", "Cancelled"] };
 const blank = () => ({ user: "", type: "", from: todayKey(), to: todayKey(), halfDay: false, session: "morning", reason: "", attachment: "", buddies: { checklist: "", fms: "", delegation: "" } });
 const fmt = (n) => (n === null || n === undefined ? "—" : Number.isInteger(n) ? String(n) : n.toFixed(1));
@@ -12,7 +11,7 @@ const fmt = (n) => (n === null || n === undefined ? "—" : Number.isInteger(n) 
 // MIDAP "Leave Apply": balance, the request, and who covers the work while away
 export default function LeaveApply() {
   const { user } = useAuth();
-  const manager = MANAGERS.includes(user.role);
+  const manager = can(user, "leave", "add"); // HRMS – Leave (add): apply for someone else
   const [v, setV] = useState(blank());
   const [mine, setMine] = useState(null);
   const [types, setTypes] = useState([]);

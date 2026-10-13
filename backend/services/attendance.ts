@@ -21,10 +21,11 @@ import doerCalendarLib = require("./doerCalendar");
 const { personalCalendar, daysOf } = doerCalendarLib;
 import scopeLib = require("./scope");
 const { canSeeUser } = scopeLib;
+import permissionsLib = require("./permissions");
+const { can } = permissionsLib;
 import uploadsLib = require("./uploads");
 const { saveImage } = uploadsLib;
 
-const MANAGERS = ["admin", "hod", "pc", "tl"];
 const MIN = 60 * 1000;
 const NIGHT_SPILL = 4 * 60; // a night shift's punches up to 4 h after its end still belong to its start day
 const STATUSES = ["P", "H", "A", "L", "WO", "HO", "MP", "IN", ""];
@@ -318,8 +319,9 @@ async function punch(me, body: any = {}, now = new Date()) {
 
 // ---------- managers ----------
 
+// HRMS – Attendance (edit): mark days by hand, approve correction requests – for the people they reach, never themselves (except an admin)
 async function canManage(me, userId) {
-  if (!MANAGERS.includes(me.role)) return false;
+  if (!can(me, "attendance", "edit")) return false;
   if (String(me._id) === String(userId) && me.role !== "admin") return false;
   return canSeeUser(me, userId);
 }
@@ -340,7 +342,7 @@ async function setManual(me, { user, day, status, note }: any) {
 
 // The punches of one day (who / where / selfie), for the register's detail box
 async function dayDetail(me, userId, day) {
-  if (String(me._id) !== String(userId) && !(MANAGERS.includes(me.role) && (await canSeeUser(me, userId)))) throw fail("You can only see your own attendance", 403);
+  if (String(me._id) !== String(userId) && !(can(me, "attendance", "view") && (await canSeeUser(me, userId)))) throw fail("You can only see your own attendance", 403);
   const rec = await Attendance.findOne({ user: userId, day }).populate("punches.by", "name").populate("manual.by", "name").lean<any>();
   return { day, punches: rec?.punches || [], manual: rec?.manual?.status ? rec.manual : null };
 }
@@ -417,7 +419,6 @@ async function importBiometric(me, rows) {
 }
 
 export = {
-  MANAGERS,
   STATUSES,
   shiftInfo,
   dayOfPunch,

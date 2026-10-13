@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, can } from "../api";
 import { useAuth } from "../App";
 import DoerSelect from "../components/DoerSelect";
+import PermissionGrid from "../components/PermissionGrid";
 
 export default function Org() {
   const { user } = useAuth();
@@ -9,6 +10,8 @@ export default function Org() {
   const [branches, setBranches] = useState([]);
   const [departments, setDepartments] = useState(null);
   const [editing, setEditing] = useState(null);
+  const [access, setAccess] = useState(null); // the department whose access is open
+  const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
 
   const load = () =>
@@ -60,6 +63,20 @@ export default function Org() {
         />
       )}
 
+      {msg && <div className="notice">{msg}</div>}
+      {access && (
+        <DepartmentAccess
+          key={access._id}
+          dept={access}
+          onClose={() => setAccess(null)}
+          onSaved={(name) => {
+            setAccess(null);
+            setMsg(`${name}: access saved. It applies the next time each person opens the app.`);
+            load();
+          }}
+        />
+      )}
+
       <div className="card table-card">
         <div className="table-scroll">
           {tab === "departments" ? (
@@ -84,6 +101,11 @@ export default function Org() {
                       {canEdit && (
                         <button className="btn ghost small" onClick={() => setEditing({ ...d, branch: d.branch?._id || "", hod: d.hod?._id || "" })}>
                           Edit
+                        </button>
+                      )}
+                      {user.role === "admin" && (
+                        <button className="btn ghost small" onClick={() => (setAccess(d), setMsg(""))} title="Access for everyone in this department">
+                          Access{d.permissions && Object.keys(d.permissions).length ? " ✓" : ""}
                         </button>
                       )}
                     </td>
@@ -207,5 +229,49 @@ function OrgForm({ kind, initial, branches, onClose, onSaved }) {
         </button>
       </div>
     </form>
+  );
+}
+
+// A department's access: everyone in it gets this over their role's defaults; a person's own access wins
+function DepartmentAccess({ dept, onClose, onSaved }) {
+  const [meta, setMeta] = useState(null);
+  const [value, setValue] = useState(dept.permissions || {});
+  const [error, setError] = useState("");
+  useEffect(() => {
+    api("/users/meta").then(setMeta).catch((e) => setError(e.message));
+  }, []);
+  async function save() {
+    setError("");
+    try {
+      await api(`/org/departments/${dept._id}/permissions`, { method: "PUT", body: { permissions: Object.keys(value).length ? value : null } });
+      onSaved(dept.name);
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+  return (
+    <div className="card pad perm-box">
+      <div className="row between wrap">
+        <div>
+          <h3>Access for the {dept.name} department</h3>
+          <div className="muted small">Everyone in {dept.name} ({dept.users} active) gets what is set here instead of their role's default for that module. Not set here = their role's default. A person's own access (Users → Edit) still wins.</div>
+        </div>
+        <div className="row">
+          <button className="btn primary" onClick={save} disabled={!meta}>
+            Save
+          </button>
+          {Object.keys(value).length > 0 && (
+            <button className="btn ghost" onClick={() => setValue({})}>
+              Clear all
+            </button>
+          )}
+          <button className="btn ghost" onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+      </div>
+      {error && <div className="error">{error}</div>}
+      {meta && <PermissionGrid meta={meta} value={value} base={null} baseLabel="Role default" onChange={setValue} />}
+    </div>
   );
 }

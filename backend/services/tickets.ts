@@ -19,7 +19,6 @@ const { visibleUserIds, canSeeUser } = scopeLib;
 import permissionsLib = require("./permissions");
 const { can } = permissionsLib;
 
-const MANAGERS = ["admin", "hod", "pc", "tl"];
 const PRIORITIES = ["normal", "high", "critical"];
 const DEFAULT_CATEGORIES = [
   { name: "IT", tatHours: 8, description: "Computer, printer, internet, software, login" },
@@ -69,15 +68,18 @@ async function solverFor(category) {
 
 // ---------- who may do what ----------
 
+// Manage a ticket (assign / solve / cancel): the category's solver or its department's HOD, or anyone with
+// Help Ticket – Manage (edit) who reaches the raiser or the solver
 async function canManage(me, t) {
-  if (me.role === "admin" || can(me, "settings", "edit")) return true;
+  if (me.role === "admin") return true;
   const cat = await TicketCategory.findById(t.category?._id || t.category).select("solver department").lean<any>();
   if (cat?.solver && String(cat.solver) === String(me._id)) return true;
   if (cat?.department) {
     const dept = await Department.findById(cat.department).select("hod").lean<any>();
     if (dept?.hod && String(dept.hod) === String(me._id)) return true;
   }
-  if (!MANAGERS.includes(me.role)) return false;
+  if (!can(me, "tickets", "edit")) return false;
+  if ((await visibleUserIds(me)) === null) return true;
   const solver = t.solver?._id || t.solver;
   return (solver && (await canSeeUser(me, solver))) || (await canSeeUser(me, t.raisedBy?._id || t.raisedBy));
 }
@@ -300,12 +302,13 @@ async function list(me, { view = "mine", status = "", category = "", q = "", lat
   if (view === "mine") filter.raisedBy = me._id;
   else if (view === "assigned") filter.solver = me._id;
   else {
-    if (!(me.role === "admin" || can(me, "settings", "edit"))) {
+    const reach = can(me, "tickets", "view") ? await visibleUserIds(me) : [];
+    if (reach !== null) {
       const [visible, cats] = await Promise.all([visibleUserIds(me), TicketCategory.find().select("solver department").lean<any>()]);
       const myDepts = (await Department.find({ hod: me._id }).select("_id").lean<any>()).map((d) => String(d._id));
       const mine = cats.filter((c) => String(c.solver || "") === String(me._id) || (c.department && myDepts.includes(String(c.department)))).map((c) => c._id);
       const or: any[] = [{ category: { $in: mine } }, { raisedBy: me._id }, { solver: me._id }];
-      if (MANAGERS.includes(me.role) && visible) or.push({ raisedBy: { $in: visible } }, { solver: { $in: visible } });
+      if (can(me, "tickets", "view") && visible) or.push({ raisedBy: { $in: visible } }, { solver: { $in: visible } });
       filter.$or = or;
     }
     if (view === "unassigned") filter.solver = null;

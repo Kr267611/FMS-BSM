@@ -1,5 +1,7 @@
 import jwt = require("jsonwebtoken");
 import User = require("../models/User");
+import orgLib = require("../models/Org");
+const { Department } = orgLib;
 import sessionLib = require("../services/session");
 const { readToken, endSession } = sessionLib;
 import permissionsLib = require("../services/permissions");
@@ -25,6 +27,8 @@ async function auth(req, res, next) {
     endSession(res);
     return res.status(401).json({ message: "Your password was changed. Please sign in again." });
   }
+  // the department's access (Users & Org → Access) sits between the role's defaults and the user's own
+  if (user.department) user.deptPermissions = (await Department.findById(user.department).select("permissions").lean<any>())?.permissions || undefined;
   req.user = user;
   req.session = decoded;
   next();

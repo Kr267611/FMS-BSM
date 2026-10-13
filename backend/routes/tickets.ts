@@ -18,7 +18,7 @@ router.use(auth);
 const fail = (message, status = 400) => Object.assign(new Error(message), { status });
 const isDay = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ""));
 const text = (v, n) => String(v ?? "").trim().slice(0, n);
-const config = permit("settings", "edit"); // categories and settings: admin by default
+const config = permit("ticketSetup", "edit"); // categories and settings (Help Ticket – Setup)
 
 // ---------- categories ----------
 router.get("/categories", async (req, res) => {
@@ -76,7 +76,7 @@ router.put("/settings", config, async (req, res) => {
 });
 
 // ---------- report ----------
-router.get("/report", async (req, res) => {
+router.get("/report", permit("tickets", "view"), async (req, res) => {
   const from = isDay(req.query.from) ? String(req.query.from) : "";
   const to = isDay(req.query.to) ? String(req.query.to) : "";
   res.json(await tickets.report(req.user, { from, to }));
@@ -88,7 +88,7 @@ router.get("/", async (req, res) => {
   const q: any = req.query;
   res.json(await tickets.list(req.user, { view: String(q.view || "mine"), status: String(q.status || ""), category: String(q.category || ""), q: String(q.q || ""), late: String(q.late || ""), from: isDay(q.from) ? q.from : "", to: isDay(q.to) ? q.to : "" }));
 });
-router.post("/", async (req, res) => {
+router.post("/", permit("myTickets", "view"), async (req, res) => {
   const t = await tickets.raise(req.user, req.body);
   audit(req, "ticket.raise", { entity: "Ticket", entityId: t._id, summary: `${tickets.code(t.number)} ${t.title}` });
   res.status(201).json({ _id: t._id, code: tickets.code(t.number), solver: t.solver || null, planned: t.planned || null });

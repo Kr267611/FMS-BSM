@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, showDateTime } from "../api";
+import { api, can, showDateTime } from "../api";
 import { useAuth } from "../App";
 import DoerSelect from "../components/DoerSelect";
 import { MoreFilters, RangeSelect, STATUSES, moreCount } from "../components/ListFilters";
@@ -14,14 +14,12 @@ const KINDS = [
   ["sheet", "Google Sheet"],
 ];
 const KIND_NAME = { checklist: "Checklist", delegation: "Delegation", app: "FMS", sheet: "Sheet" };
-const MANAGERS = ["admin", "hod", "pc", "tl"];
 const todayIst = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
 
 // PC report like MIDAP's "List Doer Tasks": every task, filters, switch doer, delete, Excel
 export default function DoerTasks() {
   const { user } = useAuth();
-  const canSwitch = MANAGERS.includes(user.role);
-  const isAdmin = user.role === "admin";
+  const canSwitch = can(user, "reports", "edit");
   const [f, setF] = useState({ kind: "", doer: "", status: "pending", delay: "", from: "", to: "", q: "", mode: "", priority: "", department: "", branch: "", group: "", assignedBy: "", pc: "", auditor: "" });
   const [more, setMore] = useState(false);
   const [page, setPage] = useState(1);
@@ -186,7 +184,7 @@ export default function DoerTasks() {
           <button className="btn primary small" disabled={!to} onClick={switchDoer}>
             Switch doer
           </button>
-          {isAdmin && (
+          {can(user, "reports", "delete") && (
             <button className="btn ghost small danger push-right" onClick={() => (confirmDelete ? remove() : setConfirmDelete(true))} onBlur={() => setConfirmDelete(false)}>
               {confirmDelete ? "Yes, delete them" : "Delete"}
             </button>

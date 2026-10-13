@@ -8,6 +8,8 @@ import Shift = require("../models/Shift");
 import LatePolicy = require("../models/LatePolicy");
 import authLib = require("../middleware/auth");
 const { auth, permit } = authLib;
+import permissionsLib = require("../services/permissions");
+const { can } = permissionsLib;
 import scopeLib = require("../services/scope");
 const { visibleUserIds } = scopeLib;
 import auditLib = require("../services/audit");
@@ -24,7 +26,9 @@ const fail = (message, status = 400) => Object.assign(new Error(message), { stat
 const isDay = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ""));
 const num = (v, min = 0, max = 366) => Math.min(max, Math.max(min, Number(v) || 0));
 const text = (v, n = 200) => String(v ?? "").trim().slice(0, n);
-const config = permit("settings", "edit"); // leave types, policies and who gets which policy: admin by default
+const config = permit("hrSetup", "edit"); // leave types, policies, who gets which policy (HRMS – Setup)
+const setupView = permit("hrSetup", "view");
+const setupDelete = permit("hrSetup", "delete");
 
 // ---------- leave types ----------
 function cleanType(b: any = {}) {
@@ -63,7 +67,7 @@ router.put("/types/:id", config, async (req, res) => {
   audit(req, "leave.type_update", { entity: "LeaveType", entityId: t._id, summary: t.name });
   res.json(t);
 });
-router.delete("/types/:id", config, async (req, res) => {
+router.delete("/types/:id", setupDelete, async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) throw fail("Invalid ID");
   if (await LeaveRequest.exists({ type: req.params.id })) throw fail("Leave was already taken of this type. Switch it off (Active) instead.");
   if (await LeavePolicy.exists({ "rules.type": req.params.id })) throw fail("A leave policy uses this type. Remove it from the policy first.");
@@ -134,7 +138,7 @@ router.post("/policies/:id/clone", config, async (req, res) => {
   audit(req, "leave.policy_create", { entity: "LeavePolicy", entityId: p._id, summary: `${p.name} (copy of ${src.name})` });
   res.status(201).json(p);
 });
-router.delete("/policies/:id", config, async (req, res) => {
+router.delete("/policies/:id", setupDelete, async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) throw fail("Invalid ID");
   const n = await User.countDocuments({ leavePolicy: req.params.id });
   if (n) throw fail(`${n} person(s) have this policy. Give them another one first.`);
@@ -145,7 +149,7 @@ router.delete("/policies/:id", config, async (req, res) => {
 });
 
 // ---------- who gets which policy ----------
-router.get("/assignment", config, async (req, res) => {
+router.get("/assignment", setupView, async (req, res) => {
   const users = await User.find({ active: true })
     .select("name role department leavePolicy gender shift latePolicy employeeCode")
     .populate("department", "name")
@@ -188,7 +192,8 @@ router.put("/assignment", config, async (req, res) => {
 // ---------- my leave ----------
 router.get("/my", async (req, res) => {
   const user = String(req.query.user || req.user._id);
-  if (user !== String(req.user._id) && !(book.MANAGERS.includes(req.user.role) && (await require("../services/scope").canSeeUser(req.user, user)))) throw fail("You can only see your own leave", 403);
+  if (user === String(req.user._id) && !can(req.user, "myLeave", "view")) throw fail("You do not have My Leave. Ask your admin.", 403);
+  if (user !== String(req.user._id) && !(can(req.user, "leave", "view") && (await require("../services/scope").canSeeUser(req.user, user)))) throw fail("You can only see your own leave", 403);
   const year = Number(req.query.year) || Number(todayKey().slice(0, 4));
   const [balances, requests] = await Promise.all([
     book.balancesFor(user, { year, asOf: year === Number(todayKey().slice(0, 4)) ? todayKey() : `${year}-12-31` }),
@@ -197,12 +202,18 @@ router.get("/my", async (req, res) => {
   res.json({ year, policy: balances.policy ? { _id: balances.policy._id, name: balances.policy.name, accrual: balances.policy.accrual, exhaust: balances.policy.exhaust } : null, balances: balances.rows.map((r) => ({ ...r, available: r.limited ? r.available : null })), requests });
 });
 
+const selfLeave = (req) => {
+  const forSelf = !req.body?.user || String(req.body.user) === String(req.user._id);
+  if (forSelf && !can(req.user, "myLeave", "view")) throw fail("You do not have My Leave. Ask your admin.", 403);
+};
 router.post("/preview", async (req, res) => {
+  selfLeave(req);
   const p = await book.previewRequest(req.user, req.body);
   res.json({ ...p, type: { _id: p.type._id, name: p.type.name, requiresDocument: p.type.requiresDocument } });
 });
 
 router.post("/requests", async (req, res) => {
+  selfLeave(req);
   const r = await book.createRequest(req.user, req.body);
   const who = await User.findById(r.user).select("name").lean<any>();
   audit(req, "leave.apply", { entity: "LeaveRequest", entityId: r._id, summary: `${who?.name}: ${r.from} to ${r.to}, ${r.days} day(s)${r.lwpDays ? ` (${r.lwpDays} unpaid)` : ""}` });
@@ -215,8 +226,9 @@ router.get("/requests", async (req, res) => {
   const visible = await visibleUserIds(req.user);
   const filter: Record<string, any> = {};
   if (visible !== null) filter.user = { $in: visible };
-  if (!book.MANAGERS.includes(req.user.role)) filter.user = req.user._id; // a doer sees their own
-  if (mongoose.isValidObjectId(req.query.user)) {
+  const viewer = can(req.user, "leave", "view"); // HRMS – Leave: see the Leave List of their people
+  if (!viewer) filter.user = req.user._id; // everyone else sees their own
+  if (viewer && mongoose.isValidObjectId(req.query.user)) {
     if (visible !== null && !visible.map(String).includes(String(req.query.user))) throw fail("You can only see people in your department", 403);
     filter.user = req.query.user;
   }
@@ -262,7 +274,7 @@ router.post("/requests/:id/cancel", async (req, res) => {
 });
 
 // ---------- HR summary (leave): today, waiting, this week, people without a policy ----------
-router.get("/summary", async (req, res) => {
+router.get("/summary", permit("leave", "view"), async (req, res) => {
   const visible = await visibleUserIds(req.user);
   const scope = visible === null ? {} : { user: { $in: visible } };
   const today = todayKey();

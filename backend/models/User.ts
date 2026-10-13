@@ -5,7 +5,7 @@ const userSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     username: { type: String, required: true, unique: true, lowercase: true, trim: true },
     password: { type: String, required: true, select: false },
-    role: { type: String, enum: ["admin", "hod", "pc", "tl", "auditor", "doer"], default: "doer" },
+    role: { type: String, enum: ["admin", "hod", "pc", "tl", "hr", "auditor", "doer"], default: "doer" },
     branch: { type: mongoose.Schema.Types.ObjectId, ref: "Branch" },
     department: { type: mongoose.Schema.Types.ObjectId, ref: "Department" },
     // HOD / PC: the departments they oversee (their own department is always included)
@@ -31,6 +31,8 @@ const userSchema = new mongoose.Schema(
     photo: { type: String, default: "" },
     // MIDAP "Make Auditor": keeps their role and can also be chosen as the auditor of tasks
     isAuditor: { type: Boolean, default: false },
+    // "Sees everyone": what their permissions allow reaches the whole company, not only their department / team
+    seesAll: { type: Boolean, default: false },
     active: { type: Boolean, default: true },
 
     // Bumped on every password change or reset; tokens issued before that stop working

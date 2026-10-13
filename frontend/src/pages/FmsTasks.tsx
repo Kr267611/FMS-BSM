@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, showDateTime } from "../api";
+import { api, can, showDateTime } from "../api";
 import { useAuth } from "../App";
 import DoerSelect from "../components/DoerSelect";
 import { MoreFilters, RangeSelect, STATUSES, moreCount } from "../components/ListFilters";
@@ -14,13 +14,12 @@ const DELAYS = [
   ["3-7", "3–7 days late"],
   ["7+", "More than 7 days"],
 ];
-const MANAGERS = ["admin", "hod", "pc", "tl"];
 const todayIst = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
 
 // MIDAP "List FMS Tasks": FMS steps with FMS / step / field value / status / delay filters
 export default function FmsTasks() {
   const { user } = useAuth();
-  const canSwitch = MANAGERS.includes(user.role);
+  const canSwitch = can(user, "reports", "edit");
   const isAdmin = user.role === "admin";
   const [processes, setProcesses] = useState([]);
   const [f, setF] = useState({ process: "", step: "", status: "pending", doer: "", delay: "", field: "", value: "", from: "", to: "", mode: "", pc: "", department: "" });

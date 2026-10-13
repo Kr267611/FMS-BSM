@@ -51,7 +51,11 @@ router.get("/templates/:id", auth, permit("fms", "add"), async (req, res) => {
 });
 
 // summary=1: without doer tables and step fields (for dropdowns and cards)
-router.get("/", auth, async (req, res) => {
+// FMS definitions: for the FMS Manager, FMS entries and the FMS reports – nobody else
+const usesFms = (req, res, next) =>
+  ["fms", "fmsEntries", "reports"].some((m) => can(req.user, m, "view")) ? next() : res.status(403).json({ message: "You don't have permission to do this. Ask your admin." });
+
+router.get("/", auth, usesFms, async (req, res) => {
   const filter = req.query.all === "1" && can(req.user, "fms", "view") ? {} : { active: true };
   let q = Process.find(filter).sort({ active: -1, name: 1 });
   if (req.query.summary === "1") q = q.select("-steps.doer.map -steps.fields -steps.how -steps.tatOverrides");
@@ -59,7 +63,7 @@ router.get("/", auth, async (req, res) => {
   res.json(list);
 });
 
-router.get("/:id", auth, async (req, res) => {
+router.get("/:id", auth, usesFms, async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: "Invalid ID" });
   const p = await withNames(Process.findById(req.params.id)).lean();
   if (!p) return res.status(404).json({ message: "FMS not found" });

@@ -14,6 +14,8 @@ const { audit } = auditLib;
 import datesLib = require("../services/dates");
 const { todayKey } = datesLib;
 import att = require("../services/attendance");
+import permissionsLib = require("../services/permissions");
+const { can } = permissionsLib;
 import requests = require("../services/attendanceRequests");
 
 // HRMS – Attendance: punch in / out, the register, biometric upload, shifts, late policies, geo-fence
@@ -25,16 +27,19 @@ const isTime = (s) => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(s || ""));
 const isMonth = (s) => /^\d{4}-(0[1-9]|1[0-2])$/.test(String(s || ""));
 const num = (v, min, max) => Math.min(max, Math.max(min, Math.round(Number(v) || 0)));
 const text = (v, n = 80) => String(v ?? "").trim().slice(0, n);
-const config = permit("settings", "edit"); // shifts, late policies, geo-fence, settings, biometric upload: admin by default
+const config = permit("hrSetup", "edit"); // shifts, late policies, geo-fence, punch settings, employee codes (HRMS – Setup)
+const setupDelete = permit("hrSetup", "delete");
+const biometric = permit("attendance", "add"); // HRMS – Attendance (add): the biometric file
 
 // ---------- me ----------
-router.get("/me", async (req, res) => {
+const self = permit("myAttendance", "view"); // My Attendance: punch, own month, corrections
+router.get("/me", self, async (req, res) => {
   const month = isMonth(req.query.month) ? (req.query.month as string) : todayKey().slice(0, 7);
   const [data, mine] = await Promise.all([att.myMonth(req.user._id, month), requests.list(req.user, { view: "mine", month })]);
   res.json({ ...data, requests: mine, maxBackDays: requests.MAX_BACK_DAYS });
 });
 
-router.post("/punch", async (req, res) => {
+router.post("/punch", self, async (req, res) => {
   const r = await att.punch(req.user, req.body);
   audit(req, "attendance.punch", { entity: "Attendance", summary: `${req.user.name}: punch ${r.kind} ${r.day}${r.outside ? ` (outside, ${r.distance} m)` : ""}` });
   res.status(201).json(r);
@@ -42,7 +47,7 @@ router.post("/punch", async (req, res) => {
 
 // ---------- managers ----------
 router.get("/register", async (req, res) => {
-  if (!att.MANAGERS.includes(req.user.role)) throw fail("Only managers can see the register", 403);
+  if (!can(req.user, "attendance", "view")) throw fail("The Attendance Register needs HRMS – Attendance (view)", 403);
   const month = isMonth(req.query.month) ? (req.query.month as string) : todayKey().slice(0, 7);
   const from = `${month}-01`;
   const next = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 1));
@@ -87,6 +92,7 @@ router.get("/requests/count", async (req, res) => {
   res.json({ pending: await requests.pendingCount(req.user) });
 });
 router.post("/requests", async (req, res) => {
+  if (!can(req.user, "myAttendance", "view") && !(req.body?.user && String(req.body.user) !== String(req.user._id))) throw fail("You do not have My Attendance. Ask your admin.", 403);
   const r = await requests.create(req.user, req.body);
   const who = await User.findById(r.user).select("name").lean<any>();
   audit(req, "attendance.request", { entity: "AttendanceRequest", entityId: r._id, summary: `${who?.name}: ${r.day} ${r.kind === "missed" ? `missed punch ${[r.inTime && `in ${r.inTime}`, r.outTime && `out ${r.outTime}`].filter(Boolean).join(", ")}` : `on duty (${r.status})`} – ${r.reason}` });
@@ -102,11 +108,11 @@ for (const action of ["approve", "reject", "cancel"]) {
 }
 
 // ---------- biometric machine ----------
-router.post("/biometric/preview", config, async (req, res) => {
+router.post("/biometric/preview", biometric, async (req, res) => {
   const { ok, problems } = await att.previewBiometric(req.body?.rows);
   res.json({ count: ok.length, people: new Set<any>(ok.map((r) => r.user)).size, sample: ok.slice(0, 20), problems: problems.slice(0, 200), problemCount: problems.length });
 });
-router.post("/biometric/import", config, async (req, res) => {
+router.post("/biometric/import", biometric, async (req, res) => {
   const r = await att.importBiometric(req.user, req.body?.rows);
   audit(req, "attendance.biometric", { entity: "Attendance", summary: `${r.added} punch(es) added on ${r.days} day(s), ${r.skipped} already there, ${r.problems.length} line(s) not understood` });
   res.json({ ...r, problems: r.problems.slice(0, 200), problemCount: r.problems.length });
@@ -157,7 +163,7 @@ router.put("/shifts/:id", config, async (req, res) => {
   audit(req, "attendance.shift_update", { entity: "Shift", entityId: s._id, summary: `${s.name} ${s.start}–${s.end}` });
   res.json(s);
 });
-router.delete("/shifts/:id", config, async (req, res) => {
+router.delete("/shifts/:id", setupDelete, async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) throw fail("Invalid ID");
   const n = await User.countDocuments({ shift: req.params.id });
   if (n) throw fail(`${n} person(s) have this shift. Give them another one first.`);
@@ -204,7 +210,7 @@ router.put("/late-policies/:id", config, async (req, res) => {
   audit(req, "attendance.late_policy_update", { entity: "LatePolicy", entityId: p._id, summary: p.name });
   res.json(p);
 });
-router.delete("/late-policies/:id", config, async (req, res) => {
+router.delete("/late-policies/:id", setupDelete, async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) throw fail("Invalid ID");
   const n = await User.countDocuments({ latePolicy: req.params.id });
   if (n) throw fail(`${n} person(s) have this late policy. Give them another one first.`);
