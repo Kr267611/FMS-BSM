@@ -1,8 +1,8 @@
 // CSV helpers for the bulk upload pages
 // Small CSV parser: commas, quoted values, "" inside quotes, CRLF
-export function parseCsv(text) {
-  const rows = [];
-  let row = [];
+export function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
   let cell = "";
   let quoted = false;
   for (let i = 0; i < text.length; i++) {
@@ -25,17 +25,17 @@ export function parseCsv(text) {
   return rows.filter((r) => r.some((x) => x.trim()));
 }
 
-export function toObjects(rows) {
+export function toObjects(rows: string[][]): Record<string, string>[] {
   const [header, ...body] = rows;
   const keys = header.map((h) => h.trim().toLowerCase());
   return body.map((r) => Object.fromEntries(keys.map((k, i) => [k, (r[i] || "").trim()])));
 }
 
-export function download(name, text) {
+export function download(name: string, text: string): void {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob(["﻿" + text], { type: "text/csv" }));
   a.download = name;
   a.click();
 }
 
-export const csvCell = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+export const csvCell = (v: unknown): string => `"${String(v ?? "").replace(/"/g, '""')}"`;

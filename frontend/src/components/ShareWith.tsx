@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 
 // The service account email every FMS sheet is shared with (Viewer), with a copy button
-export default function ShareWith({ email: given }) {
+export default function ShareWith({ email: given }: { email?: string }) {
   const [email, setEmail] = useState(given || "");
   const [copied, setCopied] = useState(false);
   useEffect(() => {

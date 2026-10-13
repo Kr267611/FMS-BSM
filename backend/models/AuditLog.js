@@ -1,3 +1,4 @@
+// @ts-check
 const mongoose = require("mongoose");
 
 // Who changed what, and when. Written for every create / update / delete and sign-in event.

@@ -7,13 +7,13 @@ import { showDay, showDateTime } from "../api";
 function toLocalInput(iso) {
   if (!iso) return "";
   const d = new Date(iso);
-  if (isNaN(d)) return "";
+  if (isNaN(d.getTime())) return "";
   const pad = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 // One input for a field definition (entry form and step form)
-export default function FieldInput({ field, value, onChange, disabled }) {
+export default function FieldInput({ field, value, onChange, disabled }: { field: any; value: any; onChange: (v: any) => void; disabled?: boolean }) {
   const listId = useId();
   const req = field.required;
   switch (field.type) {
@@ -75,7 +75,7 @@ export default function FieldInput({ field, value, onChange, disabled }) {
 }
 
 // A stored value, formatted for reading
-export function FieldValue({ field, value, userName }) {
+export function FieldValue({ field, value, userName }: { field: any; value: any; userName?: (id: string) => string }) {
   if (value === undefined || value === null || value === "" || (Array.isArray(value) && !value.length)) return <span className="muted">—</span>;
   switch (field?.type) {
     case "date":

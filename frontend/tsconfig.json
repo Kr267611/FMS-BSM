@@ -1,0 +1,19 @@
+{
+  // TypeScript checks the code; Vite still builds it. JS and TS files live side by side
+  // while files move to .ts / .tsx one at a time.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "allowJs": true,
+    "checkJs": false,
+    "strict": false,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "types": ["vite/client"]
+  },
+  "include": ["src"]
+}

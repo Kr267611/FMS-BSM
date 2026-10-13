@@ -1,3 +1,4 @@
+// @ts-check
 const express = require("express");
 const SheetLink = require("../models/SheetLink");
 const Task = require("../models/Task");

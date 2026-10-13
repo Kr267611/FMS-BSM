@@ -9,7 +9,7 @@ export const QUICK_FIELDS = [
   ["Photo", { key: "", label: "Photo", type: "photo", options: [], required: false }],
 ];
 
-export function OptionsInput({ value, onChange, placeholder }) {
+export function OptionsInput({ value, onChange, placeholder }: { value: any; onChange: (v: any) => void; placeholder?: string }) {
   const [text, setText] = useState((value || []).join(", "));
   useEffect(() => setText((value || []).join(", ")), [value]);
   return (
@@ -23,7 +23,7 @@ export function OptionsInput({ value, onChange, placeholder }) {
 }
 
 // Entry fields (with auto-calculation) or the fields a doer fills in a step
-export default function FieldsEditor({ fields, onChange, types, allowFormula, quick }) {
+export default function FieldsEditor({ fields, onChange, types, allowFormula, quick }: { fields: any[]; onChange: (f: any[]) => void; types?: any; allowFormula?: boolean; quick?: any[] }) {
   const set = (i, patch) => onChange(fields.map((f, j) => (j === i ? { ...f, ...patch } : f)));
   const keyed = (f, i) => (f.key ? f : { ...f, key: uniqueKey(slug(f.label), fields.filter((_, j) => j !== i).map((x) => x.key)) });
   const move = (i, d) => {

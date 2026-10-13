@@ -1,3 +1,4 @@
+// @ts-check
 const express = require("express");
 const { Branch, Department } = require("../models/Org");
 const User = require("../models/User");

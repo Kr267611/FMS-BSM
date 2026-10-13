@@ -26,7 +26,14 @@ const labelOf = (u) => `${u.name}${u.department ? ` (${u.department})` : ""}`;
 const SEARCH_FROM = 200; // with more people than this, type to find them instead of scrolling a long list
 const SHOWN = 50;
 
-export default function DoerSelect({ value, onChange, placeholder = "Select doer", required }) {
+export interface DoerSelectProps {
+  value: string;
+  onChange: (id: string) => void;
+  placeholder?: string;
+  required?: boolean;
+}
+
+export default function DoerSelect({ value, onChange, placeholder = "Select doer", required }: DoerSelectProps) {
   const users = useUsers();
   if (users.length > SEARCH_FROM) return <PeopleSearch users={users} value={value} onChange={onChange} placeholder={placeholder} required={required} />;
   return (
@@ -42,7 +49,7 @@ export default function DoerSelect({ value, onChange, placeholder = "Select doer
 }
 
 // Type a name or department; the first matches show, Enter or a click picks one
-function PeopleSearch({ users, value, onChange, placeholder, required }) {
+function PeopleSearch({ users, value, onChange, placeholder, required }: DoerSelectProps & { users: any[] }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);

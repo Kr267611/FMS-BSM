@@ -1,3 +1,4 @@
+// @ts-check
 // MIDAP "Auditor Settings": per auditor, what share of the finished checklist / delegation / FMS tasks goes to
 // their Audit List, and how many days they have to audit it (Audit TAT). An auditor without settings audits
 // every task, as before. Which tasks are picked depends only on the task id, so it cannot be gamed by redoing one.

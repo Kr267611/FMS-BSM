@@ -93,7 +93,7 @@ export default function AuditList() {
   );
 }
 
-function Stars({ value, onChange }) {
+function Stars({ value, onChange }: { value: number; onChange?: (n: number) => void }) {
   return (
     <span className="stars" role="radiogroup" aria-label="Rating">
       {[1, 2, 3, 4, 5].map((n) => (

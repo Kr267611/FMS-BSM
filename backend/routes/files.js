@@ -1,3 +1,4 @@
+// @ts-check
 const express = require("express");
 const { auth } = require("../middleware/auth");
 const { rateLimit } = require("../services/session");

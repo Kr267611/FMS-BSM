@@ -23,7 +23,7 @@ const STATUS = {
 };
 
 const idOf = (v) => (v && typeof v === "object" ? v._id : v) || "";
-const blank = () => ({
+const blank = (): Record<string, any> => ({
   name: "",
   how: "",
   videoLink: "",
@@ -76,7 +76,7 @@ function toServer(c) {
 const longDay = (key) =>
   new Intl.DateTimeFormat("en-IN", { weekday: "short", day: "2-digit", month: "short", timeZone: "UTC" }).format(new Date(key + "T00:00:00Z"));
 
-export default function ChecklistForm({ id, groups, onClose, onSaved }) {
+export default function ChecklistForm({ id, groups, onClose, onSaved }: { id?: string | null; groups?: any[]; onClose: () => void; onSaved?: (c?: any) => void }) {
   const { user } = useAuth();
   const [c, setC] = useState(id ? null : blank());
   const [datesText, setDatesText] = useState("1");

@@ -1,3 +1,4 @@
+// @ts-check
 // Ready-made FMS definitions. build(dir) returns a draft for the builder, with doers matched to users by name.
 const repeatSpare = require("./repeatSpare");
 

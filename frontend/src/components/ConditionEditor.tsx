@@ -17,7 +17,7 @@ function sourceField(rule, fields, steps) {
   return fields.find((f) => f.key === rule.key);
 }
 
-function ValueInput({ rule, field, onChange }) {
+function ValueInput({ rule, field, onChange }: { rule: any; field?: any; onChange: (r: any) => void }) {
   if (NO_VALUE_OPS.includes(rule.op)) return <span className="cond-novalue" />;
   const list = rule.op === "in" || rule.op === "notIn";
   const options = field?.type === "yesno" ? ["Yes", "No"] : field?.type === "select" ? field.options || [] : null;
@@ -44,7 +44,7 @@ function ValueInput({ rule, field, onChange }) {
   );
 }
 
-function RuleRow({ rule, fields, steps, onChange, onRemove }) {
+function RuleRow({ rule, fields, steps, onChange, onRemove }: { rule: any; fields: any[]; steps?: any[]; onChange: (r: any) => void; onRemove: () => void }) {
   const field = sourceField(rule, fields, steps);
   const numeric = field?.type === "number" || field?.type === "date";
   const ops = OPS.filter(([op]) => numeric || !["<", "<=", ">", ">="].includes(op));
@@ -86,7 +86,7 @@ function RuleRow({ rule, fields, steps, onChange, onRemove }) {
 
 // Edits { all: [...] } / { any: [...] } with rules and one level of nested groups.
 // fields: entry fields; steps: the steps before this one ({ key, name, fields, index })
-export default function ConditionEditor({ value, onChange, fields, steps, depth = 0, label = "Run this step only if" }) {
+export default function ConditionEditor({ value, onChange, fields, steps, depth = 0, label = "Run this step only if" }: { value: any; onChange: (v: any) => void; fields: any[]; steps?: any[]; depth?: number; label?: string }) {
   const kind = value?.any ? "any" : "all";
   const items = value?.[kind] || [];
   const set = (next) => onChange(next.length ? { [kind]: next } : undefined);

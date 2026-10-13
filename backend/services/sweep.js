@@ -1,3 +1,4 @@
+// @ts-check
 // Time-driven work: FMS escalations that are due, checklist tasks for the coming days, auto-close.
 // Runs from the scheduler, from cron and before task lists / entries / MIS are shown,
 // so a server that was asleep (free hosting) catches up on the first request.

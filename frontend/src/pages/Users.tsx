@@ -34,7 +34,7 @@ const Icon = ({ d }) => (
 const EDIT = "M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z";
 const TRASH = "M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6";
 
-const COLUMNS = [
+const COLUMNS: [string, string, (u: any) => any][] = [
   ["name", "Name", (u) => u.name.toLowerCase()],
   ["username", "Username", (u) => u.username],
   ["email", "Email", (u) => u.email || "~"],
@@ -327,7 +327,7 @@ function UserForm({ initial, meta, org, me, onClose, onSaved, onOrgAdded }) {
   const isNew = !initial._id;
   const set = (patch) => setV({ ...v, ...patch });
   const oversees = v.role === "hod" || v.role === "pc";
-  const roles = Object.entries(meta.roles).filter(([k]) => k !== "admin" || me.role === "admin");
+  const roles = Object.entries(meta.roles as Record<string, string>).filter(([k]) => k !== "admin" || me.role === "admin");
 
   // Permissions: null = role defaults; otherwise explicit overrides per module
   const defaults = meta.roleDefaults[v.role] || {};
@@ -492,7 +492,7 @@ function UserForm({ initial, meta, org, me, onClose, onSaved, onOrgAdded }) {
               </tr>
             </thead>
             <tbody>
-              {Object.entries(meta.modules).map(([mod, label]) => (
+              {Object.entries(meta.modules as Record<string, string>).map(([mod, label]) => (
                 <tr key={mod}>
                   <td>{label}</td>
                   {meta.actions.map((a) => (
@@ -526,7 +526,7 @@ function UserForm({ initial, meta, org, me, onClose, onSaved, onOrgAdded }) {
 }
 
 // A department / branch dropdown that can create a new one on the spot
-function OrgSelect({ label, path, items, value, extra, canAdd, onChange, onAdded }) {
+function OrgSelect({ label, path, items, value, extra, canAdd, onChange, onAdded }: { label: string; path: string; items: any[]; value: string; extra?: any; canAdd: boolean; onChange: (id: string) => void; onAdded: (b: any) => void }) {
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [error, setError] = useState("");

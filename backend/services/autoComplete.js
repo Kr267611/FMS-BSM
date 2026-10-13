@@ -1,3 +1,4 @@
+// @ts-check
 // FMS Auto Complete: a finished step creates an entry in another FMS.
 // Runs after the step is saved; a failure (e.g. the target FMS is a draft) is recorded, never undoes the Done.
 // Chains stop after MAX_DEPTH entries, so two rules pointing at each other cannot loop for ever.

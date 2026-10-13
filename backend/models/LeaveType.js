@@ -1,3 +1,4 @@
+// @ts-check
 const mongoose = require("mongoose");
 
 // MIDAP "Leave Type Configure": Casual Leave, Sick Leave, Half-Day Leave…

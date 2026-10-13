@@ -1,3 +1,4 @@
+// @ts-check
 const mongoose = require("mongoose");
 
 // Groups to organise checklists and delegations (MIDAP "Checklist / Delegation Group")

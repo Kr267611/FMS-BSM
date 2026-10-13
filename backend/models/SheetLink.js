@@ -1,3 +1,4 @@
+// @ts-check
 const mongoose = require("mongoose");
 
 // One DataJobs row: which Google Sheet step feeds which doer's score.

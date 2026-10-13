@@ -5,7 +5,7 @@ import { api } from "../api";
 async function compress(file) {
   const url = URL.createObjectURL(file);
   try {
-    const img = await new Promise((resolve, reject) => {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
       const i = new Image();
       i.onload = () => resolve(i);
       i.onerror = () => reject(new Error("This file is not an image"));
@@ -22,7 +22,7 @@ async function compress(file) {
   }
 }
 
-export function PhotoThumbs({ ids = [], onRemove }) {
+export function PhotoThumbs({ ids = [], onRemove }: { ids?: string[]; onRemove?: (id: string) => void }) {
   if (!ids.length) return null;
   return (
     <div className="thumbs">
@@ -42,7 +42,7 @@ export function PhotoThumbs({ ids = [], onRemove }) {
   );
 }
 
-export default function PhotoInput({ value, onChange, max = 6, disabled }) {
+export default function PhotoInput({ value, onChange, max = 6, disabled }: { value: any; onChange: (v: any) => void; max?: number; disabled?: boolean }) {
   const ids = Array.isArray(value) ? value : value ? [value] : [];
   const input = useRef(null);
   const [busy, setBusy] = useState(false);

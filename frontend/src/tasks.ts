@@ -89,7 +89,7 @@ export function splitIst(iso) {
   const d = new Date(iso);
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })
     .formatToParts(d)
-    .reduce((o, p) => ((o[p.type] = p.value), o), {});
+    .reduce((o, p) => ((o[p.type] = p.value), o), {} as Record<string, string>);
   return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour === "24" ? "00" : parts.hour}:${parts.minute}` };
 }
 export const joinIst = (date, time) => (date ? new Date(`${date}T${time || "18:00"}:00+05:30`).toISOString() : "");

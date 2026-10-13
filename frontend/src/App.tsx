@@ -313,7 +313,7 @@ function Shell() {
   );
 }
 
-// Shown while the free server wakes up (see waitForServer in api.js)
+// Shown while the free server wakes up (see waitForServer in api.ts)
 function WakeBanner() {
   const [on, setOn] = useState(false);
   useEffect(() => {

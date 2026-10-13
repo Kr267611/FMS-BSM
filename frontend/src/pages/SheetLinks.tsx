@@ -163,7 +163,7 @@ function LinkForm({ initial, onClose, onSaved }) {
   const [looking, setLooking] = useState(false);
 
   // Paste the URL -> the software reads the sheet's tabs and finds the steps (Planned / Actual columns)
-  async function inspect(sheetUrl, tabName) {
+  async function inspect(sheetUrl: string, tabName?: string) {
     if (!/\/spreadsheets\/d\//.test(sheetUrl)) return setInfo(null);
     setLooking(true);
     try {

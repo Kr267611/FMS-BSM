@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RangeSelect } from "../components/ListFilters";
 import { useSearchParams } from "react-router-dom";
-import { api, can, istDay, showDateTime, showDay } from "../api";
+import { api, can, istDay, showDateTime, showDay, type ApiOptions } from "../api";
 import { useAuth } from "../App";
 import { useUsers } from "../components/DoerSelect";
 import FieldInput, { FieldValue } from "../components/FieldInput";
@@ -221,7 +221,7 @@ function Grid({ process, data, nameOf, onOpen }) {
           </thead>
           <tbody>
             {data.jobs.map((job) => {
-              const tasks = new Map(job.tasks.map((t) => [stepKeyOf(t), t]));
+              const tasks = new Map<string, any>(job.tasks.map((t) => [stepKeyOf(t), t]));
               return (
                 <tr key={job._id} className={"entry-row" + (job.status === "closed" ? " closed" : "")} onClick={() => onOpen(job._id)}>
                   <td className="sticky-col">
@@ -295,7 +295,7 @@ function StepCells({ step, task, today, nameOf }) {
 }
 
 // ---- new / edit entry ----
-function EntryForm({ process, initial, jobId, nameOf, onClose, onSaved }) {
+function EntryForm({ process, initial, jobId, nameOf, onClose, onSaved }: { process: any; initial?: any; jobId?: string; nameOf: (id: any) => any; onClose: () => void; onSaved: (j?: any) => void }) {
   const [values, setValues] = useState(initial?.data || {});
   const [startDate, setStartDate] = useState("");
   const [preview, setPreview] = useState(null);
@@ -430,7 +430,7 @@ function EntryPanel({ id, process, nameOf, onClose, onChanged }) {
     onChanged();
   };
 
-  async function act(path, body, method = "POST") {
+  async function act(path: string, body?: any, method: ApiOptions["method"] = "POST") {
     setBusy(true);
     setError("");
     try {
@@ -449,7 +449,7 @@ function EntryPanel({ id, process, nameOf, onClose, onChanged }) {
     onClose();
   }
 
-  const tasks = new Map((job?.tasks || []).map((t) => [stepKeyOf(t), t]));
+  const tasks = new Map<string, any>((job?.tasks || []).map((t) => [stepKeyOf(t), t]));
   const closure = process.closure || {};
   // A step can be reopened only while nothing that follows from it is complete
   const reopenable = (key) => ![...dependentsOf(process.steps, key)].some((k) => ["done", "na"].includes(tasks.get(k)?.status));

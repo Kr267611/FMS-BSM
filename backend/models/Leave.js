@@ -1,3 +1,4 @@
+// @ts-check
 const mongoose = require("mongoose");
 
 // MIDAP "Doer Holiday": days one person is away (leave, sick, training). Their checklist tasks on those days are

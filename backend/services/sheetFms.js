@@ -1,3 +1,4 @@
+// @ts-check
 // Google Sheet FMS -> FMS in the software: the entry columns become the entry form, every Planned / Actual block
 // becomes a step (with its Status / Remarks columns as the step's fields, TAT and doer read from the header block),
 // and the existing rows come in as entries with each step done / pending as in the sheet.

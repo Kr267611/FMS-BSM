@@ -1,3 +1,4 @@
+// @ts-check
 // When a checklist falls due. Pure: days are "YYYY-MM-DD" (IST) keys, cal = normalizeCalendar(...).
 //   daily                      every day
 //   weekly   { days }          on these weekdays (0 = Sunday)

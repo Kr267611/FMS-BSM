@@ -9,9 +9,9 @@ try {
 const AUTH_PAGES = ["/login", "/forgot-password", "/reset-password"];
 
 const DOWN = [502, 503, 504];
-let waking = null;
+let waking: Promise<boolean> | null = null;
 // Polls /api/health for up to ~90 s; tells the page (WakeBanner) while it waits
-function waitForServer() {
+function waitForServer(): Promise<boolean> {
   if (!waking) {
     window.dispatchEvent(new CustomEvent("fms:waking", { detail: true }));
     waking = (async () => {
@@ -26,13 +26,21 @@ function waitForServer() {
       window.dispatchEvent(new CustomEvent("fms:waking", { detail: false }));
     });
   }
-  return waking;
+  return waking!;
 }
 
-export async function api(path, { method = "GET", body, query } = {}) {
+type Query = Record<string, string | number | boolean | null | undefined>;
+export interface ApiOptions {
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  body?: unknown;
+  query?: Query;
+}
+
+// Every backend call. T is the shape of the answer; it is `any` until a page says more.
+export async function api<T = any>(path: string, { method = "GET", body, query }: ApiOptions = {}): Promise<T> {
   let url = "/api" + path;
   if (query) {
-    const qs = new URLSearchParams(Object.entries(query).filter(([, v]) => v !== undefined && v !== null && v !== ""));
+    const qs = new URLSearchParams(Object.entries(query).filter(([, v]) => v !== undefined && v !== null && v !== "").map(([k, v]) => [k, String(v)]));
     if ([...qs].length) url += "?" + qs;
   }
 
@@ -60,30 +68,42 @@ export async function api(path, { method = "GET", body, query } = {}) {
     window.location.href = "/login";
   }
   if (!res.ok) throw new Error(data.message || "Something went wrong. Please try again.");
-  return data;
+  return data as T;
 }
 
 // Permission check for showing menu items and buttons (the server enforces the same rules)
-export function can(user, module, action = "view") {
-  return Boolean(user?.permissions?.[module]?.includes(action));
+export type Role = "admin" | "hod" | "pc" | "tl" | "auditor" | "doer";
+export type Action = "view" | "add" | "edit" | "delete";
+export interface SessionUser {
+  _id: string;
+  name: string;
+  username?: string;
+  email?: string;
+  role: Role;
+  permissions?: Record<string, Action[] | string[]>;
+  [key: string]: any;
 }
 
-export const ROLE_LABELS = { admin: "Admin", hod: "HOD", pc: "PC", tl: "Team Leader", auditor: "Auditor", doer: "Doer" };
+export function can(user: SessionUser | null | undefined, module: string, action: Action = "view"): boolean {
+  return Boolean((user?.permissions?.[module] as string[] | undefined)?.includes(action));
+}
+
+export const ROLE_LABELS: Record<string, string> = { admin: "Admin", hod: "HOD", pc: "PC", tl: "Team Leader", auditor: "Auditor", doer: "Doer" };
 
 // ---- date helpers (IST) ----
 const dayFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" });
-export const todayKey = () => dayFmt.format(new Date());
+export const todayKey = (): string => dayFmt.format(new Date());
 // Date -> "YYYY-MM-DD" in IST
-export const istDay = (d) => (d ? dayFmt.format(new Date(d)) : "");
+export const istDay = (d?: string | number | Date | null): string => (d ? dayFmt.format(new Date(d)) : "");
 
-export function addDays(key, n) {
+export function addDays(key: string, n: number): string {
   const d = new Date(key + "T00:00:00Z");
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
 }
 
 // "2026-09-28" -> "28/09/2026"
-export function showDay(key) {
+export function showDay(key?: string | null): string {
   if (!key) return "";
   const [y, m, d] = key.split("-");
   return `${d}/${m}/${y}`;
@@ -98,7 +118,7 @@ const dtFmt = new Intl.DateTimeFormat("en-GB", {
   minute: "2-digit",
   hour12: true,
 });
-export function showDateTime(value) {
+export function showDateTime(value?: string | number | Date | null): string {
   if (!value) return "";
   return dtFmt.format(new Date(value));
 }

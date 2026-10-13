@@ -1,3 +1,4 @@
+// @ts-check
 const mongoose = require("mongoose");
 
 // One Job = one FMS sheet row (the entry data on the left side).

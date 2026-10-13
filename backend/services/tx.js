@@ -1,3 +1,4 @@
+// @ts-check
 const mongoose = require("mongoose");
 
 // Run fn(session) in a MongoDB transaction when the server supports it (Atlas = replica set).

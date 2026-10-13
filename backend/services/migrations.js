@@ -1,3 +1,4 @@
+// @ts-check
 const mongoose = require("mongoose");
 const User = require("../models/User");
 const { Department } = require("../models/Org");

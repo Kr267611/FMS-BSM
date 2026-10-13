@@ -1,3 +1,4 @@
+// @ts-check
 // Google Sheets formulas of an FMS -> the step rules of the software.
 //   =IF(OR(S8="Permenant Solved",P8=""),"",IF($A$1-P8>0,IF(Q8<>"",Q8+$V$5,P8+2),""))
 //   -> starts the day after Step 2's planned date (escalation), only if Step 2's Status is not "Permenant Solved",

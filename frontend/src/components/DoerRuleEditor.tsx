@@ -12,7 +12,7 @@ function parseRows(text) {
     .filter((cells) => cells.some(Boolean));
 }
 
-function PasteRows({ keys, fieldLabel, onAdd, onClose }) {
+function PasteRows({ keys, fieldLabel, onAdd, onClose }: { keys: string[]; fieldLabel: (k: string) => string; onAdd: (rows: any[], replace: boolean) => void; onClose: () => void }) {
   const [text, setText] = useState("");
   const rows = parseRows(text);
   const cols = Math.max(0, ...rows.map((r) => r.length));
@@ -66,7 +66,7 @@ function PasteRows({ keys, fieldLabel, onAdd, onClose }) {
 }
 
 // MIDAP "Doer condition": one person, the person chosen in the entry, or a lookup table with a fallback
-export default function DoerRuleEditor({ value, onChange, fields }) {
+export default function DoerRuleEditor({ value, onChange, fields }: { value: any; onChange: (v: any) => void; fields: any[] }) {
   const users = useUsers();
   const d = value || { mode: "fixed" };
   const set = (patch) => onChange({ ...d, ...patch });
@@ -79,7 +79,7 @@ export default function DoerRuleEditor({ value, onChange, fields }) {
   const keys = d.keys?.length ? d.keys : [];
   const fieldLabel = (k) => fields.find((f) => f.key === k)?.label || k;
   const map = d.map || [];
-  const resolved = (r) => (r.user && byId.get(String(r.user))) || byName.get(normName(r.name));
+  const resolved = (r): any => (r.user && byId.get(String(r.user))) || byName.get(normName(r.name));
   const unmatched = [...new Set(map.filter((r) => !resolved(r)).map((r) => r.name))];
 
   const shown = map

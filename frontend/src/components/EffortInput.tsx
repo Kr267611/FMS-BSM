@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 // "1:30" <-> 90 minutes. Also takes plain minutes ("45") or hours with a dot ("1.5").
 export const toHM = (min) => (min ? `${Math.floor(min / 60)}:${String(min % 60).padStart(2, "0")}` : "");
-export function parseHM(text) {
+export function parseHM(text: string) {
   const s = String(text || "").trim();
   if (!s) return 0;
   const m = s.match(/^(\d{1,2}):(\d{1,2})$/);
@@ -12,7 +12,7 @@ export function parseHM(text) {
 }
 
 // MIDAP "effort time": how long a task's work takes, typed as H:MM
-export default function EffortInput({ value, onChange }) {
+export default function EffortInput({ value, onChange }: { value: any; onChange: (v: any) => void }) {
   const [text, setText] = useState(toHM(value));
   const [bad, setBad] = useState(false);
   useEffect(() => setText(toHM(value)), [value]);

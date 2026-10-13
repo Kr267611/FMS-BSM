@@ -1,3 +1,4 @@
+// @ts-check
 const { syncAll } = require("./sheetSync");
 const { sendDailyReminders } = require("./reminders");
 const { sweepAll } = require("./sweep");

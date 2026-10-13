@@ -1,3 +1,4 @@
+// @ts-check
 // Who does a step (MIDAP's "Doer condition"):
 //   fixed – one person
 //   field – the person chosen in an entry field

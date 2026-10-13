@@ -10,7 +10,7 @@ const TABS = [
   ["pipeline", "Pipe Line Tasks"],
   ["ticket", "Help Ticket Tasks"],
 ];
-const lateBy = (planned) => Math.max(0, Math.floor((Date.now() - new Date(planned)) / 86400000));
+const lateBy = (planned) => Math.max(0, Math.floor((Date.now() - new Date(planned).getTime()) / 86400000));
 const short = (id) => String(id || "").slice(-5).toUpperCase();
 
 // A code people can say out loud in the meeting: F12-S3 = entry 12, step 3 of an FMS
@@ -37,7 +37,7 @@ function details(t, max = 4) {
 }
 const searchText = (t) => [t.label, t.stepName, ...Object.values(t.job?.data || {})].join(" ").toLowerCase();
 
-function SortHead({ id, label, sort, setSort }) {
+function SortHead({ id, label, sort, setSort }: { id: string; label: string; sort: any; setSort: (s: any) => void }) {
   const on = sort.key === id;
   return (
     <th className="sortable" onClick={() => setSort({ key: id, dir: on && sort.dir === 1 ? -1 : 1 })}>
@@ -46,7 +46,7 @@ function SortHead({ id, label, sort, setSort }) {
   );
 }
 
-export default function DashTaskTables({ onChange }) {
+export default function DashTaskTables({ onChange }: { onChange?: () => void }) {
   const [tab, setTab] = useState("checklist");
   const [todayOnly, setTodayOnly] = useState(false);
   const [data, setData] = useState(null);

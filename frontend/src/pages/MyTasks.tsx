@@ -20,7 +20,7 @@ const MAX_REVISIONS = 2;
 const PAGE = 20; // tasks shown per group before "Show more"
 const OLD_DAYS = 7; // overdue for longer than this goes into a folded group
 // How late a pending task is: [key, label, from days late, to days late]
-const AGES = [
+const AGES: [string, string, number?, number?][] = [
   ["", "Any date"],
   ["today", "Due today", 0, 0],
   ["week", "1–7 days late", 1, 7],
@@ -30,7 +30,7 @@ const AGES = [
 ];
 // Due day first, then critical / high before normal, then due time
 const byDue = (a, b) =>
-  (a.plannedDay || "").localeCompare(b.plannedDay || "") || (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9) || new Date(a.planned || 0) - new Date(b.planned || 0);
+  (a.plannedDay || "").localeCompare(b.plannedDay || "") || (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9) || new Date(a.planned || 0).getTime() - new Date(b.planned || 0).getTime();
 
 export default function MyTasks() {
   const { user } = useAuth();
@@ -72,8 +72,8 @@ export default function MyTasks() {
   const kindsHere = KINDS.filter(([k]) => !k || all.some((t) => t.kind === k));
   const words = q.trim().toLowerCase();
   // FMS names and their steps in this list, for the filters
-  const fmsList = [...new Map(all.filter((t) => t.process).map((t) => [String(t.process._id), t.process.name])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
-  const stepList = [...new Set(all.filter((t) => t.process && (!fms || String(t.process._id) === fms)).map((t) => titleOf(t)))].sort();
+  const fmsList = [...new Map<string, string>(all.filter((t) => t.process).map((t) => [String(t.process._id), t.process.name])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  const stepList = [...new Set<string>(all.filter((t) => t.process && (!fms || String(t.process._id) === fms)).map((t) => titleOf(t)))].sort();
   const ageRange = AGES.find(([k]) => k === age);
   const filtered = Boolean(words || fms || step || age);
   const tasks = (kind ? all.filter((t) => t.kind === kind) : all.slice()).filter((t) => {
@@ -297,7 +297,7 @@ function subtitle(task) {
 }
 
 function daysBetween(a, b) {
-  return Math.round((new Date(b + "T00:00:00Z") - new Date(a + "T00:00:00Z")) / 86400000);
+  return Math.round((Date.parse(b + "T00:00:00Z") - Date.parse(a + "T00:00:00Z")) / 86400000);
 }
 
 // The instructions and details, so the doer does not need the sheet or a phone call
@@ -362,7 +362,7 @@ function TaskCard({ task, today, me, canReopen, onChange }) {
 
   const late = task.status === "pending" ? daysBetween(task.plannedDay, today) : task.actualDay ? daysBetween(task.plannedDay, task.actualDay) : 0;
 
-  async function act(path, body = { remarks }) {
+  async function act(path: string, body: Record<string, any> = { remarks }) {
     setBusy(true);
     setError("");
     try {

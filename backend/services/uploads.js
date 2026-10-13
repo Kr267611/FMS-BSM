@@ -1,3 +1,4 @@
+// @ts-check
 // Photos for step fields (old part / new part…), stored in MongoDB GridFS – no extra storage service needed.
 // The browser shrinks a photo to about 200–400 KB before it is sent.
 const mongoose = require("mongoose");

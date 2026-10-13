@@ -1,3 +1,4 @@
+// @ts-check
 // Who does a step, as the sheet says it (MIDAP "Doer conditions"), read from the sheet:
 //   - a person column filled on each entry ("Maint. team Accountable Person": DHANRAJ, OP, SB PATIL…)
 //   - a lookup tab ("MACHINE WISE DOER": MACHINE -> DOER NAME), matched on an entry column (Installed Machine No)

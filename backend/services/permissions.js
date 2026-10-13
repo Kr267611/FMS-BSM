@@ -1,3 +1,4 @@
+// @ts-check
 // Page-level permissions, like MIDAP's add / list / edit / delete per module.
 // Each role has defaults; an admin can override them per user (User.permissions).
 

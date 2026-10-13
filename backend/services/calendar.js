@@ -1,3 +1,4 @@
+// @ts-check
 // Working calendar (IST): week-offs, company holidays and working hours.
 // A step's TAT runs in one of three modes:
 //   "working"       – working time: days keep the time of day on working days, hours count only working hours

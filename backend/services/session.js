@@ -1,3 +1,4 @@
+// @ts-check
 const jwt = require("jsonwebtoken");
 
 // Sessions live in an httpOnly cookie, so page scripts can never read the token.

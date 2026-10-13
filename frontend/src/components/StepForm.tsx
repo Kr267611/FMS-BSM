@@ -6,10 +6,10 @@ const filled = (v) => !(v === undefined || v === null || v === "" || (Array.isAr
 
 // What the doer fills when marking a step done: the step's fields (Status, Action Taken, photos…) and a remark
 // (fields: a checklist's form or a delegation's proof, instead of an FMS step's fields)
-export default function StepForm({ task, step, fields: given, onDone, onCancel }) {
+export default function StepForm({ task, step, fields: given, onDone, onCancel }: { task: any; step?: any; fields?: any[]; onDone: (r?: any) => void; onCancel: () => void }) {
   const fields = given || step?.fields || [];
   const hasRemarksField = fields.some((f) => f.key === "remarks");
-  const [values, setValues] = useState({});
+  const [values, setValues] = useState<Record<string, any>>({});
   const [remarks, setRemarks] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");

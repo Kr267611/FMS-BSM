@@ -15,7 +15,7 @@ export default function SheetFmsImport() {
   const [plan, setPlan] = useState(null);
   const [name, setName] = useState("");
   const [pc, setPc] = useState("");
-  const [steps, setSteps] = useState({});
+  const [steps, setSteps] = useState<Record<string, any>>({});
   const [people, setPeople] = useState({}); // a name in the sheet -> user id
   const [onlyUnmatched, setOnlyUnmatched] = useState(false);
   const [busy, setBusy] = useState("");

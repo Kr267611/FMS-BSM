@@ -1,3 +1,4 @@
+// @ts-check
 const express = require("express");
 const { auth, permit } = require("../middleware/auth");
 const { pendingByDoer, messageFor, sendEmailReminders } = require("../services/reminders");

@@ -174,15 +174,15 @@ export const stepKeyOf = (t) => t.stepKey || `s${(t.stepIndex ?? 0) + 1}`;
 
 // Steps that follow from `key` (start, planning base or condition), directly or through other steps –
 // the same rule the server uses before it lets a step be reopened
-export function dependentsOf(steps, key) {
-  const refs = (cond, out = new Set()) => {
+export function dependentsOf(steps: any[], key: string): Set<string> {
+  const refs = (cond: any, out = new Set<string>()): Set<string> => {
     if (!cond) return out;
     const items = cond.all || cond.any;
     if (items) items.forEach((c) => refs(c, out));
     else if (cond.src === "step" && cond.step) out.add(cond.step);
     return out;
   };
-  const deps = new Set();
+  const deps = new Set<string>();
   for (const s of steps) {
     if (s.key === key) continue;
     const r = [s.start?.step, s.plan?.step, ...refs(s.when), ...(s.tatOverrides || []).flatMap((o) => [...refs(o.when)])];
@@ -192,7 +192,7 @@ export function dependentsOf(steps, key) {
 }
 
 // Whole days between two "YYYY-MM-DD" keys
-export const daysBetween = (a, b) => Math.round((new Date(b + "T00:00:00Z") - new Date(a + "T00:00:00Z")) / 86400000);
+export const daysBetween = (a, b) => Math.round((Date.parse(b + "T00:00:00Z") - Date.parse(a + "T00:00:00Z")) / 86400000);
 
 // How a step looks in the grid
 export function taskState(task, today) {

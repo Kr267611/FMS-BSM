@@ -1,3 +1,4 @@
+// @ts-check
 const express = require("express");
 const Setting = require("../models/Setting");
 const { auth, permit } = require("../middleware/auth");

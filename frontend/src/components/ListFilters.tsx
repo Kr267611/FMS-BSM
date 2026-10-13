@@ -18,7 +18,7 @@ export const RANGES = [
   ["lastmonth", "Last month"],
   ["year", "This year"],
 ];
-export function rangeOf(key, today = todayKey()) {
+export function rangeOf(key: string, today: string = todayKey()): [string, string] | null {
   const dow = (new Date(today + "T00:00:00Z").getUTCDay() + 6) % 7;
   const monday = addDays(today, -dow);
   const first = today.slice(0, 8) + "01";
@@ -52,7 +52,7 @@ export function rangeOf(key, today = todayKey()) {
   }
 }
 
-export function RangeSelect({ value, onChange, label = "Mode" }) {
+export function RangeSelect({ value, onChange, label = "Mode" }: { value: string; onChange: (mode: string, range: [string, string] | null) => void; label?: string }) {
   return (
     <select value={value || ""} onChange={(e) => onChange(e.target.value, rangeOf(e.target.value))} aria-label={label} title={label}>
       {RANGES.map(([k, l]) => (
@@ -94,7 +94,7 @@ function useOrg() {
 }
 
 // The extra filters behind "More filters". show: which ones this list offers
-export function MoreFilters({ f, set, show = ["priority", "department", "branch", "group", "assignedBy", "pc", "auditor"] }) {
+export function MoreFilters({ f, set, show = ["priority", "department", "branch", "group", "assignedBy", "pc", "auditor"] }: { f: any; set: (p: any) => void; show?: string[] }) {
   const org = useOrg();
   const has = (k) => show.includes(k);
   const sel = (key, options, placeholder) => (
@@ -144,7 +144,7 @@ export function MoreFilters({ f, set, show = ["priority", "department", "branch"
 export const moreCount = (f, keys = ["priority", "department", "branch", "group", "assignedBy", "pc", "auditor"]) => keys.filter((k) => f[k]).length;
 
 // Department / Branch / Doer for the score reports (MIS Score, Weekly MIS, Meeting, Performance, Effort, Auditor Report)
-export function PeopleFilter({ f, set, doer = true }) {
+export function PeopleFilter({ f, set, doer = true }: { f: any; set: (p: any) => void; doer?: boolean }) {
   const org = useOrg();
   return (
     <div className="row wrap people-filter">

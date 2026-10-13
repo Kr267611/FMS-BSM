@@ -64,7 +64,7 @@ function ScoreTable({ title, rows, label }) {
   );
 }
 
-function People({ title, list, change, tone }) {
+function People({ title, list, change, tone }: { title: string; list: any[]; change?: boolean; tone: string }) {
   return (
     <div className={"card meeting-hl " + tone}>
       <div className="muted small">{title}</div>

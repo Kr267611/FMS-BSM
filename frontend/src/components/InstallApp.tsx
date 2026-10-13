@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 //   Android / desktop Chrome & Edge – the browser's own install prompt
 //   iPhone / iPad Safari – a short how-to (Share → Add to Home Screen); iOS has no install prompt
 // Hidden once the app runs installed (standalone).
-const standalone = () => window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone === true;
+const standalone = () => window.matchMedia?.("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
 const isIos = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
 export default function InstallApp() {

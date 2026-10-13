@@ -9,7 +9,7 @@ export default function PolicyAssignment() {
   const [policies, setPolicies] = useState([]);
   const [q, setQ] = useState("");
   const [only, setOnly] = useState(""); // "", "none", or a policy id
-  const [picked, setPicked] = useState(new Set());
+  const [picked, setPicked] = useState(new Set<string>());
   const [policy, setPolicy] = useState("");
   const [gender, setGender] = useState("keep");
   const [msg, setMsg] = useState(null);
@@ -49,7 +49,7 @@ export default function PolicyAssignment() {
   }
   async function apply() {
     setMsg(null);
-    const body = { users: [...picked] };
+    const body: { users: string[]; policy?: string | null; gender?: string } = { users: [...picked] };
     if (policy) body.policy = policy === "none" ? null : policy;
     if (gender !== "keep") body.gender = gender;
     try {

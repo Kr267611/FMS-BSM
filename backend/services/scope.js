@@ -1,3 +1,4 @@
+// @ts-check
 const User = require("../models/User");
 
 // Which doers' tasks and MIS a user may see.

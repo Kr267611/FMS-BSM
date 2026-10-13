@@ -11,7 +11,7 @@ const initials = (n = "") =>
     .slice(0, 2)
     .join("")
     .toUpperCase();
-const lateBy = (planned) => Math.max(0, Math.floor((Date.now() - new Date(planned)) / 86400000));
+const lateBy = (planned) => Math.max(0, Math.floor((Date.now() - new Date(planned).getTime()) / 86400000));
 function greeting() {
   const h = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", hour12: false }).format(new Date()));
   return h < 12 ? "Good Morning" : h < 17 ? "Good Afternoon" : "Good Evening";

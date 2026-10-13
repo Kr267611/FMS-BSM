@@ -1,3 +1,4 @@
+// @ts-check
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const { readToken, endSession } = require("../services/session");

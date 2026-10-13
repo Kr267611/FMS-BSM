@@ -1,3 +1,4 @@
+// @ts-check
 const express = require("express");
 const AuditLog = require("../models/AuditLog");
 const { auth, permit } = require("../middleware/auth");
