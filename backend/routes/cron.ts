@@ -21,7 +21,7 @@ router.use((req, res, next) => {
 
 router.get("/sync", async (req, res) => {
   const swept = await sweepAll();
-  res.json({ ...swept, sheets: await syncAll() });
+  res.json({ ...swept, sheets: await syncAll(), sheetSync: await require("../services/fmsSheetSync").pullAll() });
 });
 
 router.get("/reminders", async (req, res) => {

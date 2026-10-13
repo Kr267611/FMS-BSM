@@ -67,6 +67,8 @@ const taskSchema = new mongoose.Schema(
     // sheet tasks
     sheetLink: { type: mongoose.Schema.Types.ObjectId, ref: "SheetLink", index: true },
     sheetRow: Number,
+    // Sheet Sync of an imported FMS step: what was written to the sheet (or why not), or that it came from the sheet
+    sheetPush: { type: mongoose.Schema.Types.Mixed, default: undefined },
 
     // waiting: not started · pending: started, not done · done · na: Not Required (not scored)
     // skipped: its condition was false, or the entry was closed first (not scored)

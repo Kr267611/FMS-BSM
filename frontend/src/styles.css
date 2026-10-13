@@ -1227,3 +1227,15 @@ tr.clickable:hover td { background: var(--tint-primary); }
 .perm-grid .perm-table th:not(:first-child), .perm-grid .perm-table td:not(:first-child) { text-align: left; text-transform: none; }
 .perm-grid .link-btn + .link-btn { margin-left: 10px; }
 .perm-inherit .perm-cell input { opacity: 0.35; }
+
+/* Sheet Sync (imported FMS) */
+.sync-panel { padding: 16px; margin-top: 16px; display: grid; gap: 12px; }
+.sync-panel h3 { margin: 0 0 2px; }
+.sync-switches { display: grid; gap: 8px; border: 1px solid var(--stroke-22); border-radius: 12px; padding: 12px; }
+.sync-steps td { vertical-align: top; }
+.sync-cols { display: flex; flex-wrap: wrap; gap: 8px; }
+.sync-col { border: 1px solid var(--stroke-22); border-radius: 10px; padding: 6px 8px; display: grid; gap: 4px; min-width: 92px; }
+.sync-col.good { border-color: rgba(21, 128, 61, 0.45); }
+.sync-col.bad { border-color: var(--bad); background: var(--tint-bad); }
+.sync-col .row { gap: 6px; align-items: center; }
+.col-letter { width: 54px; text-transform: uppercase; font-family: Consolas, monospace; text-align: center; }

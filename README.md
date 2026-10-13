@@ -70,6 +70,14 @@ Example (Vendor Payment – Colour Chemical): tab `Colour Chemical`, first data 
 
 Links sync automatically every `SHEET_SYNC_MINUTES` minutes (default 30), or immediately with the **Sync** button.
 
+### Sheet Sync (an FMS imported from a sheet)
+
+An FMS made with **Import FMS from Sheet** keeps each step's columns and each entry's sheet row. Its **Sheet Sync** section (Master FMS → open the FMS, at the bottom) decides, per FMS, per step (FMS setting / App only / App + Sheet) and per column:
+
+- **App → Sheet:** a step marked Done / Not Required in the app fills that step's Actual, Status, Remarks… in that entry's row. Needs the sheet shared as **Editor** with the service account. Off by default.
+- **Sheet → App:** a step finished in the sheet (an Actual date, or "No Req") is finished in the app on the next sync, and the next step starts.
+- Always: never a Planned / Time Delay / formula cell, never a cell that already has something (the sheet wins), never a row that no longer matches its entry (rows inserted or deleted), read back after writing; every result is listed in the section, with **Try again**. **Check with the sheet** shows each column's header so a wrong letter is seen at once.
+
 ## Roles, departments and permissions
 
 - Roles: **Admin**, **HOD**, **PC** (process coordinator), **Team Leader** (sees and assigns work to the people who have them as team leader), **Auditor**, **Doer**. Each user belongs to a branch and department and can have a team leader.

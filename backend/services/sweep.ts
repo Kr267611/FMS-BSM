@@ -13,7 +13,9 @@ async function sweepAll(now = new Date()) {
   const { created, expired } = await sweepChecklists(now);
   const reminders = await sweepReminders(now).catch((err) => (console.error("FMS reminders:", err.message), 0));
   const ticketsClosed = await require("./tickets").autoClose(now).catch((err) => (console.error("Help tickets:", err.message), 0));
-  return { escalated, checklistTasks: created, autoClosed: expired, reminders, ticketsClosed };
+  // Sheet Sync: finished FMS steps not written to their sheet yet (server asleep, auto-complete, a failed try)
+  const sheetWrites = await require("./fmsSheetSync").catchUp(now).catch((err) => (console.error("Sheet Sync:", err.message), 0));
+  return { escalated, checklistTasks: created, autoClosed: expired, reminders, ticketsClosed, sheetWrites };
 }
 
 let last = 0;

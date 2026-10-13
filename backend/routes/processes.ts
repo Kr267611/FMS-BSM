@@ -19,6 +19,8 @@ const { normalizeProcess } = definitionLib;
 import doersLib = require("../services/fms/doers");
 const { directory } = doersLib;
 import templates = require("../templates");
+import sheetSync = require("../services/fmsSheetSync");
+import sheetSyncLib = require("../services/sheetSync");
 
 const router = express.Router();
 
@@ -101,6 +103,79 @@ router.put("/:id", auth, permit("fms", "edit"), async (req, res) => {
 // Delete an FMS from the software ("FMS Manager – Delete" permission, which an admin gives per user; body
 // confirm: "DELETE"): the FMS, its entries, their steps and its
 // Auto Complete / reminder rules. Only the software's own data – a Google Sheet it was imported from is never touched.
+// ---------- Sheet Sync (an FMS imported from a Google Sheet) ----------
+const STATES = ["written", "partial", "skipped", "failed", "row-mismatch", "no-row", "cleared", "nothing", "from-sheet"];
+router.get("/:id/sheet-sync", auth, permit("fms", "view"), async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: "Invalid ID" });
+  const p = await Process.findById(req.params.id).lean<any>();
+  if (!p) return res.status(404).json({ message: "FMS not found" });
+  const config = sheetSync.configOf(p);
+  if (!config) return res.json({ config: null });
+  const [recent, counts] = await Promise.all([
+    Task.find({ process: p._id, sheetPush: { $ne: null }, "sheetPush.state": { $ne: "from-sheet" } })
+      .sort({ "sheetPush.at": -1 })
+      .limit(60)
+      .select("stepKey stepName job sheetPush status")
+      .populate("job", "jobNo sheetRow")
+      .lean<any>(),
+    Task.aggregate([{ $match: { process: p._id, sheetPush: { $ne: null } } }, { $group: { _id: "$sheetPush.state", n: { $sum: 1 } } }]),
+  ]);
+  res.json({
+    config,
+    serviceAccount: sheetSyncLib.serviceAccountEmail(),
+    sheetUrl: `https://docs.google.com/spreadsheets/d/${config.spreadsheetId}`,
+    counts: Object.fromEntries(STATES.map((s) => [s, counts.find((c) => c._id === s)?.n || 0])),
+    recent: recent.map((t) => ({ _id: t._id, step: t.stepName, jobNo: t.job?.jobNo, row: t.job?.sheetRow, status: t.status, ...t.sheetPush })),
+  });
+});
+router.put("/:id/sheet-sync", auth, permit("fms", "edit"), async (req, res) => {
+  const p = await Process.findById(req.params.id);
+  if (!p) return res.status(404).json({ message: "FMS not found" });
+  try {
+    p.sheetSync = sheetSync.cleanConfig(p.toObject(), req.body);
+  } catch (err) {
+    return res.status(err.status || 400).json({ message: err.message });
+  }
+  p.markModified("sheetSync");
+  await p.save();
+  const s = p.sheetSync;
+  const steps = Object.entries<any>(s.steps).filter(([, v]) => v.mode !== "inherit").map(([k, v]) => `${k} ${v.mode === "app" ? "app only" : "app + sheet"}`);
+  audit(req, "fms.sheet_sync", { entity: "Process", entityId: p._id, summary: `${p.name}: App → Sheet ${s.push ? "on" : "off"}, Sheet → App ${s.pull ? "on" : "off"}${steps.length ? "; " + steps.join(", ") : ""}` });
+  res.json({ config: sheetSync.configOf(p.toObject()) });
+});
+router.post("/:id/sheet-sync/check", auth, permit("fms", "edit"), async (req, res) => {
+  const p = await Process.findById(req.params.id).lean<any>();
+  if (!p) return res.status(404).json({ message: "FMS not found" });
+  res.json(await sheetSync.checkSheet(p));
+});
+// write again: the given steps, or every failed / not-written one of the last 7 days
+router.post("/:id/sheet-sync/retry", auth, permit("fms", "edit"), async (req, res) => {
+  const p = await Process.findById(req.params.id).select("_id").lean<any>();
+  if (!p) return res.status(404).json({ message: "FMS not found" });
+  const ids = (Array.isArray(req.body?.taskIds) ? req.body.taskIds : []).filter((x) => mongoose.isValidObjectId(x)).slice(0, 200);
+  const tasks = ids.length
+    ? await Task.find({ _id: { $in: ids }, process: p._id }).select("_id").lean<any>()
+    : await Task.find({ process: p._id, "sheetPush.state": { $in: ["failed", "row-mismatch", "skipped", "partial"] }, status: { $in: ["done", "na"] } }).select("_id").limit(200).lean<any>();
+  const out = [];
+  for (const t of tasks) {
+    await Task.updateOne({ _id: t._id }, { $set: { "sheetPush.tries": 0 } });
+    out.push(await sheetSync.pushTask(t._id));
+  }
+  res.json({ tried: out.length, written: out.filter((r) => r?.state === "written").length });
+});
+router.post("/:id/sheet-sync/pull", auth, permit("fms", "edit"), async (req, res) => {
+  const p = await Process.findById(req.params.id).lean<any>();
+  if (!p) return res.status(404).json({ message: "FMS not found" });
+  if (!sheetSync.configOf(p)?.pull) return res.status(400).json({ message: "Switch on Sheet → App first" });
+  try {
+    const r = await sheetSync.pullProcess(p);
+    audit(req, "fms.sheet_pull", { entity: "Process", entityId: p._id, summary: `${p.name}: ${r.finished} step(s) finished from the sheet, ${r.skipped} row(s) skipped` });
+    res.json(r);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
 router.delete("/:id", auth, async (req, res) => {
   if (!can(req.user, "fms", "delete")) return res.status(403).json({ message: "You do not have the permission to delete an FMS. An admin can give it in Users." });
   if (req.body?.confirm !== "DELETE") return res.status(400).json({ message: "Type DELETE to confirm" });

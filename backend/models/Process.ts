@@ -68,6 +68,8 @@ const processSchema = new Schema(
     },
     // imported from a Google Sheet tab: where it came from and which column fed which field / step
     source: { type: Schema.Types.Mixed, default: undefined },
+    // Sheet Sync (imported FMS): what the app writes back to the sheet and / or reads from it, per FMS, step and column
+    sheetSync: { type: Schema.Types.Mixed, default: undefined },
     active: { type: Boolean, default: true },
     jobCounter: { type: Number, default: 0 },
     version: { type: Number, default: 2 },

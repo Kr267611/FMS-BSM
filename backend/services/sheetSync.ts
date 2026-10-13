@@ -55,6 +55,19 @@ function getSheets() {
   return sheetsClient;
 }
 
+// Writing client – used only by Sheet Sync of an imported FMS, for the steps and columns an admin switched on,
+// and only works on a sheet shared with the service account as Editor. Sheet Links never use it.
+let writerClient = null;
+function getSheetsWriter() {
+  if (writerClient) return writerClient;
+  const credentials = serviceAccountCredentials();
+  if (!credentials) throw new Error("Google service account is not configured. Set GOOGLE_SERVICE_ACCOUNT_FILE in backend/.env (see README).");
+  const { google } = require("googleapis");
+  const auth = new google.auth.GoogleAuth({ credentials, scopes: ["https://www.googleapis.com/auth/spreadsheets"] });
+  writerClient = google.sheets({ version: "v4", auth });
+  return writerClient;
+}
+
 function quoteTab(tab) {
   return `'${String(tab).replace(/'/g, "''")}'`;
 }
@@ -154,4 +167,4 @@ async function syncAll() {
   return results;
 }
 
-export = { syncLink, syncAll, buildRows, extractSpreadsheetId, isColumn, serviceAccountEmail, getSheets, friendlyError };
+export = { syncLink, syncAll, buildRows, extractSpreadsheetId, isColumn, serviceAccountEmail, getSheets, getSheetsWriter, friendlyError };

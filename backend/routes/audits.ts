@@ -110,6 +110,7 @@ router.post("/:id", async (req, res) => {
     // an FMS step goes back through the FMS engine, so the steps after it are worked out again
     try {
       await wf.reopenForAudit(t._id, { now });
+      require("../services/fmsSheetSync").afterChange(t._id);
     } catch (err) {
       throw fail(`Not OK cannot send this step back: ${err.message}`);
     }

@@ -17,6 +17,9 @@ async function runSync() {
   syncing = true;
   try {
     const results = await syncAll();
+    // Sheet Sync (Sheet → App) of imported FMS, on the same schedule as the Sheet Links
+    const pulled = await require("./fmsSheetSync").pullAll().catch((err) => (console.error("Sheet Sync pull:", err.message), []));
+    if (pulled.length) console.log("Sheet Sync pull:", JSON.stringify(pulled));
     const failed = results.filter((r) => !r.ok);
     if (results.length) console.log(`Sheet sync: ${results.length - failed.length} ok, ${failed.length} error`);
   } catch (err) {

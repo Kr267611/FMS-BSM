@@ -1,4 +1,5 @@
 import express = require("express");
+import sheetSync = require("../services/fmsSheetSync");
 import mongoose = require("mongoose");
 import Task = require("../models/Task");
 import authLib = require("../middleware/auth");
@@ -144,6 +145,7 @@ router.post("/:id/done", auth, async (req, res) => {
   // FMS Auto Complete: entries in other FMS that this step starts
   const auto = kind === "app" ? await autoComplete.runFor(task, req.user) : [];
   for (const a of auto) audit(req, a.ok ? "job.auto_complete" : "job.auto_complete_failed", { entity: "Job", entityId: a.jobId, summary: a.ok ? `${a.rule}: ${a.process} #${a.jobNo}` : `${a.rule}: ${a.error}` });
+  if (kind === "app") sheetSync.afterChange(task._id); // Sheet Sync: write it to the sheet when switched on (in the background)
   res.json({ ...(task.toObject ? task.toObject() : task), autoComplete: auto });
 });
 
@@ -152,6 +154,7 @@ router.post("/:id/not-required", auth, async (req, res) => {
   const remarks = req.body?.remarks || "";
   const task = kind === "app" ? await wf.markNotRequired(req.params.id, req.user, remarks) : await other.markNotRequired(req.params.id, req.user, remarks);
   audit(req, "task.not_required", { entity: "Task", entityId: task._id, summary: `${task.label}: ${task.remarks}` });
+  if (kind === "app") sheetSync.afterChange(task._id);
   res.json(task);
 });
 
@@ -159,6 +162,7 @@ router.post("/:id/reopen", auth, async (req, res) => {
   const kind = await kindOf(req.params.id);
   const task = kind === "app" ? await wf.reopen(req.params.id, req.user) : await other.reopen(req.params.id, req.user, { remarks: req.body?.remarks });
   audit(req, "task.reopen", { entity: "Task", entityId: task._id, summary: task.label });
+  if (kind === "app") sheetSync.afterChange(task._id);
   res.json(task);
 });
 

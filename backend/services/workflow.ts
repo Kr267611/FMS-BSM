@@ -237,6 +237,44 @@ async function markNotRequired(taskId, user, remarks = "", { now }: any = {}) {
   );
 }
 
+// Sheet Sync (Sheet → App): steps finished in the sheet are finished here too, in order, so a step that the
+// first one starts can be finished in the same pass. updates: { stepKey: { status: "done" | "na", actual, remarks, values } }.
+// Only pending steps change (the app wins over the sheet once a step is finished here). Returns how many changed.
+async function applyFromSheet(jobId, updates, { now = new Date() }: any = {}) {
+  let changed = 0;
+  const left = { ...updates };
+  for (let round = 0; round < 50 && Object.keys(left).length; round++) {
+    const n = await withJob(
+      jobId,
+      async ({ tasks, touched }: any) => {
+        let k = 0;
+        for (const [key, u] of Object.entries<any>(left)) {
+          const t = tasks[key];
+          if (!t || t.status !== "pending") continue;
+          const at = u.status === "done" && u.actual ? new Date(u.actual) : now;
+          Object.assign(t, {
+            status: u.status,
+            ...(u.status === "done" ? { actual: at, actualDay: dayKey(at) } : {}),
+            resolvedAt: at,
+            remarks: String(u.remarks || "").slice(0, 1000),
+            values: u.values && Object.keys(u.values).length ? u.values : undefined,
+            sheetPush: { state: "from-sheet", at: now },
+          });
+          t.markModified("values");
+          touched.add(key);
+          delete left[key];
+          k++;
+        }
+        return k;
+      },
+      { now }
+    );
+    if (!n) break; // the rest are not started yet (or already finished in the app)
+    changed += n;
+  }
+  return changed;
+}
+
 // Reopen a finished step. Steps that followed from it are worked out again,
 // so this is refused once one of them has been completed.
 async function reopen(taskId, user) {
@@ -389,6 +427,7 @@ export = {
   createJob,
   markDone,
   markNotRequired,
+  applyFromSheet,
   reopen,
   reopenForAudit,
   closeJob,

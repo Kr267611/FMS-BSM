@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import SheetSyncPanel from "../components/SheetSyncPanel";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api, can } from "../api";
 import { useAuth } from "../App";
@@ -315,6 +316,7 @@ export default function FmsBuilder() {
   }
 
   return (
+    <>
     <form onSubmit={save} className="builder">
       <div className="page-head">
         <div>
@@ -464,6 +466,8 @@ export default function FmsBuilder() {
       </div>
       {!isNew && can(user, "fms", "delete") && <DeleteFms id={id} name={p.name} onDeleted={() => navigate("/processes")} />}
     </form>
+    {!isNew && p.source?.spreadsheetId && <SheetSyncPanel processId={id} canEdit={can(user, "fms", "edit")} />}
+    </>
   );
 }
 
