@@ -2,8 +2,9 @@
 
 A Flow Management System with MIS scoring for Bhaskar Silk Mills. It replaces the Google Sheets chain of FMS → DataJobs → Feeder → Performance-daily → Task Count with a single web application.
 
-- **Backend:** Node.js, Express 5, MongoDB (Mongoose) — `backend/`
-- **Frontend:** React, Vite, glass UI — `frontend/`
+- **Backend:** TypeScript on Node.js, Express 5, MongoDB (Mongoose) — `backend/` (compiled to `backend/dist/` by `npm run build`; `npm install` builds it too)
+- **Frontend:** TypeScript + React, Vite, glass UI — `frontend/`
+- **Type check:** `npm --prefix backend run typecheck` and `npm --prefix frontend run typecheck` (both must show no errors)
 - **Design:** Figma file "FMS BSM – Glass UI" (tokens and components)
 - **Decisions:** [docs/adr](docs/adr) (ADR-001: architecture and database, ADR-002: MIDAP-aligned modules and FMS engine v2)
 - **FMS analyses:** [docs/fms](docs/fms) (Repeat Spare Part sheet: logic, formula bugs, doer table)
@@ -36,7 +37,8 @@ cd backend
 npm install
 cp .env.example .env   # then set JWT_SECRET and ADMIN_PASSWORD
 npm run seed:demo      # optional: demo doers, Vendor Payment + Repeat Spare Part FMS, checklists and delegations, 30 days of history
-npm start              # http://localhost:5050
+npm run dev            # compiles the TypeScript, then http://localhost:5050 (npm start runs the last build)
+npm test               # compiles, then runs the tests
 ```
 
 ```bash
@@ -106,8 +108,8 @@ The React app runs on Vercel and the Express API runs on Render. `vercel.json` f
 
 1. **MongoDB Atlas:** create a free cluster, a database user and a network access rule for `0.0.0.0/0`, then copy the connection string.
 2. **Render → New → Web Service** (Singapore region; ours is `https://fms-bsm.onrender.com`), repo `Kr267611/FMS-BSM`, branch `main`:
-   - Build command: `cd backend && npm install`
-   - Start command: `node backend/server.js`
+   - Build command: `cd backend && npm install` (this also compiles the TypeScript to `backend/dist/`)
+   - Start command: `node backend/server.js` (a small launcher that runs `dist/server.js`)
    - Environment: `MONGO_URI`, `JWT_SECRET`, `ADMIN_PASSWORD`, `CRON_SECRET`, and optionally `GOOGLE_SERVICE_ACCOUNT_JSON` (the key file JSON on one line) and the SMTP values.
    - If Render assigns a different URL, update it in `vercel.json`.
 3. **Vercel → Add New → Project**, import the repo and keep the **Services** preset (frontend = Vite). Add `CRON_SECRET` with the same value as on Render.

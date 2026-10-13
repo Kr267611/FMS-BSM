@@ -10,7 +10,9 @@ declare global {
 
 declare module "express-serve-static-core" {
   interface Request {
-    // the signed-in user, set by middleware/auth.js (a lean User with its permissions)
+    // the signed-in user, set by middleware/auth.ts (a lean User with its permissions)
     user?: any;
+    // the decoded session token (middleware/auth.ts)
+    session?: any;
   }
 }

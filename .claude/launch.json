@@ -7,7 +7,8 @@
       "runtimeArgs": [
         "--prefix",
         "backend",
-        "start"
+        "run",
+        "dev"
       ],
       "port": 5050
     },

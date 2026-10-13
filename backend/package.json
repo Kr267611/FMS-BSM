@@ -5,13 +5,21 @@
   "main": "server.js",
   "type": "commonjs",
   "scripts": {
+    "build": "tsc -p .",
+    "postinstall": "tsc -p . || echo TypeScript reported problems - see above",
     "start": "node server.js",
-    "dev": "nodemon server.js",
-    "seed:demo": "node scripts/seedDemo.js",
-    "test": "node --test \"test/**/*.test.js\"",
-    "typecheck": "tsc -p ."
+    "dev": "tsc -p . && node --watch server.js",
+    "seed:demo": "tsc -p . && node dist/scripts/seedDemo.js",
+    "test": "tsc -p . && node --test \"dist/test/**/*.test.js\"",
+    "typecheck": "tsc -p . --noEmit"
   },
   "dependencies": {
+    "@types/compression": "^1.8.1",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^26.6.5",
+    "@types/nodemailer": "^8.0.2",
     "bcryptjs": "^3.0.3",
     "compression": "^1.8.1",
     "cors": "^2.8.6",
@@ -20,18 +28,12 @@
     "googleapis": "^182.0.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.10.2",
-    "nodemailer": "^10.0.11"
+    "nodemailer": "^10.0.11",
+    "typescript": "^7.0.2"
   },
   "devDependencies": {
-    "@types/compression": "^1.8.1",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^26.6.5",
-    "@types/nodemailer": "^8.0.2",
     "mongodb-memory-server-core": "^11.3.0",
-    "nodemon": "^3.1.14",
-    "typescript": "^7.0.2"
+    "nodemon": "^3.1.14"
   },
   "engines": {
     "node": ">=20"

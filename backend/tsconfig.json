@@ -1,18 +1,18 @@
 {
-  // TypeScript checks the backend's JavaScript (types come from JSDoc and the libraries).
-  // Node runs the same files as before, so nothing changes on Render.
+  // The backend is TypeScript compiled to CommonJS JavaScript in dist/ (npm run build).
+  // `import x = require()` and `export =` keep exactly the same module shape as the old JavaScript.
   "compilerOptions": {
     "target": "ES2023",
     "lib": ["ES2023"],
     "module": "nodenext",
     "moduleResolution": "nodenext",
-    "allowJs": true,
-    "checkJs": false, // files opt in with // @ts-check at the top
+    "rootDir": ".",
+    "outDir": "dist",
     "strict": false,
-    "noEmit": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
+    "sourceMap": true,
     "types": ["node"]
   },
-  "include": ["types", "server.js", "config", "middleware", "models", "routes", "services", "templates", "scripts"]
+  "include": ["types", "server.ts", "config", "middleware", "models", "routes", "services", "templates", "scripts", "test"]
 }
