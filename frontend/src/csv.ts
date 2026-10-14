@@ -1,6 +1,21 @@
 // CSV helpers for the bulk upload pages
-// Small CSV parser: commas, quoted values, "" inside quotes, CRLF
+// Which character splits the columns: comma, Tab (Excel "Text (Tab delimited)", copy from a sheet) or semicolon
+// (Excel's CSV in some regions) – the one found most often in the header line, outside quotes
+export function detectDelimiter(text: string): string {
+  const counts = { ",": 0, "\t": 0, ";": 0 };
+  let quoted = false;
+  for (const c of text) {
+    if (c === '"') quoted = !quoted;
+    else if (!quoted && (c === "\n" || c === "\r")) break;
+    else if (!quoted && c in counts) counts[c]++;
+  }
+  return counts["\t"] > counts[","] && counts["\t"] >= counts[";"] ? "\t" : counts[";"] > counts[","] ? ";" : ",";
+}
+
+// Small CSV parser: quoted values, "" inside quotes, CRLF; columns split by commas, Tabs or semicolons (detected)
 export function parseCsv(text: string): string[][] {
+  text = text.replace(/^﻿/, "");
+  const sep = detectDelimiter(text);
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = "";
@@ -12,7 +27,7 @@ export function parseCsv(text: string): string[][] {
       else if (c === '"') quoted = false;
       else cell += c;
     } else if (c === '"') quoted = true;
-    else if (c === ",") row.push(cell), (cell = "");
+    else if (c === sep) row.push(cell), (cell = "");
     else if (c === "\n" || c === "\r") {
       if (c === "\r" && text[i + 1] === "\n") i++;
       row.push(cell);

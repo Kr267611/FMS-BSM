@@ -74,6 +74,7 @@ export default function BulkUsers() {
     const parsed = parseCsv(await f.text());
     if (parsed.length < 2) return setError("The file needs a header row and at least one person");
     const [header, ...body] = parsed;
+    if (header.length < 2) return setError("Only one column was found: each row is one long text. Save the sheet as CSV (Google Sheet: File → Download → Comma-separated values; Excel: Save as → CSV UTF-8) and choose it again.");
     setFile({ name: f.name, header: header.map((h) => h.trim()), body });
     setCols(guessColumns(header, body));
   }
@@ -135,7 +136,7 @@ export default function BulkUsers() {
         <div className="row wrap">
           <label className="file-pick">
             <span className="btn primary">1. Choose the CSV file</span>
-            <input type="file" accept=".csv,text/csv" onChange={pick} hidden />
+            <input type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain" onChange={pick} hidden />
           </label>
           {file && <span className="muted">{file.name} · {file.body.length} row(s)</span>}
           <button className="btn ghost small" onClick={() => download("fms-bsm-users-template.csv", SAMPLE)}>
