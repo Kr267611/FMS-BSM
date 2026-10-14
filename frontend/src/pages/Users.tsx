@@ -345,6 +345,7 @@ function UserForm({ initial, meta, org, me, people, onClose, onSaved, onOrgAdded
   const [v, setV] = useState(initial);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showPw, setShowPw] = useState(false);
   const isNew = !initial._id;
   const set = (patch) => setV({ ...v, ...patch });
   const oversees = v.role === "hod" || v.role === "pc";
@@ -432,7 +433,16 @@ function UserForm({ initial, meta, org, me, people, onClose, onSaved, onOrgAdded
         <span>
           {isNew ? "Password" : "New password"} {isNew ? <b className="req">*</b> : <small className="muted">(blank = keep)</small>} <Help text="At least 4 characters. The person can change it from My account" />
         </span>
-        <input type="password" value={v.password} onChange={(e) => set({ password: e.target.value })} required={isNew} minLength={4} autoComplete="new-password" />
+        <span className="pw-field">
+          <input type={showPw ? "text" : "password"} value={v.password} onChange={(e) => set({ password: e.target.value })} required={isNew} minLength={4} autoComplete="new-password" />
+          <button type="button" className="pw-toggle pw-eye" onClick={() => setShowPw(!showPw)} aria-label={showPw ? "Hide password" : "Show password"} title={showPw ? "Hide password" : "Show password"}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+              <circle cx="12" cy="12" r="3" />
+              {showPw && <path d="M3 3l18 18" />}
+            </svg>
+          </button>
+        </span>
       </label>
       <label>
         <span>

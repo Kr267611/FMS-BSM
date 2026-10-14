@@ -1286,3 +1286,7 @@ tr.clickable:hover td { background: var(--tint-primary); }
 .side-link.active { box-shadow: inset 3px 0 0 var(--gold); }
 @keyframes active-in { from { box-shadow: inset 0 0 0 var(--gold); } }
 .avatar { background: var(--gold-tint); color: var(--gold-deep); border-color: var(--gold-line); }
+/* eye button on the password box (Users form) */
+.pw-field input:has(+ .pw-eye) { padding-right: 40px; }
+.pw-eye { display: grid; place-items: center; padding: 5px 7px; background: none; }
+.pw-eye:hover { color: var(--navy); background: var(--gold-tint); }
