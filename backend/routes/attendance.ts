@@ -6,7 +6,7 @@ import User = require("../models/User");
 import orgLib = require("../models/Org");
 const { Branch } = orgLib;
 import authLib = require("../middleware/auth");
-const { auth, permit } = authLib;
+const { auth, permit, permitAny } = authLib;
 import scopeLib = require("../services/scope");
 const { visibleUserIds } = scopeLib;
 import auditLib = require("../services/audit");
@@ -27,9 +27,9 @@ const isTime = (s) => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(s || ""));
 const isMonth = (s) => /^\d{4}-(0[1-9]|1[0-2])$/.test(String(s || ""));
 const num = (v, min, max) => Math.min(max, Math.max(min, Math.round(Number(v) || 0)));
 const text = (v, n = 80) => String(v ?? "").trim().slice(0, n);
-const config = permit("hrSetup", "edit"); // shifts, late policies, geo-fence, punch settings, employee codes (HRMS – Setup)
-const setupDelete = permit("hrSetup", "delete");
-const biometric = permit("attendance", "add"); // HRMS – Attendance (add): the biometric file
+const config = permit("attendanceSetup", "edit"); // shifts, late policies, geo-fence, punch settings, employee codes (Shifts & Late Policy)
+const setupDelete = permit("attendanceSetup", "delete");
+const biometric = permit("biometric", "add"); // Biometric Upload
 
 // ---------- me ----------
 const self = permit("myAttendance", "view"); // My Attendance: punch, own month, corrections
@@ -47,7 +47,7 @@ router.post("/punch", self, async (req, res) => {
 
 // ---------- managers ----------
 router.get("/register", async (req, res) => {
-  if (!can(req.user, "attendance", "view")) throw fail("The Attendance Register needs HRMS – Attendance (view)", 403);
+  if (!can(req.user, "attendance", "view")) throw fail("The Attendance Register needs its tick in Users. Ask your admin.", 403);
   const month = isMonth(req.query.month) ? (req.query.month as string) : todayKey().slice(0, 7);
   const from = `${month}-01`;
   const next = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 1));
@@ -249,7 +249,8 @@ router.put("/branches/:id/fence", config, async (req, res) => {
 });
 
 // employee code (biometric machine id) of one person
-router.put("/code/:userId", config, async (req, res) => {
+// employee codes are set on Shifts & Late Policy and on Policy Assignment
+router.put("/code/:userId", permitAny(["attendanceSetup", "edit"], ["policyAssignment", "edit"]), async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.userId)) throw fail("Invalid ID");
   const code = text(req.body?.code, 30);
   if (code) {

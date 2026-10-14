@@ -26,9 +26,10 @@ const fail = (message, status = 400) => Object.assign(new Error(message), { stat
 const isDay = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ""));
 const num = (v, min = 0, max = 366) => Math.min(max, Math.max(min, Number(v) || 0));
 const text = (v, n = 200) => String(v ?? "").trim().slice(0, n);
-const config = permit("hrSetup", "edit"); // leave types, policies, who gets which policy (HRMS – Setup)
-const setupView = permit("hrSetup", "view");
-const setupDelete = permit("hrSetup", "delete");
+// Leave Types, Leave Policies and Policy Assignment: each its own tick
+const types = { edit: permit("leaveTypes", "edit"), delete: permit("leaveTypes", "delete") };
+const policies = { edit: permit("leavePolicies", "edit"), delete: permit("leavePolicies", "delete") };
+const assignment = { view: permit("policyAssignment", "view"), edit: permit("policyAssignment", "edit") };
 
 // ---------- leave types ----------
 function cleanType(b: any = {}) {
@@ -52,14 +53,14 @@ function cleanType(b: any = {}) {
 router.get("/types", async (req, res) => {
   res.json(await LeaveType.find(req.query.all ? {} : { active: true }).sort({ name: 1 }).lean<any>());
 });
-router.post("/types", config, async (req, res) => {
+router.post("/types", types.edit, async (req, res) => {
   const v = cleanType(req.body);
   if (await LeaveType.exists({ name: v.name })) throw fail("A leave type with this name already exists");
   const t = await LeaveType.create(v);
   audit(req, "leave.type_create", { entity: "LeaveType", entityId: t._id, summary: t.name });
   res.status(201).json(t);
 });
-router.put("/types/:id", config, async (req, res) => {
+router.put("/types/:id", types.edit, async (req, res) => {
   const v = cleanType(req.body);
   if (await LeaveType.exists({ name: v.name, _id: { $ne: req.params.id } })) throw fail("A leave type with this name already exists");
   const t = await LeaveType.findByIdAndUpdate(req.params.id, v, { returnDocument: "after" });
@@ -67,7 +68,7 @@ router.put("/types/:id", config, async (req, res) => {
   audit(req, "leave.type_update", { entity: "LeaveType", entityId: t._id, summary: t.name });
   res.json(t);
 });
-router.delete("/types/:id", setupDelete, async (req, res) => {
+router.delete("/types/:id", types.delete, async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) throw fail("Invalid ID");
   if (await LeaveRequest.exists({ type: req.params.id })) throw fail("Leave was already taken of this type. Switch it off (Active) instead.");
   if (await LeavePolicy.exists({ "rules.type": req.params.id })) throw fail("A leave policy uses this type. Remove it from the policy first.");
@@ -113,14 +114,14 @@ router.get("/policies", async (req, res) => {
   const n = new Map<any, any>(counts.map((c) => [String(c._id), c.n]));
   res.json(policies.map((p) => ({ ...p, assigned: n.get(String(p._id)) || 0 })));
 });
-router.post("/policies", config, async (req, res) => {
+router.post("/policies", policies.edit, async (req, res) => {
   const v = await cleanPolicy(req.body);
   if (await LeavePolicy.exists({ name: v.name })) throw fail("A policy with this name already exists");
   const p = await LeavePolicy.create(v as any);
   audit(req, "leave.policy_create", { entity: "LeavePolicy", entityId: p._id, summary: p.name });
   res.status(201).json(p);
 });
-router.put("/policies/:id", config, async (req, res) => {
+router.put("/policies/:id", policies.edit, async (req, res) => {
   const v = await cleanPolicy(req.body);
   if (await LeavePolicy.exists({ name: v.name, _id: { $ne: req.params.id } })) throw fail("A policy with this name already exists");
   const p = await LeavePolicy.findByIdAndUpdate(req.params.id, v, { returnDocument: "after" });
@@ -128,7 +129,7 @@ router.put("/policies/:id", config, async (req, res) => {
   audit(req, "leave.policy_update", { entity: "LeavePolicy", entityId: p._id, summary: p.name });
   res.json(p);
 });
-router.post("/policies/:id/clone", config, async (req, res) => {
+router.post("/policies/:id/clone", policies.edit, async (req, res) => {
   const src = await LeavePolicy.findById(req.params.id).lean<any>();
   if (!src) throw fail("Policy not found", 404);
   let name = text(req.body?.name, 80) || `${src.name} (copy)`;
@@ -138,7 +139,7 @@ router.post("/policies/:id/clone", config, async (req, res) => {
   audit(req, "leave.policy_create", { entity: "LeavePolicy", entityId: p._id, summary: `${p.name} (copy of ${src.name})` });
   res.status(201).json(p);
 });
-router.delete("/policies/:id", setupDelete, async (req, res) => {
+router.delete("/policies/:id", policies.delete, async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) throw fail("Invalid ID");
   const n = await User.countDocuments({ leavePolicy: req.params.id });
   if (n) throw fail(`${n} person(s) have this policy. Give them another one first.`);
@@ -149,7 +150,7 @@ router.delete("/policies/:id", setupDelete, async (req, res) => {
 });
 
 // ---------- who gets which policy ----------
-router.get("/assignment", setupView, async (req, res) => {
+router.get("/assignment", assignment.view, async (req, res) => {
   const users = await User.find({ active: true })
     .select("name role department leavePolicy gender shift latePolicy employeeCode")
     .populate("department", "name")
@@ -161,7 +162,7 @@ router.get("/assignment", setupView, async (req, res) => {
   res.json(users.map((u) => ({ _id: u._id, name: u.name, role: u.role, department: u.department, leavePolicy: u.leavePolicy, gender: u.gender || "", shift: u.shift || null, latePolicy: u.latePolicy || null, employeeCode: u.employeeCode || "" })));
 });
 // { users: [ids], policy: id | null, gender? }
-router.put("/assignment", config, async (req, res) => {
+router.put("/assignment", assignment.edit, async (req, res) => {
   const ids = (Array.isArray(req.body?.users) ? req.body.users : []).filter((id) => mongoose.isValidObjectId(id)).slice(0, 3000);
   if (!ids.length) throw fail("Choose the people");
   const set: Record<string, any> = {};

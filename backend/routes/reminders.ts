@@ -5,7 +5,7 @@ import remindersLib = require("../services/reminders");
 const { pendingByDoer, messageFor, sendEmailReminders } = remindersLib;
 
 const router = express.Router();
-router.use(auth, permit("settings", "view"));
+router.use(auth, permit("reminders", "view"));
 
 // Each doer's pending tasks plus the WhatsApp / email message text
 router.get("/", async (req, res) => {

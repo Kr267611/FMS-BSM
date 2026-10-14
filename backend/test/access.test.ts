@@ -16,7 +16,7 @@ test("effective access: role defaults, then the department, then the user's own"
   assert.deepStrictEqual([dept.leave, dept.myTickets], [["view"], []]);
   const own = permissionsFor({ role: "doer", deptPermissions: { leave: ["view"] }, permissions: { leave: [], attendance: ["view", "edit", "fly"] } });
   assert.deepStrictEqual([own.leave, own.attendance], [[], ["view", "edit"]]); // unknown actions dropped
-  assert.deepStrictEqual(permissionsFor({ role: "hr" }).hrSetup, ["view", "edit", "delete"]);
+  assert.deepStrictEqual([permissionsFor({ role: "hr" }).leaveTypes, permissionsFor({ role: "hr" }).biometric], [["view", "edit", "delete"], ["add"]]);
   assert.deepStrictEqual(permissionsFor({ role: "admin", permissions: { users: [] } }).users, ["view", "add", "edit", "delete"]); // admins keep everything
   assert.deepStrictEqual(permissionsFor({ role: "doer", permissions: { audit: ["view", "edit"] } }).audit, ["view"]); // the audit log has only "view"
 });
@@ -82,7 +82,7 @@ test("only an admin gives the HR role or 'Sees everyone'; a HOD cannot edit an H
 
 test("HR: all of HRMS for the whole company, nothing of FMS", async () => {
   const me = (await call("hrperson", "/auth/me")).data;
-  assert.deepStrictEqual([me.permissions.hrSetup, me.permissions.fms], [["view", "edit", "delete"], undefined]);
+  assert.deepStrictEqual([me.permissions.leavePolicies, me.permissions.attendanceSetup, me.permissions.fms], [["view", "edit", "delete"], ["view", "edit", "delete"], undefined]);
   // HR (Accounts) sees a Production doer's leave and attendance
   assert.strictEqual((await call("hrperson", `/attendance/register?user=${ids.ravi}`)).status, 200);
   const lt = await call("hrperson", "/hr/types", { method: "POST", body: { name: "Casual Leave" } });

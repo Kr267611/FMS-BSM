@@ -319,9 +319,10 @@ async function punch(me, body: any = {}, now = new Date()) {
 
 // ---------- managers ----------
 
-// HRMS – Attendance (edit): mark days by hand, approve correction requests – for the people they reach, never themselves (except an admin)
-async function canManage(me, userId) {
-  if (!can(me, "attendance", "edit")) return false;
+// Attendance Register (edit): mark days by hand; Attendance Requests (edit): decide correction requests – for the
+// people they reach, never themselves (except an admin)
+async function canManage(me, userId, module = "attendance") {
+  if (!can(me, module, "edit")) return false;
   if (String(me._id) === String(userId) && !isAdmin(me)) return false;
   return canSeeUser(me, userId);
 }

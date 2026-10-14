@@ -32,7 +32,7 @@ async function checkBody(req) {
 }
 
 // ?user= &from= &to= (leaves touching these days)
-router.get("/", permit("users", "view"), async (req, res) => {
+router.get("/", permit("doerLeave", "view"), async (req, res) => {
   const filter: Record<string, any> = {};
   const visible = await visibleUserIds(req.user);
   if (visible !== null) filter.user = { $in: visible };
@@ -47,12 +47,12 @@ router.get("/", permit("users", "view"), async (req, res) => {
 });
 
 // What adding it would change, before saving
-router.post("/preview", permit("users", "edit"), async (req, res) => {
+router.post("/preview", permit("doerLeave", "edit"), async (req, res) => {
   const b = await checkBody(req);
   res.json(await applyLeave(b, await loadCalendar(), { dryRun: true }));
 });
 
-router.post("/", permit("users", "edit"), async (req, res) => {
+router.post("/", permit("doerLeave", "edit"), async (req, res) => {
   const b = await checkBody(req);
   const clash = await Leave.findOne({ user: b.user, from: { $lte: b.to }, to: { $gte: b.from } }).lean<any>();
   if (clash) throw fail(`This person already has leave from ${clash.from} to ${clash.to}. Change the days or remove that one first.`);
@@ -65,7 +65,7 @@ router.post("/", permit("users", "edit"), async (req, res) => {
 });
 
 // Removing a leave stops it for new tasks; what it already changed stays (and is in the audit log)
-router.delete("/:id", permit("users", "edit"), async (req, res) => {
+router.delete("/:id", permit("doerLeave", "edit"), async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) throw fail("Invalid ID");
   const leave = await Leave.findById(req.params.id).populate("user", "name").lean<any>();
   if (!leave) throw fail("Leave not found", 404);

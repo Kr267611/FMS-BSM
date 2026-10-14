@@ -179,3 +179,40 @@ test("part 2: Audit List, Auditor Settings and Ticket Report – defaults as bef
   assert.strictEqual((await call("ss", "/tickets/report")).status, 403);
   assert.strictEqual((await call("ss", "/audits/settings")).status, 200); // its own tick, not Settings any more
 });
+
+test("part 3: HRMS, Users & Org and Settings pages – defaults as before, each its own tick, old access kept", async () => {
+  const pick3 = (p) => Object.fromEntries(["attendance", "attendanceRequests", "biometric", "attendanceSetup", "leaveTypes", "leavePolicies", "policyAssignment", "doerLeave", "calendar", "sheetLinks", "reminders", "settings"].map((k) => [k, [...(p[k] || [])].sort()]));
+  for (const role of ["hod", "pc", "tl", "hr", "auditor", "doer"]) {
+    assert.deepStrictEqual(pick3(permissionsFor({ role })), pick3(migrations.oldPages3({ role }, null)), role);
+  }
+  const split = migrations.splitLayer3({ hrSetup: ["view"], attendance: ["view", "add"], settings: ["view", "edit"], users: ["view", "edit"] });
+  assert.deepStrictEqual(
+    [split.hrSetup, split.leaveTypes, split.policyAssignment, split.attendance, split.biometric, split.calendar, split.sheetLinks, split.reminders, split.settings, split.doerLeave],
+    [undefined, ["view"], ["view"], ["view"], ["add"], ["view", "edit"], ["edit"], ["view"], ["edit"], ["view", "edit"]]
+  );
+
+  // before: HRMS – Setup (view) showed all four setup pages, Attendance (add) the biometric upload, Settings (view) the reminders
+  await User.collection.updateOne({ _id: new (require("mongoose").Types.ObjectId)(ids.dd) }, { $set: { permissions: { hrSetup: ["view"], attendance: ["view", "add"], settings: ["view"] } } });
+  await Setting.deleteOne({ key: "migration.pageAccess3" });
+  await migrations.migratePageAccess3();
+  await login("dd");
+  const dd = (await me("dd")).permissions;
+  assert.deepStrictEqual([dd.leaveTypes, dd.attendanceSetup, dd.biometric, dd.reminders, dd.calendar, dd.sheetLinks || []], [["view"], ["view"], ["add"], ["view"], ["view"], []]);
+  assert.strictEqual((await call("dd", "/hr/assignment")).status, 200);
+  assert.strictEqual((await call("dd", "/hr/types", { method: "POST", body: { name: "Casual" } })).status, 403); // view only
+  assert.strictEqual((await call("dd", "/reminders")).status, 200);
+  assert.strictEqual((await call("dd", "/sheets")).status, 403);
+  assert.strictEqual((await call("dd", "/users/access")).status, 403);
+  assert.strictEqual((await call("dd", "/leaves")).status, 403); // Doer Leave: not given
+
+  // each page alone: Leave Types (edit) without the policies; Doer Leave without Users; Access Overview
+  await call("admin", `/users/${ids.dd}`, { method: "PUT", body: { permissions: { ...dd, leaveTypes: ["view", "edit"], leavePolicies: [], doerLeave: ["view"], accessOverview: ["view"], users: [] } } });
+  await login("dd");
+  assert.strictEqual((await call("dd", "/hr/types", { method: "POST", body: { name: "Casual Leave", code: "CL" } })).status, 201);
+  assert.strictEqual((await call("dd", "/hr/policies", { method: "POST", body: { name: "Staff" } })).status, 403);
+  assert.strictEqual((await call("dd", "/leaves")).status, 200);
+  assert.strictEqual((await call("dd", "/users")).status, 403);
+  assert.strictEqual((await call("dd", "/users/access")).status, 200);
+  const meta = (await call("admin", "/users/meta")).data;
+  assert.ok(!meta.modules.hrSetup && meta.groups.some(([g, mods]) => g === "Settings" && mods.includes("sheetLinks")));
+});

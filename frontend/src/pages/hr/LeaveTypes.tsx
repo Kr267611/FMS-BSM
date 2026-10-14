@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
+import ViewOnlyNote from "../../components/ViewOnlyNote";
 
 const blank = { name: "", code: "", description: "", paid: true, gender: "all", carryForward: false, maxCarryForward: 0, encashable: false, requiresDocument: false, color: "#14877a", active: true };
 const GENDER = { all: "Everyone", male: "Male only", female: "Female only", other: "Other only" };
@@ -49,6 +50,7 @@ export default function LeaveTypes() {
       <div className="page-head">
         <div>
           <h2>Leave Types</h2>
+          <ViewOnlyNote module="leaveTypes" page="leave types" />
           <div className="muted small">The kinds of leave people can ask for. How many days each person gets is set in the Leave Policy.</div>
         </div>
         {!edit && (

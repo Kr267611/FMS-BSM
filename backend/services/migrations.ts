@@ -12,6 +12,7 @@ async function runMigrations() {
   await migrateProcessesToV2();
   await migratePageAccess();
   await migratePageAccess2();
+  await migratePageAccess3();
 }
 
 // ---- One tick per page (Oct 2026) ----
@@ -84,6 +85,66 @@ function oldPages2(user, deptPerms) {
 }
 const OLD_DEFAULTS2 = { tickets: { hod: ["view", "edit"], pc: ["view", "edit"], tl: ["view", "edit"] } };
 
+// Part 3: HRMS – Setup split into Shifts & Late Policy / Leave Types / Leave Policies / Policy Assignment; HRMS –
+// Attendance into the Register, the Requests and the Biometric Upload; Doer Leave (was: Users) and the Settings pages
+// (Working Calendar – also open with the Master FMS –, Sheet Links, Reminders) get their own ticks
+const OLD_DEFAULTS3 = {
+  attendance: { hod: ["view", "edit"], pc: ["view", "edit"], tl: ["view", "edit"], hr: ["view", "add", "edit"] },
+  hrSetup: { hr: ["view", "edit", "delete"] },
+  users: { hod: ["view"], pc: ["view"], tl: ["view"], hr: ["view", "add", "edit"] },
+  fms: { hod: ["view"], pc: ["view"], auditor: ["view"] },
+};
+const PAGES3 = ["attendance", "attendanceRequests", "biometric", "attendanceSetup", "leaveTypes", "leavePolicies", "policyAssignment", "doerLeave", "calendar", "sheetLinks", "reminders", "settings"];
+function splitLayer3(layer) {
+  if (!layer || typeof layer !== "object") return layer;
+  const out = { ...layer };
+  if (Array.isArray(layer.hrSetup)) {
+    for (const p of ["attendanceSetup", "leaveTypes", "leavePolicies", "policyAssignment"]) out[p] = fit(p, layer.hrSetup);
+    delete out.hrSetup;
+  }
+  if (Array.isArray(layer.attendance)) {
+    out.attendanceRequests = fit("attendanceRequests", layer.attendance);
+    out.biometric = layer.attendance.includes("add") ? ["add"] : [];
+    out.attendance = fit("attendance", layer.attendance);
+  }
+  if (Array.isArray(layer.users)) out.doerLeave = fit("doerLeave", layer.users);
+  if (Array.isArray(layer.settings)) {
+    out.calendar = fit("calendar", layer.settings);
+    out.sheetLinks = layer.settings.includes("edit") ? ["edit"] : [];
+    out.reminders = layer.settings.includes("view") ? ["view"] : [];
+    out.settings = fit("settings", layer.settings);
+  }
+  return out;
+}
+function oldPages3(user, deptPerms) {
+  const role = ROLE_DEFAULTS[user.role] ? user.role : "doer";
+  const layered = (key) => {
+    let v = OLD_DEFAULTS3[key]?.[role] || [];
+    if (Array.isArray(deptPerms?.[key])) v = deptPerms[key];
+    if (Array.isArray(user.permissions?.[key])) v = user.permissions[key];
+    return v;
+  };
+  const att = layered("attendance");
+  const setup = layered("hrSetup");
+  const users = layered("users");
+  const settings = layered("settings");
+  const fms = layered("fms");
+  return {
+    attendance: fit("attendance", att),
+    attendanceRequests: fit("attendanceRequests", att),
+    biometric: att.includes("add") ? ["add"] : [],
+    attendanceSetup: fit("attendanceSetup", setup),
+    leaveTypes: fit("leaveTypes", setup),
+    leavePolicies: fit("leavePolicies", setup),
+    policyAssignment: fit("policyAssignment", setup),
+    doerLeave: fit("doerLeave", users),
+    calendar: [...(settings.includes("view") || fms.includes("view") ? ["view"] : []), ...(settings.includes("edit") ? ["edit"] : [])],
+    sheetLinks: settings.includes("edit") ? ["edit"] : [],
+    reminders: settings.includes("view") ? ["view"] : [],
+    settings: fit("settings", settings),
+  };
+}
+
 // Every user keeps the pages they had: where the new ticks (role → department → own) give something else for
 // `pages`, the old value is written as the user's own tick. split turns a layer's old ticks into the new ones.
 async function keepOldPages(KEY, pages, oldOf, split = (layer, role?) => layer) {
@@ -119,6 +180,7 @@ async function keepOldPages(KEY, pages, oldOf, split = (layer, role?) => layer) 
 
 const migratePageAccess = () => keepOldPages("migration.pageAccess", NEW_PAGES, oldPages, splitLayer);
 const migratePageAccess2 = () => keepOldPages("migration.pageAccess2", ["auditList", "auditorSettings", "ticketReport"], oldPages2);
+const migratePageAccess3 = () => keepOldPages("migration.pageAccess3", PAGES3, oldPages3, splitLayer3);
 
 // v1 stored User.department as text ("QC"); v2 references a Department document.
 async function migrateDepartments() {
@@ -196,4 +258,4 @@ async function migrateProcessesToV2() {
   }
 }
 
-export = { runMigrations, migratePageAccess, migratePageAccess2, oldPages, oldPages2, splitLayer };
+export = { runMigrations, migratePageAccess, migratePageAccess2, migratePageAccess3, oldPages, oldPages2, oldPages3, splitLayer, splitLayer3 };

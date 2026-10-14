@@ -10,7 +10,7 @@ const { auth, permit } = authLib;
 import passwordsLib = require("../services/passwords");
 const { passwordProblem } = passwordsLib;
 import permissionsLib = require("../services/permissions");
-const { ROLES, MODULES, ACTIONS, ROLE_DEFAULTS, MODULE_ACTIONS, MODULE_GROUPS, ADMIN_ONLY_ROLES, cleanOverrides, permissionsFor, isAdmin } = permissionsLib;
+const { ROLES, MODULES, ACTIONS, ROLE_DEFAULTS, MODULE_ACTIONS, MODULE_GROUPS, ADMIN_ONLY_ROLES, cleanOverrides, permissionsFor, isAdmin, can } = permissionsLib;
 import scopeLib = require("../services/scope");
 const { visibleUserIds, canSeeUser, reachOf } = scopeLib;
 import auditLib = require("../services/audit");
@@ -107,7 +107,7 @@ router.get("/meta", auth, async (req, res) => {
 
 // Access Overview (admin): every user's effective access, and which modules their department / they themselves change
 router.get("/access", auth, async (req, res) => {
-  if (!isAdmin(req.user)) return res.status(403).json({ message: "Only an admin can see everyone's access" });
+  if (!can(req.user, "accessOverview", "view")) return res.status(403).json({ message: "Access Overview needs its tick in Users. Ask your admin." });
   const [users, depts] = await Promise.all([
     User.find({ active: true }).select("name role department permissions seesAll reach isAuditor").populate("department", "name").sort({ name: 1 }).lean<any>(),
     Department.find().select("permissions").lean<any>(),

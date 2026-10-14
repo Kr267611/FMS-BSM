@@ -9,7 +9,7 @@ const days = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000) + 
 // MIDAP "Doer Holiday": days a person is away. Their work on those days is not counted against them.
 export default function Leaves() {
   const { user } = useAuth();
-  const canEdit = can(user, "users", "edit");
+  const canEdit = can(user, "doerLeave", "edit");
   const [list, setList] = useState(null);
   const [who, setWho] = useState("");
   const [v, setV] = useState(blank());

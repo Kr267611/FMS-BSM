@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
+import ViewOnlyNote from "../../components/ViewOnlyNote";
 
 const blankShift = { name: "", code: "", start: "09:30", end: "18:30", graceMinutes: 10, earlyGraceMinutes: 10, fullDayMinutes: 480, halfDayMinutes: 240, color: "#14877a", active: true };
 const blankLate = { name: "", code: "", freeLates: 3, every: 3, penalty: "half", countEarly: false, active: true };
@@ -15,6 +16,7 @@ export default function AttendanceSetup() {
       <div className="page-head">
         <div>
           <h2>Shifts & Late Policy</h2>
+          <ViewOnlyNote module="attendanceSetup" page="shifts and late policies" />
           <div className="muted small">Give people their shift and late policy in Policy Assignment.</div>
         </div>
         <div className="tabs">

@@ -16,7 +16,7 @@ const { audit } = auditLib;
 const router = express.Router();
 // Sheet Links need Settings (edit); making an FMS from a sheet tab needs Import FMS from Sheet
 const FROM_SHEET = new Set<string>(["/fms-preview", "/fms-import"]);
-const sheetLinks = permit("settings", "edit");
+const sheetLinks = permit("sheetLinks", "edit");
 const fmsImport = permit("fmsImport", "add");
 router.use(auth, (req, res, next) => (FROM_SHEET.has(req.path) ? fmsImport : sheetLinks)(req, res, next));
 

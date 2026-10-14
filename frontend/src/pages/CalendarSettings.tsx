@@ -13,7 +13,7 @@ export default function CalendarSettings() {
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const canEdit = can(user, "settings", "edit");
+  const canEdit = can(user, "calendar", "edit");
 
   useEffect(() => {
     api("/settings/calendar")

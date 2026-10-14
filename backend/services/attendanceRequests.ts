@@ -40,7 +40,7 @@ function requestedPunches({ day, inTime, outTime }, sh) {
 
 async function create(me, body: any = {}, now = new Date()) {
   const userId = body.user && String(body.user) !== String(me._id) ? String(body.user) : String(me._id);
-  if (userId !== String(me._id) && !(await att.canManage(me, userId))) throw fail("You can only ask for your own attendance", 403);
+  if (userId !== String(me._id) && !(await att.canManage(me, userId, "attendanceRequests"))) throw fail("You can only ask for your own attendance", 403);
   const user = await User.findById(userId).select("name active").lean<any>();
   if (!user?.active) throw fail("User not found", 404);
 
@@ -73,7 +73,7 @@ async function create(me, body: any = {}, now = new Date()) {
 // view: "approve" (waiting for me) | "mine" | "all" (managers: everyone they can see)
 async function list(me, { view = "mine", state = "", user = "", month = "" }: any = {}) {
   const filter: Record<string, any> = {};
-  if (view === "mine" || !can(me, "attendance", "view")) filter.user = me._id;
+  if (view === "mine" || !can(me, "attendanceRequests", "view")) filter.user = me._id;
   else {
     const visible = await visibleUserIds(me);
     if (visible !== null) filter.user = { $in: visible };
@@ -93,7 +93,7 @@ async function list(me, { view = "mine", state = "", user = "", month = "" }: an
     .populate("appliedBy", "name")
     .lean<any>();
   if (view === "approve") rows = rows.filter((r) => isAdmin(me) || String(r.user?._id) !== String(me._id));
-  for (const r of rows) r.canDecide = r.state === "pending" && (await att.canManage(me, r.user?._id));
+  for (const r of rows) r.canDecide = r.state === "pending" && (await att.canManage(me, r.user?._id, "attendanceRequests"));
   return rows;
 }
 
@@ -106,7 +106,7 @@ async function load(id) {
 async function approve(id, me, { note = "", now = new Date() }: any = {}) {
   const r = await load(id);
   if (r.state !== "pending") throw fail(`This request is already ${r.state}`);
-  if (!(await att.canManage(me, r.user._id))) throw fail("Only their manager or an admin can approve this", 403);
+  if (!(await att.canManage(me, r.user._id, "attendanceRequests"))) throw fail("Only their manager or an admin can approve this", 403);
   if (r.kind === "missed") {
     const [shift, company] = await Promise.all([r.user.shift ? Shift.findById(r.user.shift).lean<any>() : null, loadCalendar()]);
     const times = requestedPunches(r, att.shiftInfo(shift, company));
@@ -134,7 +134,7 @@ async function approve(id, me, { note = "", now = new Date() }: any = {}) {
 async function reject(id, me, { note = "", now = new Date() }: any = {}) {
   const r = await load(id);
   if (r.state !== "pending") throw fail(`This request is already ${r.state}`);
-  if (!(await att.canManage(me, r.user._id))) throw fail("Only their manager or an admin can reject this", 403);
+  if (!(await att.canManage(me, r.user._id, "attendanceRequests"))) throw fail("Only their manager or an admin can reject this", 403);
   const why = String(note || "").trim().slice(0, 300);
   if (why.length < 3) throw fail("Write why it is rejected");
   Object.assign(r, { state: "rejected", decidedBy: me._id, decidedAt: now, note: why });
@@ -153,7 +153,7 @@ async function cancel(id, me) {
 }
 
 async function pendingCount(me) {
-  if (!can(me, "attendance", "edit")) return 0;
+  if (!can(me, "attendanceRequests", "edit")) return 0;
   const visible = await visibleUserIds(me);
   const filter: Record<string, any> = { state: "pending" };
   if (visible !== null) filter.user = { $in: visible.filter((id) => isAdmin(me) || id !== String(me._id)) };

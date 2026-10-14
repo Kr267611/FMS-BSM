@@ -23,7 +23,7 @@ router.get("/calendar", async (req, res) => {
   res.json(await readCalendar());
 });
 
-router.put("/calendar", permit("settings", "edit"), async (req, res) => {
+router.put("/calendar", permit("calendar", "edit"), async (req, res) => {
   const b = req.body || {};
   const weekOff = [...new Set<any>((Array.isArray(b.weekOff) ? b.weekOff : []).map(Number))].filter((n) => Number.isInteger(n) && n >= 0 && n <= 6);
   if (weekOff.length >= 7) return res.status(400).json({ message: "At least one day of the week must be a working day" });

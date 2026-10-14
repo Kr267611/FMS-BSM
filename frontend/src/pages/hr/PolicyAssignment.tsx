@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, ROLE_LABELS } from "../../api";
+import ViewOnlyNote from "../../components/ViewOnlyNote";
 
 const GENDER = { "": "—", male: "Male", female: "Female", other: "Other" };
 
@@ -90,6 +91,7 @@ export default function PolicyAssignment() {
       <div className="page-head">
         <div>
           <h2>Policy Assignment</h2>
+          <ViewOnlyNote module="policyAssignment" page="policy assignment" />
           <div className="muted small">Give a leave policy, shift and late policy to many people at once. Gender decides who can take gender-only leave (e.g. maternity). The employee code is the id the biometric machine uses.</div>
         </div>
       </div>

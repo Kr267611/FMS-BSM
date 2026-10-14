@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api";
+import ViewOnlyNote from "../../components/ViewOnlyNote";
 
 const ACCRUAL = { frontload: "Whole year on 1 January", monthly: "A twelfth every month" };
 const EXHAUST = { lwp: "Extra days become unpaid leave (LWP)", reject: "Refuse the request", negative: "Allow a negative balance" };
@@ -63,6 +64,7 @@ export default function LeavePolicies() {
       <div className="page-head">
         <div>
           <h2>Leave Policies</h2>
+          <ViewOnlyNote module="leavePolicies" page="leave policies" />
           <div className="muted small">How many days of each leave type a person gets in a year. Give a policy to people in Policy Assignment.</div>
         </div>
         {!edit && (
