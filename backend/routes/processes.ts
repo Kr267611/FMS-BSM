@@ -11,7 +11,7 @@ const { Department } = OrgLib;
 import authLib = require("../middleware/auth");
 const { auth, permit } = authLib;
 import permissionsLib = require("../services/permissions");
-const { can } = permissionsLib;
+const { can, REPORT_PAGES, FMS_PAGES } = permissionsLib;
 import auditLib = require("../services/audit");
 const { audit } = auditLib;
 import definitionLib = require("../services/fms/definition");
@@ -55,7 +55,7 @@ router.get("/templates/:id", auth, permit("fms", "add"), async (req, res) => {
 // summary=1: without doer tables and step fields (for dropdowns and cards)
 // FMS definitions: for the FMS Manager, FMS entries and the FMS reports – nobody else
 const usesFms = (req, res, next) =>
-  ["fms", "fmsEntries", "reports"].some((m) => can(req.user, m, "view")) ? next() : res.status(403).json({ message: "You don't have permission to do this. Ask your admin." });
+  ["fms", "fmsEntries", ...REPORT_PAGES, ...FMS_PAGES].some((m) => can(req.user, m, m === "fmsImport" ? "add" : "view")) ? next() : res.status(403).json({ message: "You don't have permission to do this. Ask your admin." });
 
 router.get("/", auth, usesFms, async (req, res) => {
   const filter = req.query.all === "1" && can(req.user, "fms", "view") ? {} : { active: true };

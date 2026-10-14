@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, can, isAdmin } from "../api";
+import { api, can } from "../api";
 import { useAuth } from "../App";
 import DashTaskTables from "../components/DashTaskTables";
 
@@ -45,7 +45,7 @@ function CountUp({ value }) {
 export default function Dashboard() {
   const { user } = useAuth();
   const [d, setD] = useState(null);
-  const [scope, setScope] = useState(user.role === "doer" ? "me" : "team");
+  const [scope, setScope] = useState(user.reach === "self" ? "me" : "team");
   const [error, setError] = useState("");
   const load = useCallback(() => {
     setError("");
@@ -62,13 +62,13 @@ export default function Dashboard() {
       <div className="row between dash-top">
         <div className="eyebrow">Dashboard</div>
         <div className="row">
-          {user.role !== "doer" && (
+          {user.reach !== "self" && (
             <div className="tabs">
               <button className={scope === "me" ? "active" : ""} onClick={() => setScope("me")}>
                 Me
               </button>
               <button className={scope === "team" ? "active" : ""} onClick={() => setScope("team")}>
-                {isAdmin(user) || user.role === "auditor" ? "Company" : "My team"}
+                {user.reach === "all" ? "Company" : "My team"}
               </button>
             </div>
           )}
@@ -96,7 +96,7 @@ export default function Dashboard() {
           <div className="mid-row second">
             <PendingCard kinds={d.kinds} />
             <Workflows workflows={d.workflows} canSee={can(user, "fms")} />
-            <FollowUp list={d.overdueList} showLink={user.role !== "doer"} />
+            <FollowUp list={d.overdueList} showLink={can(user, "doerTasks")} />
           </div>
 
           <DashTaskTables onChange={load} />

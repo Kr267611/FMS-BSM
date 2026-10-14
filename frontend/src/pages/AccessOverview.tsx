@@ -3,6 +3,9 @@ import { Link } from "react-router-dom";
 import { ROLE_LABELS, api } from "../api";
 import { csvCell, download } from "../csv";
 
+// Whose data each person's pages show
+const REACH = { all: "Company", department: "Department", team: "Team", self: "Own" };
+
 const LETTER = { view: "V", add: "A", edit: "E", delete: "D" };
 const ORDER = ["view", "add", "edit", "delete"];
 
@@ -24,8 +27,8 @@ export default function AccessOverview() {
   const cell = (u, m) => ORDER.filter((a) => (u.permissions[m] || []).includes(a)).map((a) => LETTER[a]).join("");
 
   function exportCsv() {
-    const head = ["Name", "Role", "Department", "Sees everyone", ...mods.map((m) => meta.modules[m])];
-    const body = shown.map((u) => [u.name, ROLE_LABELS[u.role] || u.role, u.department, u.seesAll ? "yes" : "", ...mods.map((m) => cell(u, m))]);
+    const head = ["Name", "Role", "Department", "Whose data", ...mods.map((m) => meta.modules[m])];
+    const body = shown.map((u) => [u.name, ROLE_LABELS[u.role] || u.role, u.department, REACH[u.reach] || "", ...mods.map((m) => cell(u, m))]);
     download("access-overview.csv", [head, ...body].map((r) => r.map(csvCell).join(",")).join("\n"));
   }
 
@@ -71,7 +74,7 @@ export default function AccessOverview() {
             <thead>
               <tr>
                 <th className="sticky-col">Person</th>
-                <th title="Their access reaches the whole company">Everyone</th>
+                <th title="Whose data their pages show">Data</th>
                 {mods.map((m) => (
                   <th key={m} title={meta.modules[m]}>
                     {meta.modules[m].replace("HRMS – ", "HR ").replace("Help Ticket – ", "Ticket ").replace(" (punch in / out)", "").replace(" (apply)", "").replace(" (raise)", "")}
@@ -97,7 +100,7 @@ export default function AccessOverview() {
                       {u.department ? ` · ${u.department}` : ""}
                     </div>
                   </td>
-                  <td className="center">{u.seesAll ? "✓" : ""}</td>
+                  <td className="center small nowrap">{REACH[u.reach] || ""}</td>
                   {mods.map((m) => {
                     const v = cell(u, m);
                     const cls = u.own.includes(m) ? "acc-own" : u.fromDepartment.includes(m) ? "acc-dept" : "";

@@ -14,7 +14,11 @@ import auditLib = require("../services/audit");
 const { audit } = auditLib;
 
 const router = express.Router();
-router.use(auth, permit("settings", "edit"));
+// Sheet Links need Settings (edit); making an FMS from a sheet tab needs Import FMS from Sheet
+const FROM_SHEET = new Set<string>(["/fms-preview", "/fms-import"]);
+const sheetLinks = permit("settings", "edit");
+const fmsImport = permit("fmsImport", "add");
+router.use(auth, (req, res, next) => (FROM_SHEET.has(req.path) ? fmsImport : sheetLinks)(req, res, next));
 
 async function cleanBody(body) {
   const b = body || {};
@@ -115,7 +119,7 @@ router.post("/fms-preview", async (req, res) => {
   }
 });
 
-router.post("/fms-import", permit("fms", "add"), async (req, res) => {
+router.post("/fms-import", async (req, res) => {
   try {
     const args = await sheetFmsArgs(req);
     const out = await importSheetFms(...args, req.body, req.user);

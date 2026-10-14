@@ -14,6 +14,8 @@ import OrgLib = require("../models/Org");
 const { Department } = OrgLib;
 import permissionsLib = require("../services/permissions");
 const { permissionsFor } = permissionsLib;
+import scopeLib = require("../services/scope");
+const { reachOf } = scopeLib;
 import auditLib = require("../services/audit");
 const { audit } = auditLib;
 
@@ -48,6 +50,7 @@ async function publicUser(u) {
     department: dept?.name || "",
     permissions: permissionsFor(withDept),
     isAuditor: Boolean(u.isAuditor),
+    reach: reachOf(u), // whose data their pages show: all | department | team | self
   };
 }
 

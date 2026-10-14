@@ -1290,3 +1290,7 @@ tr.clickable:hover td { background: var(--tint-primary); }
 .pw-field input:has(+ .pw-eye) { padding-right: 40px; }
 .pw-eye { display: grid; place-items: center; padding: 5px 7px; background: none; }
 .pw-eye:hover { color: var(--navy); background: var(--gold-tint); }
+/* Users form: whose data, and the access summary line */
+.access-summary { margin: 10px 0 4px; padding: 8px 12px; border-radius: 10px; background: var(--gold-tint); border: 1px solid var(--gold-line); color: var(--navy); font-size: 13px; }
+.reach-pick { display: grid; gap: 4px; margin: 8px 0 12px; max-width: 520px; }
+.scope-note { margin-top: 4px; color: var(--gold-deep); }

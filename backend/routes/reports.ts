@@ -12,7 +12,7 @@ const { isOff } = calendarLib;
 import workflowLib = require("../services/workflow");
 const { loadCalendar } = workflowLib;
 import authLib = require("../middleware/auth");
-const { auth, permit } = authLib;
+const { auth, permit, permitAny } = authLib;
 import scopeLib = require("../services/scope");
 const { visibleUserIds, canSeeUser } = scopeLib;
 import permissionsLib = require("../services/permissions");
@@ -23,7 +23,7 @@ import taskFiltersLib = require("../services/taskFilters");
 const { applyTaskFilters, peopleFor } = taskFiltersLib;
 
 const router = express.Router();
-router.use(auth, permit("reports", "view"));
+router.use(auth);
 
 const KINDS = { fms: "app", checklist: "checklist", delegation: "delegation", sheet: "sheet", ticket: "ticket" };
 const isDay = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ""));
@@ -49,7 +49,7 @@ function delayRange(key, now) {
 
 // ?kind= &doer= &status=pending|overdue|done|all|pending_late|done_ontime|done_late|na|expired &delay=ontime|1-3|4-7|8+
 // &from= &to= (planned day) &q= &priority= &group= &assignedBy= &pc= &auditor= &department= &branch= &page=
-router.get("/tasks", async (req, res) => {
+router.get("/tasks", permit("doerTasks", "view"), async (req, res) => {
   const now = new Date();
   const visible = await visibleUserIds(req.user);
   const filter: Record<string, any> = { status: { $in: ["pending", "done", "na", "expired"] } };
@@ -107,8 +107,8 @@ router.get("/tasks", async (req, res) => {
 
 // Give pending tasks to someone else. A task whose planned time has passed keeps its doer (its late / pending
 // stays in that doer's score) – only an admin can move it, and that is recorded.
-router.post("/tasks/switch", async (req, res) => {
-  if (!can(req.user, "reports", "edit")) throw fail("Switching doers needs PC reports & MIS (edit). Ask your admin.", 403);
+router.post("/tasks/switch", permitAny(["doerTasks", "edit"], ["fmsTasks", "edit"]), async (req, res) => {
+  if (!can(req.user, "doerTasks", "edit") && !can(req.user, "fmsTasks", "edit")) throw fail("Switching doers needs List Doer Tasks or List FMS Tasks (edit). Ask your admin.", 403);
   const ids = (Array.isArray(req.body?.ids) ? req.body.ids : []).filter((id) => mongoose.isValidObjectId(id)).slice(0, 500);
   const to = req.body?.doer;
   if (!ids.length) throw fail("Select the tasks first");
@@ -140,8 +140,8 @@ router.post("/tasks/switch", async (req, res) => {
 });
 
 // PC reports & MIS (delete), admin by default: remove checklist / delegation tasks (an FMS step goes with its entry)
-router.post("/tasks/delete", async (req, res) => {
-  if (!can(req.user, "reports", "delete")) throw fail("Deleting tasks needs PC reports & MIS (delete). Ask your admin.", 403);
+router.post("/tasks/delete", permit("doerTasks", "delete"), async (req, res) => {
+  if (!can(req.user, "doerTasks", "delete")) throw fail("Deleting tasks needs List Doer Tasks (delete). Ask your admin.", 403);
   const ids = (Array.isArray(req.body?.ids) ? req.body.ids : []).filter((id) => mongoose.isValidObjectId(id)).slice(0, 500);
   if (!ids.length) throw fail("Select the tasks first");
   const r = await Task.deleteMany({ _id: { $in: ids }, kind: { $in: ["checklist", "delegation"] } });
@@ -157,7 +157,7 @@ const doneDelay = (t) => (t.actualDay && t.plannedDay ? Math.max(0, Math.round((
 
 // ?process= &step= &status=pending|overdue|done|all|pending_late|done_ontime|done_late &doer= &delay=ontime|1-2|3-7|7+
 // &field= &value= &from= &to= &pc= &department= &page=
-router.get("/fms-tasks", async (req, res) => {
+router.get("/fms-tasks", permit("fmsTasks", "view"), async (req, res) => {
   const now = new Date();
   const visible = await visibleUserIds(req.user);
   const filter: Record<string, any> = { kind: "app", status: { $in: ["pending", "done"] } };
@@ -225,7 +225,7 @@ router.get("/fms-tasks", async (req, res) => {
 });
 
 // Admin only: move the planned date of pending FMS steps (recorded in the audit log)
-router.post("/fms-tasks/planned", async (req, res) => {
+router.post("/fms-tasks/planned", permit("fmsTasks", "view"), async (req, res) => {
   if (!isAdmin(req.user)) throw fail("Only an admin can change planned dates", 403);
   const ids = (Array.isArray(req.body?.ids) ? req.body.ids : []).filter((id) => mongoose.isValidObjectId(id)).slice(0, 500);
   const planned = new Date(req.body?.planned);
@@ -241,7 +241,7 @@ router.post("/fms-tasks/planned", async (req, res) => {
 // ---- List Effort Time (MIDAP): how much work each doer had and did, in hours ----
 // Effort per task: a checklist's and an FMS step's effort time (from their master, so older tasks count too);
 // a delegation's own estimate. ?from= &to= &basis=planned|actual &group=doer|department
-router.get("/effort", async (req, res) => {
+router.get("/effort", permit("effortReport", "view"), async (req, res) => {
   const today = todayKey();
   const to = isDay(req.query.to) ? (req.query.to as string) : today;
   const from = isDay(req.query.from) ? req.query.from : to.slice(0, 8) + "01";

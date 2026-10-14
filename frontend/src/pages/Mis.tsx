@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState } from "react";
 import { PeopleFilter } from "../components/ListFilters";
 import { addDays, api, showDay, todayKey } from "../api";
 import { useAuth } from "../App";
+import ScopeNote from "../components/ScopeNote";
 
 function presets() {
   const t = todayKey();
@@ -29,7 +30,7 @@ function scoreClass(s) {
 
 export default function Mis() {
   const { user } = useAuth();
-  const isAdmin = user.role !== "doer"; // doers only ever see their own row
+  const isAdmin = user.reach !== "self"; // reaching only themselves: just their own row
   const ps = presets();
   const [range, setRange] = useState({ key: "month", from: ps.month[1], to: ps.month[2] });
   const [data, setData] = useState(null);
@@ -72,6 +73,7 @@ export default function Mis() {
     <>
       <div className="page-head">
         <h2>MIS Score</h2>
+        <ScopeNote />
         <div className="row wrap">
           <PeopleFilter f={people} set={(x) => setPeople((v) => ({ ...v, ...x }))} />
           <div className="tabs">

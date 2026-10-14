@@ -3,6 +3,7 @@ import { PeopleFilter } from "../components/ListFilters";
 import { addDays, api, showDay, todayKey } from "../api";
 import { useAuth } from "../App";
 import { csvCell, download } from "../csv";
+import ScopeNote from "../components/ScopeNote";
 
 const TYPES = [
   ["checklist", "Checklist"],
@@ -59,6 +60,7 @@ export default function WeeklyMis() {
       <div className="page-head">
         <div>
           <h2>Weekly MIS Score</h2>
+          <ScopeNote />
           <div className="muted small">
             {data ? `${showDay(data.week)} – ${showDay(data.weekEnd)}` : " "}
             {data && data.countedTo < data.weekEnd && ` · counted up to ${showDay(data.countedTo)}`}
@@ -74,7 +76,7 @@ export default function WeeklyMis() {
               Next week ›
             </button>
           </div>
-          {user.role !== "doer" && (
+          {user.reach !== "self" && (
             <div className="tabs">
               <button className={group === "doer" ? "active" : ""} onClick={() => setGroup("doer")}>
                 Doer-wise

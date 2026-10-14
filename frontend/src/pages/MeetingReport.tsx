@@ -3,6 +3,7 @@ import { PeopleFilter } from "../components/ListFilters";
 import { useSearchParams } from "react-router-dom";
 import { addDays, api, can, showDay, todayKey } from "../api";
 import { useAuth } from "../App";
+import ScopeNote from "../components/ScopeNote";
 
 const scoreClass = (s) => (s >= -10 ? "score good" : s >= -30 ? "score mid" : "score bad");
 const monday = (day) => addDays(day, -((new Date(day + "T00:00:00Z").getUTCDay() + 6) % 7));
@@ -109,6 +110,7 @@ export default function MeetingReport() {
       <div className="page-head">
         <div>
           <h2>Weekly MIS Meeting</h2>
+          <ScopeNote />
           <div className="muted small">
             {data ? `${showDay(data.week)} – ${showDay(data.weekEnd)}${data.countedTo < data.weekEnd ? ` · counted up to ${showDay(data.countedTo)}` : ""}` : " "}
           </div>

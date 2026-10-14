@@ -17,6 +17,7 @@ const blank = {
   photo: "",
   isAuditor: false,
   seesAll: false,
+  reach: "", // "Whose data": "" = the role's own, self, team, department, all
   password: "",
   role: "doer",
   branch: "",
@@ -112,6 +113,7 @@ export default function Users() {
       weekOff: u.weekOff || [],
       managedDepartments: (u.managedDepartments || []).map(idOf),
       permissions: u.permissions || null,
+      reach: u.seesAll ? "all" : u.reach || "",
     });
   }
   const canEditUser = (u) => can(user, "users", "edit") && (!isAdmin(u) || isAdmin(user));
@@ -341,6 +343,28 @@ export default function Users() {
   );
 }
 
+// "Whose data they see" (the server's scope): the role's own when not set
+const ROLE_REACH = { hod: "department", pc: "department", tl: "team" };
+const REACH_LABELS = {
+  self: "Only their own",
+  team: "Their team (people who have them as Team leader)",
+  department: "Their department (and the departments they oversee)",
+  all: "Whole company",
+};
+
+// One line on top of the Access box: how many pages open, whose data, what they may change
+function AccessSummary({ meta, base, value, reach }) {
+  const eff = { ...base, ...(value || {}) };
+  const open = Object.keys(meta.modules).filter((m) => (eff[m] || []).length);
+  const changes = open.filter((m) => (eff[m] || []).some((a) => a !== "view"));
+  return (
+    <div className="access-summary">
+      <b>{open.length}</b> of {Object.keys(meta.modules).length} pages open · data: <b>{REACH_LABELS[reach] || reach}</b>
+      {changes.length > 0 && <> · may add / change / delete in <b>{changes.length}</b></>}
+    </div>
+  );
+}
+
 function UserForm({ initial, meta, org, me, people, onClose, onSaved, onOrgAdded }) {
   const [v, setV] = useState(initial);
   const [error, setError] = useState("");
@@ -348,7 +372,7 @@ function UserForm({ initial, meta, org, me, people, onClose, onSaved, onOrgAdded
   const [showPw, setShowPw] = useState(false);
   const isNew = !initial._id;
   const set = (patch) => setV({ ...v, ...patch });
-  const oversees = v.role === "hod" || v.role === "pc";
+  const oversees = v.role === "hod" || v.role === "pc" || v.reach === "department";
   const roles = Object.entries(meta.roles as Record<string, string>).filter(([k]) => !["admin", "developer"].includes(k) || isAdmin(me));
   const [types, setTypes] = useState<string[]>(meta.doerTypes || []);
   const photoSrc = v.photo ? (String(v.photo).startsWith("data:") ? v.photo : `/api/files/${v.photo}`) : "";
@@ -377,11 +401,12 @@ function UserForm({ initial, meta, org, me, people, onClose, onSaved, onOrgAdded
 
   // Access: the role's defaults, then the department's access, then what is set here for this person
   const dept = org.departments.find((d) => d._id === v.department);
+  const wholeCompany = ["auditor", "hr"].includes(v.role) || v.reach === "all";
   const base = { ...(meta.roleDefaults[v.role] || {}), ...(dept?.permissions || {}) };
   function copyFrom(id) {
     const other = (people || []).find((p) => p._id === id);
     if (!other) return;
-    set({ permissions: other.permissions && Object.keys(other.permissions).length ? { ...other.permissions } : null, seesAll: Boolean(other.seesAll) });
+    set({ permissions: other.permissions && Object.keys(other.permissions).length ? { ...other.permissions } : null, reach: other.seesAll ? "all" : other.reach || "" });
   }
 
   async function save(e) {
@@ -615,9 +640,18 @@ function UserForm({ initial, meta, org, me, people, onClose, onSaved, onOrgAdded
               )}
             </div>
           </div>
-          <label className="check sees-all">
-            <input type="checkbox" checked={["auditor", "hr"].includes(v.role) || Boolean(v.seesAll)} disabled={["auditor", "hr"].includes(v.role)} onChange={(e) => set({ seesAll: e.target.checked })} /> Sees everyone (whole company){" "}
-            <Help text="Without this, what they may do reaches only their department / team (HOD, PC) or their team (Team Leader) or themselves. HR and Auditor always see everyone." />
+          <AccessSummary meta={meta} base={base} value={v.permissions} reach={wholeCompany ? "all" : v.reach || ROLE_REACH[v.role] || "self"} />
+          <label className="reach-pick">
+            <span>
+              Whose data they see <Help text="What their ticked pages show: only their own tasks and score, their team (people who have them as Team leader), their department (with the departments they oversee, ticked above), or the whole company. HR and Auditor always see the whole company." />
+            </span>
+            <select value={wholeCompany ? "all" : v.reach || ""} disabled={["auditor", "hr"].includes(v.role)} onChange={(e) => set({ reach: e.target.value })}>
+              <option value="">Role default – {REACH_LABELS[ROLE_REACH[v.role] || "self"]}</option>
+              <option value="self">{REACH_LABELS.self}</option>
+              <option value="team">{REACH_LABELS.team}</option>
+              <option value="department">{REACH_LABELS.department}</option>
+              <option value="all">{REACH_LABELS.all}</option>
+            </select>
           </label>
           <PermissionGrid meta={meta} value={v.permissions} base={base} baseLabel={dept?.permissions ? "Role / department default" : "Role default"} onChange={(permissions) => set({ permissions })} />
         </div>

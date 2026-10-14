@@ -6,6 +6,7 @@ import DoerSelect from "../components/DoerSelect";
 import { MoreFilters, RangeSelect, STATUSES, moreCount } from "../components/ListFilters";
 import { csvCell, download } from "../csv";
 import { joinIst } from "../tasks";
+import ScopeNote from "../components/ScopeNote";
 
 const DELAYS = [
   ["", "Any delay"],
@@ -19,7 +20,7 @@ const todayIst = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkat
 // MIDAP "List FMS Tasks": FMS steps with FMS / step / field value / status / delay filters
 export default function FmsTasks() {
   const { user } = useAuth();
-  const canSwitch = can(user, "reports", "edit");
+  const canSwitch = can(user, "fmsTasks", "edit");
   const isAdmin = isAdminRole(user);
   const [processes, setProcesses] = useState([]);
   const [f, setF] = useState({ process: "", step: "", status: "pending", doer: "", delay: "", field: "", value: "", from: "", to: "", mode: "", pc: "", department: "" });
@@ -87,6 +88,7 @@ export default function FmsTasks() {
       <div className="page-head">
         <div>
           <h2>FMS Tasks</h2>
+          <ScopeNote />
           <div className="muted small">Every FMS step of the people you oversee.{data ? ` ${data.total} step(s).` : ""}</div>
         </div>
         {tasks.length > 0 && (

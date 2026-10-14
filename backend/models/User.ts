@@ -33,6 +33,10 @@ const userSchema = new mongoose.Schema(
     isAuditor: { type: Boolean, default: false },
     // "Sees everyone": what their permissions allow reaches the whole company, not only their department / team
     seesAll: { type: Boolean, default: false },
+    // "Data kiska dikhe" when not the whole company: "" = the role's own (HOD / PC: department, Team Leader: team, others:
+    // themselves), "self", "team" (people who have them as team leader), "department" (their department, the departments
+    // they oversee and their team)
+    reach: { type: String, enum: ["", "self", "team", "department"], default: "" },
     active: { type: Boolean, default: true },
 
     // Bumped on every password change or reset; tokens issued before that stop working

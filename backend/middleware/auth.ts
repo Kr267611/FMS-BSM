@@ -49,4 +49,14 @@ function permit(module, action) {
   };
 }
 
-export = { auth, adminOnly, permit };
+// Any one of several page ticks, e.g. permitAny(["doerTasks", "edit"], ["fmsTasks", "edit"])
+function permitAny(...pairs) {
+  return (req, res, next) => {
+    if (!pairs.some(([module, action]) => can(req.user, module, action))) {
+      return res.status(403).json({ message: "You don't have permission to do this. Ask your admin." });
+    }
+    next();
+  };
+}
+
+export = { auth, adminOnly, permit, permitAny };

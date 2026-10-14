@@ -12,7 +12,7 @@ const { passwordProblem } = passwordsLib;
 import permissionsLib = require("../services/permissions");
 const { ROLES, MODULES, ACTIONS, ROLE_DEFAULTS, MODULE_ACTIONS, MODULE_GROUPS, ADMIN_ONLY_ROLES, cleanOverrides, permissionsFor, isAdmin } = permissionsLib;
 import scopeLib = require("../services/scope");
-const { visibleUserIds, canSeeUser } = scopeLib;
+const { visibleUserIds, canSeeUser, reachOf } = scopeLib;
 import auditLib = require("../services/audit");
 const { audit } = auditLib;
 import uploadsLib = require("../services/uploads");
@@ -109,7 +109,7 @@ router.get("/meta", auth, async (req, res) => {
 router.get("/access", auth, async (req, res) => {
   if (!isAdmin(req.user)) return res.status(403).json({ message: "Only an admin can see everyone's access" });
   const [users, depts] = await Promise.all([
-    User.find({ active: true }).select("name role department permissions seesAll isAuditor").populate("department", "name").sort({ name: 1 }).lean<any>(),
+    User.find({ active: true }).select("name role department permissions seesAll reach isAuditor").populate("department", "name").sort({ name: 1 }).lean<any>(),
     Department.find().select("permissions").lean<any>(),
   ]);
   const deptPerms = new Map<any, any>(depts.map((d) => [String(d._id), d.permissions || null]));
@@ -121,7 +121,8 @@ router.get("/access", auth, async (req, res) => {
         name: u.name,
         role: u.role,
         department: u.department?.name || "",
-        seesAll: Boolean(u.seesAll) || isAdmin(u) || ["auditor", "hr"].includes(u.role),
+        seesAll: reachOf(u) === "all",
+        reach: reachOf(u),
         isAuditor: Boolean(u.isAuditor),
         permissions: permissionsFor({ ...u, deptPermissions: dp || undefined }),
         own: Object.keys(u.permissions || {}),
@@ -151,6 +152,15 @@ router.get("/", auth, permit("users", "view"), async (req, res) => {
   const filter = visible === null ? {} : { _id: { $in: visible } };
   res.json(await populateUser(User.find(filter).sort({ active: -1, name: 1 })).lean());
 });
+
+// "Data kiska dikhe" from the form: "all" = the whole company (seesAll); "" = the role's own; or self / team / department
+const REACHES = ["", "self", "team", "department", "all"];
+function reachFields(body) {
+  const r = body?.reach;
+  if (r !== undefined && REACHES.includes(r)) return { seesAll: r === "all", reach: r === "all" ? "" : r };
+  if (body?.seesAll !== undefined) return { seesAll: Boolean(body.seesAll) };
+  return null;
+}
 
 function userFields(body) {
   const b = body || {};
@@ -187,7 +197,7 @@ router.post("/", auth, permit("users", "add"), async (req, res) => {
   const user = await User.create({
     ...f,
     ...profile.set,
-    seesAll: isAdmin(req.user) ? Boolean(req.body?.seesAll) : false,
+    ...(isAdmin(req.user) ? reachFields(req.body) || {} : {}),
     username,
     email,
     password: await bcrypt.hash(String(password), 10),
@@ -230,7 +240,14 @@ router.put("/:id", auth, permit("users", "edit"), async (req, res) => {
   const same = (a, c) => JSON.stringify(a ?? null) === JSON.stringify(c ?? null);
   const idStr = (x) => (x ? String(x) : null);
   for (const k of ["name", "phone"]) if (b[k] !== undefined && b[k] !== user[k]) (user[k] = b[k]), changes.push(k);
-  if (b.seesAll !== undefined && isAdmin(req.user) && Boolean(b.seesAll) !== Boolean(user.seesAll)) (user.seesAll = Boolean(b.seesAll)), changes.push(user.seesAll ? "sees everyone" : "sees their own people");
+  const reach = isAdmin(req.user) ? reachFields(b) : null;
+  if (reach) {
+    const before = user.seesAll ? "all" : user.reach || "";
+    if (reach.seesAll !== undefined) user.seesAll = reach.seesAll;
+    if (reach.reach !== undefined) user.reach = reach.reach;
+    const after = user.seesAll ? "all" : user.reach || "";
+    if (after !== before) changes.push(`data: ${({ all: "whole company", self: "only their own", team: "their team", department: "their departments", "": "the role's own" })[after]}`);
+  }
   if (b.isAuditor !== undefined && Boolean(b.isAuditor) !== Boolean(user.isAuditor)) (user.isAuditor = Boolean(b.isAuditor)), changes.push(user.isAuditor ? "made auditor" : "no longer auditor");
   for (const [k, v] of Object.entries(profile.set)) if (v !== (user[k] || "")) (user[k] = v), changes.push(k === "photo" ? (v ? "photo" : "photo removed") : k);
   if (b.email !== undefined && cleanEmail(b.email) !== user.email) (user.email = cleanEmail(b.email)), changes.push("email");

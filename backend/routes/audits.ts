@@ -131,7 +131,7 @@ router.post("/:id", async (req, res) => {
 
 // MIDAP "Auditor Report": per auditor and doer – tasks for audit, audited, pending, OK / Not OK, average rating
 // ?from= &to= (planned day) &group=auditor|doer
-router.get("/report", permit("reports", "view"), async (req, res) => {
+router.get("/report", permit("auditorReport", "view"), async (req, res) => {
   const match: Record<string, any> = { auditor: { $ne: null }, status: { $in: ["pending", "done"] } };
   const visible = await visibleUserIds(req.user);
   if (visible !== null) match.$or = [{ doer: { $in: visible.map(oid) } }, { auditor: req.user._id }];

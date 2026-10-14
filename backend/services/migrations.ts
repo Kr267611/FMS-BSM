@@ -1,12 +1,99 @@
 import mongoose = require("mongoose");
 import User = require("../models/User");
+import Setting = require("../models/Setting");
 import OrgLib = require("../models/Org");
 const { Department } = OrgLib;
+import permissionsLib = require("./permissions");
+const { MODULE_ACTIONS, ROLE_DEFAULTS, REPORT_PAGES, FMS_LISTS, isAdmin, permissionsFor } = permissionsLib;
 
 // Idempotent data upgrades, run on every start.
 async function runMigrations() {
   await migrateDepartments();
   await migrateProcessesToV2();
+  await migratePageAccess();
+}
+
+// ---- One tick per page (Oct 2026) ----
+// Before: one "PC reports & MIS" tick opened all eight report pages (four of them hidden from doers in the menu),
+// the Master FMS tick also opened Doer Conditions / Override TAT / Auto-calculate / Auto Complete, Import needed
+// Master FMS add + Settings edit, and Bulk needed FMS entries (not for doers). Now each page has its own tick.
+// Every user keeps exactly the pages they had: what the new role defaults do not give the same is written on the user.
+// The old access is kept in permissionsV1.
+const OLD_DEFAULTS = {
+  reports: { hod: ["view", "edit"], pc: ["view", "edit"], tl: ["view", "edit"], auditor: ["view"], doer: ["view"] },
+  fms: { hod: ["view"], pc: ["view"], auditor: ["view"] },
+};
+const STAFF_ONLY = ["doerTasks", "fmsTasks", "misMeeting", "auditorReport"]; // hidden from doers in the old menu
+const NEW_PAGES = [...REPORT_PAGES, ...FMS_LISTS, "autoComplete", "fmsImport", "fmsBulk"];
+const fit = (mod, acts) => [...new Set<any>((acts || []).filter((a) => MODULE_ACTIONS[mod]?.[a]))];
+const same = (a, b) => JSON.stringify([...(a || [])].sort()) === JSON.stringify([...(b || [])].sort());
+
+// The legacy "reports" / "fms" ticks of one layer (department or user) as the new page ticks
+function splitLayer(layer, role?) {
+  if (!layer || typeof layer !== "object") return layer;
+  const out = { ...layer };
+  if (Array.isArray(layer.reports)) {
+    for (const p of REPORT_PAGES) out[p] = role === "doer" && STAFF_ONLY.includes(p) ? [] : fit(p, layer.reports);
+    delete out.reports;
+  }
+  if (Array.isArray(layer.fms)) {
+    for (const p of FMS_LISTS) out[p] = layer.fms.includes("view") ? ["view"] : [];
+    out.autoComplete = fit("autoComplete", layer.fms);
+  }
+  return out;
+}
+
+// The pages a user could open before the change
+function oldPages(user, deptPerms) {
+  const role = ROLE_DEFAULTS[user.role] ? user.role : "doer";
+  const layered = (key, base) => {
+    let v = base || [];
+    if (Array.isArray(deptPerms?.[key])) v = deptPerms[key];
+    if (Array.isArray(user.permissions?.[key])) v = user.permissions[key];
+    return v;
+  };
+  const reports = layered("reports", OLD_DEFAULTS.reports[role]);
+  const fms = layered("fms", OLD_DEFAULTS.fms[role]);
+  const settings = layered("settings", []);
+  const entries = layered("fmsEntries", ROLE_DEFAULTS[role].fmsEntries);
+  const out: Record<string, any> = {};
+  for (const p of REPORT_PAGES) out[p] = role === "doer" && STAFF_ONLY.includes(p) ? [] : fit(p, reports);
+  for (const p of FMS_LISTS) out[p] = fms.includes("view") ? ["view"] : [];
+  out.autoComplete = fit("autoComplete", fms);
+  out.fmsImport = fms.includes("add") && settings.includes("edit") ? ["add"] : [];
+  out.fmsBulk = entries.includes("view") && role !== "doer" ? ["view"] : [];
+  return out;
+}
+
+async function migratePageAccess() {
+  const KEY = "migration.pageAccess";
+  if (await Setting.exists({ key: KEY })) return;
+  const depts = await Department.collection.find({}).project({ permissions: 1 }).toArray();
+  const oldDept = new Map<string, any>(depts.map((d) => [String(d._id), d.permissions]));
+  const newDept = new Map<string, any>();
+  for (const d of depts) {
+    const next = splitLayer(d.permissions);
+    newDept.set(String(d._id), next);
+    if (d.permissions && JSON.stringify(next) !== JSON.stringify(d.permissions)) {
+      await Department.collection.updateOne({ _id: d._id }, { $set: { permissions: next, permissionsV1: d.permissions } });
+    }
+  }
+  let changed = 0;
+  const users = await User.collection.find({}).project({ role: 1, department: 1, permissions: 1 }).toArray();
+  for (const u of users) {
+    if (isAdmin(u)) continue;
+    const dept = u.department ? String(u.department) : "";
+    const before = oldPages(u, oldDept.get(dept));
+    const own = splitLayer(u.permissions, u.role) || {};
+    const now = permissionsFor({ ...u, permissions: own, deptPermissions: newDept.get(dept) || undefined });
+    for (const p of NEW_PAGES) if (!same(now[p], before[p])) own[p] = before[p];
+    const next = Object.keys(own).length ? own : undefined;
+    if (JSON.stringify(next) === JSON.stringify(u.permissions)) continue;
+    await User.collection.updateOne({ _id: u._id }, next ? { $set: { permissions: next, permissionsV1: u.permissions ?? null } } : { $unset: { permissions: "" } });
+    changed++;
+  }
+  await Setting.create({ key: KEY, value: { at: new Date(), users: changed } });
+  if (changed) console.log(`Page access: ${changed} user(s) keep their old pages as their own ticks`);
 }
 
 // v1 stored User.department as text ("QC"); v2 references a Department document.
@@ -85,4 +172,4 @@ async function migrateProcessesToV2() {
   }
 }
 
-export = { runMigrations };
+export = { runMigrations, migratePageAccess, oldPages, splitLayer };

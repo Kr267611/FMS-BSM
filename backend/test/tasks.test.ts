@@ -391,7 +391,11 @@ test("PC report: doer tasks list, switch doer (not overdue unless admin), admin-
   assert.strictEqual((await call("/reports/tasks/delete", { session: sessions.mpc, method: "POST", body: { ids: [future._id] } })).status, 403);
   const del = await call("/reports/tasks/delete", { session: sessions.admin, method: "POST", body: { ids: [future._id] } });
   assert.strictEqual(del.data.deleted, 1);
+  // a doer has no List Doer Tasks tick (it was only hidden from the menu before); given it, they see their own tasks
+  assert.strictEqual((await call("/reports/tasks", { session: sessions.sunil })).status, 403);
+  await require("../models/User").updateOne({ _id: people.sunil }, { $set: { "permissions.doerTasks": ["view"] } });
   assert.strictEqual((await call("/reports/tasks", { session: sessions.sunil })).data.tasks.every((t) => t.doer._id === people.sunil), true);
+  await require("../models/User").updateOne({ _id: people.sunil }, { $unset: { "permissions.doerTasks": "" } });
 });
 
 test("dashboard: MIDAP week score (this vs last week), weekly chart, today's checklists, Me / Team", async () => {

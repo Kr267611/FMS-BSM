@@ -81,8 +81,9 @@ An FMS made with **Import FMS from Sheet** keeps each step's columns and each en
 ## Roles, departments and permissions
 
 - Roles: **Admin**, **Developer** (everything an admin has; only an admin or developer can give it), **HOD**, **PC** (process coordinator), **Team Leader** (sees and assigns work to the people who have them as team leader), **Auditor**, **Doer**. Each user belongs to a branch and department and can have a team leader.
-- HOD and PC see only their own department, the extra departments they oversee, and their team members — in task lists, MIS and Users.
-- Each role has default page permissions (view / add / edit / delete per module); an admin can override them per user.
+- **One tick per page:** every menu page (each PC Report, each FMS Manager list, FMS Entries…) has its own View / Add / Edit / Delete ticks. Nothing is hidden by role: what is ticked shows, in the menu and in the data. Each role only gives the starting ticks; an admin changes them per user (or per department).
+- **Whose data they see** (on the user, admin only): the role's own (HOD / PC: their department and the departments they oversee, Team Leader: their team, others: themselves), only their own, their team, their department, or the whole company. HR and Auditor always see the whole company. A report page that shows only the person's own data says so.
+- An entry's step shows **Mark done** only to its doer or to someone with FMS Entries (edit) whose people include that doer; otherwise it says why not.
 - **Users → Bulk upload** creates many users from a CSV (template on the page) and returns temporary passwords to hand out.
 - **Audit log** records sign-ins, failed attempts, lockouts and every change to users, departments, FMS and tasks.
 - See [ADR-002](docs/adr/ADR-002-v2-midap-aligned-architecture.md) for the full v2 plan (Checklist, Delegation, FMS engine v2, Weekly MIS).

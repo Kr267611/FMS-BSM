@@ -5,6 +5,7 @@ import DoerSelect from "../components/DoerSelect";
 import { MoreFilters, RangeSelect, STATUSES, moreCount } from "../components/ListFilters";
 import { csvCell, download } from "../csv";
 import { deadlineState, priorityLabel, priorityTone } from "../tasks";
+import ScopeNote from "../components/ScopeNote";
 
 const KINDS = [
   ["", "All types"],
@@ -19,7 +20,7 @@ const todayIst = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkat
 // PC report like MIDAP's "List Doer Tasks": every task, filters, switch doer, delete, Excel
 export default function DoerTasks() {
   const { user } = useAuth();
-  const canSwitch = can(user, "reports", "edit");
+  const canSwitch = can(user, "doerTasks", "edit");
   const [f, setF] = useState({ kind: "", doer: "", status: "pending", delay: "", from: "", to: "", q: "", mode: "", priority: "", department: "", branch: "", group: "", assignedBy: "", pc: "", auditor: "" });
   const [more, setMore] = useState(false);
   const [page, setPage] = useState(1);
@@ -91,6 +92,7 @@ export default function DoerTasks() {
       <div className="page-head">
         <div>
           <h2>Doer Tasks</h2>
+          <ScopeNote />
           <div className="muted small">Every checklist, delegation and FMS task of the people you oversee.{data ? ` ${data.total} task(s).` : ""}</div>
         </div>
         {tasks.length > 0 && (
@@ -184,7 +186,7 @@ export default function DoerTasks() {
           <button className="btn primary small" disabled={!to} onClick={switchDoer}>
             Switch doer
           </button>
-          {can(user, "reports", "delete") && (
+          {can(user, "doerTasks", "delete") && (
             <button className="btn ghost small danger push-right" onClick={() => (confirmDelete ? remove() : setConfirmDelete(true))} onBlur={() => setConfirmDelete(false)}>
               {confirmDelete ? "Yes, delete them" : "Delete"}
             </button>

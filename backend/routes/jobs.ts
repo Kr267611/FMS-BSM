@@ -7,7 +7,9 @@ import AuditLog = require("../models/AuditLog");
 import authLib = require("../middleware/auth");
 const { auth, permit } = authLib;
 import permissionsLib = require("../services/permissions");
-const { isAdmin } = permissionsLib;
+const { can } = permissionsLib;
+import scopeLib = require("../services/scope");
+const { visibleUserIds } = scopeLib;
 import auditLib = require("../services/audit");
 const { audit } = auditLib;
 import datesLib = require("../services/dates");
@@ -157,7 +159,18 @@ router.get("/:id", permit("fmsEntries", "view"), async (req, res) => {
     .limit(60)
     .select("at actorName action summary")
     .lean<any>();
-  res.json({ ...withT, today: todayKey(), history });
+  // Who may mark each step done / not required here (the same rule the server checks): its doer, or someone with
+  // FMS Entries (edit) whose people include that doer. notAllowed says why not, for the entry panel.
+  const mayEdit = can(req.user, "fmsEntries", "edit");
+  const visible = mayEdit ? await visibleUserIds(req.user) : [];
+  const tasks = withT.tasks.map((t) => {
+    const doer = String(t.doer?._id || t.doer || "");
+    if (doer && doer === String(req.user._id)) return { ...t, canAct: true };
+    if (!mayEdit) return { ...t, canAct: false, notAllowed: "Only the doer can mark this step. Marking it for others needs FMS Entries (edit)." };
+    if (!doer || (visible !== null && !visible.includes(doer))) return { ...t, canAct: false, notAllowed: "The doer of this step is not among the people you can reach (Data kiska dikhe)." };
+    return { ...t, canAct: true };
+  });
+  res.json({ ...withT, tasks, today: todayKey(), history });
 });
 
 router.post("/", permit("fmsEntries", "add"), async (req, res) => {
@@ -197,9 +210,9 @@ router.post("/:id/reopen", permit("fmsEntries", "edit"), async (req, res) => {
   res.json(job);
 });
 
-// Admin only; the body must say confirm: "DELETE". Entries and all their steps go, and leave the MIS.
+// Bulk Delete / Download (delete); the body must say confirm: "DELETE". Entries and all their steps go, and leave the MIS.
 router.post("/bulk-delete", async (req, res) => {
-  if (!isAdmin(req.user)) return res.status(403).json({ message: "Only an admin can delete entries in bulk" });
+  if (!can(req.user, "fmsBulk", "delete")) return res.status(403).json({ message: "Deleting entries in bulk needs Bulk Delete / Download (delete). Ask your admin." });
   if (req.body?.confirm !== "DELETE") return res.status(400).json({ message: 'Type DELETE to confirm' });
   const filter = jobFilter(req.body);
   const process = await Process.findById(req.body.process).select("name").lean<any>();

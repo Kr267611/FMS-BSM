@@ -4,6 +4,7 @@ import { addDays, api, showDay, todayKey } from "../api";
 import { useAuth } from "../App";
 import { csvCell, download } from "../csv";
 import { toHM } from "../components/EffortInput";
+import ScopeNote from "../components/ScopeNote";
 
 const hm = (min) => (min ? toHM(min) : "0:00");
 function presets() {
@@ -51,6 +52,7 @@ export default function EffortReport() {
       <div className="page-head">
         <div>
           <h2>List Effort Time</h2>
+          <ScopeNote />
           <div className="muted small">{data ? `${showDay(data.from)} – ${showDay(data.to)} · ${data.workingDays} working day(s)` : " "}</div>
         </div>
         <div className="row wrap">
@@ -72,7 +74,7 @@ export default function EffortReport() {
               Actual date
             </button>
           </div>
-          {user.role !== "doer" && (
+          {user.reach !== "self" && (
             <div className="tabs">
               <button className={group === "doer" ? "active" : ""} onClick={() => setGroup("doer")}>
                 Doer-wise

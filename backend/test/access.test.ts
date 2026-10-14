@@ -131,9 +131,9 @@ test("'Sees everyone': a HOD reaches the other department too", async () => {
   assert.strictEqual((await call("hod", `/attendance/register?user=${ids.asha}`)).status, 200);
 });
 
-test("taking away reports closes the MIS too (not only the menu)", async () => {
+test("taking away the report pages closes their data too (not only the menu)", async () => {
   assert.strictEqual((await call("asha", "/mis?from=2026-10-01&to=2026-10-07")).status, 200);
-  await call("admin", `/users/${ids.asha}`, { method: "PUT", body: { permissions: { myAttendance: [], myLeave: [], reports: [] } } });
+  await call("admin", `/users/${ids.asha}`, { method: "PUT", body: { permissions: { myAttendance: [], myLeave: [], misScore: [], weeklyMis: [], performance: [], doerTasks: [] } } });
   for (const p of ["/mis?from=2026-10-01&to=2026-10-07", "/mis/weekly", "/mis/performance", "/reports/tasks"]) {
     assert.strictEqual((await call("asha", p)).status, 403, p);
   }

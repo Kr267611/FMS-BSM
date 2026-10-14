@@ -10,7 +10,7 @@
     "start": "node server.js",
     "dev": "tsc -p . && node --watch server.js",
     "seed:demo": "tsc -p . && node dist/scripts/seedDemo.js",
-    "test": "tsc -p . && node --test \"dist/test/**/*.test.js\"",
+    "test": "tsc -p . && node --test --test-concurrency=1 \"dist/test/**/*.test.js\"",
     "typecheck": "tsc -p . --noEmit"
   },
   "dependencies": {

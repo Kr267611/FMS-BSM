@@ -3,6 +3,7 @@ import { PeopleFilter } from "../components/ListFilters";
 import { addDays, api, showDay, todayKey } from "../api";
 import { useAuth } from "../App";
 import { csvCell, download } from "../csv";
+import ScopeNote from "../components/ScopeNote";
 
 function presets() {
   const t = todayKey();
@@ -74,6 +75,7 @@ export default function Performance() {
       <div className="page-head">
         <div>
           <h2>Performance Score</h2>
+          <ScopeNote />
           <div className="muted small">{data ? `${showDay(data.from)} – ${showDay(data.to)}` : " "}</div>
         </div>
         <div className="row wrap">
@@ -87,7 +89,7 @@ export default function Performance() {
           </div>
           <input type="date" value={range.from} onChange={(e) => setRange({ ...range, key: "", from: e.target.value })} />
           <input type="date" value={range.to} onChange={(e) => setRange({ ...range, key: "", to: e.target.value })} />
-          {user.role !== "doer" && (
+          {user.reach !== "self" && (
             <div className="tabs">
               <button className={group === "doer" ? "active" : ""} onClick={() => setGroup("doer")}>
                 Doer-wise
@@ -115,7 +117,7 @@ export default function Performance() {
         <>
           <div className="dash-stats">
             <div className="card dash-tile">
-              <span className="muted">{user.role === "doer" ? "My performance" : "Overall performance"}</span>
+              <span className="muted">{user.reach === "self" ? "My performance" : "Overall performance"}</span>
               <div className={"dash-value perf-" + tone(data.company.performance)}>{data.company.performance ?? "—"}</div>
               <div className="muted small">
                 {data.company.done} of {data.company.planned} done · {data.company.onTimePct}% on time

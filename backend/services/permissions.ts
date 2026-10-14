@@ -5,15 +5,29 @@
 
 const ACTIONS = ["view", "add", "edit", "delete"];
 
+// One entry per menu page (or per area where one page has it all). Each tick is exactly one page.
 const MODULES = {
   myAttendance: "My Attendance (punch in / out)",
   myLeave: "My Leave (apply)",
   myTickets: "My Tickets (raise)",
-  fms: "FMS Manager (Master FMS)",
-  fmsEntries: "FMS entries",
   checklist: "Checklists",
   delegation: "Delegations",
-  reports: "PC reports & MIS",
+  fms: "List / Add Master FMS",
+  fmsImport: "Import FMS from Sheet",
+  doerConditions: "Doer Conditions",
+  overrideTat: "Override TAT",
+  autoCalc: "Auto-calculate Fields",
+  autoComplete: "FMS Auto Complete",
+  fmsBulk: "Bulk Delete / Download",
+  fmsEntries: "FMS Entries",
+  doerTasks: "List Doer Tasks",
+  fmsTasks: "List FMS Tasks",
+  misScore: "MIS Score",
+  weeklyMis: "Weekly MIS Score",
+  misMeeting: "Weekly MIS Meeting",
+  performance: "Performance Score",
+  auditorReport: "Auditor Report",
+  effortReport: "List Effort Time",
   leave: "HRMS – Leave",
   attendance: "HRMS – Attendance",
   hrSetup: "HRMS – Setup",
@@ -30,11 +44,24 @@ const MODULE_ACTIONS = {
   myAttendance: { view: "Punch in / out, see their own attendance, ask for corrections" },
   myLeave: { view: "Apply for leave, see their own balance" },
   myTickets: { view: "Raise help tickets and follow their own" },
-  fms: { view: "See the Master FMS list", add: "Create an FMS / import from a sheet", edit: "Change an FMS and its rules", delete: "Delete an FMS" },
-  fmsEntries: { view: "See FMS entries", add: "Add an entry", edit: "Change entries, close / reopen", delete: "Delete entries" },
   checklist: { view: "See checklists", add: "Create checklists", edit: "Change checklists", delete: "Delete checklists" },
   delegation: { view: "See all delegations of their people", add: "Assign delegations", edit: "Change / approve new deadlines", delete: "Delete delegations" },
-  reports: { view: "See MIS, doer / FMS task lists and reports", edit: "Switch the doer of pending tasks (task lists)", delete: "Delete checklist / delegation tasks (task lists)" },
+  fms: { view: "See the Master FMS list", add: "Create an FMS (Add Master FMS)", edit: "Change an FMS and its rules", delete: "Delete an FMS" },
+  fmsImport: { add: "Make an FMS from a Google Sheet tab" },
+  doerConditions: { view: "See who does each step of every FMS" },
+  overrideTat: { view: "See the TAT rules of every FMS" },
+  autoCalc: { view: "See the auto-calculated fields of every FMS" },
+  autoComplete: { view: "See the rules", add: "Add rules", edit: "Change rules", delete: "Delete rules" },
+  fmsBulk: { view: "Download entries in bulk", delete: "Delete entries in bulk" },
+  fmsEntries: { view: "See FMS entries", add: "Add an entry", edit: "Change entries, close / reopen, mark steps done for others", delete: "Delete entries" },
+  doerTasks: { view: "See every checklist, delegation and FMS task of their people", edit: "Switch the doer of pending tasks", delete: "Delete checklist / delegation tasks" },
+  fmsTasks: { view: "See every FMS step of their people", edit: "Switch the doer of pending steps" },
+  misScore: { view: "Planned / actual / late / pending / score by doer" },
+  weeklyMis: { view: "The week's score by doer" },
+  misMeeting: { view: "The weekly MIS meeting report" },
+  performance: { view: "Performance score by doer" },
+  auditorReport: { view: "Audited / OK / Not OK by auditor and doer" },
+  effortReport: { view: "Time spent on tasks" },
   leave: { view: "See the Leave List of their people", add: "Apply leave for someone else", edit: "Approve / reject / cancel leave" },
   attendance: { view: "See the Attendance Register", add: "Upload the biometric file", edit: "Mark days by hand, approve correction requests" },
   hrSetup: { view: "See leave types, policies, shifts, policy assignment", edit: "Change them, give people policies / shifts", delete: "Delete leave types, policies, shifts" },
@@ -46,19 +73,30 @@ const MODULE_ACTIONS = {
   audit: { view: "See the audit log" },
 };
 
-// Areas, for showing the grid in groups
+// Areas, as in the menu, for showing the grid in groups
 const MODULE_GROUPS = [
   ["Self service", ["myAttendance", "myLeave", "myTickets"]],
-  ["Work", ["fms", "fmsEntries", "checklist", "delegation", "reports"]],
+  ["Master Tasks", ["checklist", "delegation"]],
+  ["FMS Manager", ["fms", "fmsImport", "doerConditions", "overrideTat", "autoCalc", "autoComplete", "fmsBulk", "fmsEntries"]],
+  ["PC Reports", ["doerTasks", "fmsTasks", "misScore", "weeklyMis", "misMeeting", "performance", "auditorReport", "effortReport"]],
   ["HRMS", ["leave", "attendance", "hrSetup"]],
   ["Help Ticket", ["tickets", "ticketSetup"]],
   ["Admin", ["users", "org", "settings", "audit"]],
 ];
+// The PC Reports pages, and the FMS Manager lists that only show rules (they are changed in the FMS itself)
+const REPORT_PAGES = MODULE_GROUPS.find(([g]) => g === "PC Reports")[1] as string[];
+const FMS_LISTS = ["doerConditions", "overrideTat", "autoCalc"];
+// Pages of the FMS Manager / PC Reports besides the Master FMS and the entries (for "may this user read FMS definitions")
+const FMS_PAGES = [...FMS_LISTS, "autoComplete", "fmsBulk", "fmsImport"];
 
 const allOf = (m) => Object.keys(MODULE_ACTIONS[m]);
 // everyone can punch, apply for leave and raise tickets unless an admin takes it away (user or department)
 const SELF = { myAttendance: ["view"], myLeave: ["view"], myTickets: ["view"] };
 const EVERYTHING = Object.fromEntries(Object.keys(MODULES).map((m) => [m, allOf(m)]));
+const view = (keys) => Object.fromEntries(keys.map((k) => [k, ["view"]]));
+// What HOD / PC / Team Leader see of the PC Reports, and what a doer sees (their own score pages)
+const STAFF_REPORTS = { ...view(REPORT_PAGES), doerTasks: ["view", "edit"], fmsTasks: ["view", "edit"] };
+const DOER_REPORTS = view(["misScore", "weeklyMis", "performance", "effortReport"]);
 const ROLE_DEFAULTS = {
   admin: EVERYTHING,
   // Developer: everything an admin has (keeps the software running)
@@ -66,10 +104,11 @@ const ROLE_DEFAULTS = {
   hod: {
     ...SELF,
     fms: ["view"],
+    ...view([...FMS_LISTS, "autoComplete", "fmsBulk"]),
     fmsEntries: ["view", "add", "edit"],
     checklist: ["view", "add", "edit"],
     delegation: ["view", "add", "edit"],
-    reports: ["view", "edit"],
+    ...STAFF_REPORTS,
     leave: ["view", "add", "edit"],
     attendance: ["view", "edit"],
     tickets: ["view", "edit"],
@@ -79,10 +118,11 @@ const ROLE_DEFAULTS = {
   pc: {
     ...SELF,
     fms: ["view"],
+    ...view([...FMS_LISTS, "autoComplete", "fmsBulk"]),
     fmsEntries: ["view", "add", "edit"],
     checklist: ["view", "add", "edit"],
     delegation: ["view", "add", "edit"],
-    reports: ["view", "edit"],
+    ...STAFF_REPORTS,
     leave: ["view", "add", "edit"],
     attendance: ["view", "edit"],
     tickets: ["view", "edit"],
@@ -91,10 +131,11 @@ const ROLE_DEFAULTS = {
   // Team Leader: follows up and assigns work for the people who have them as team leader
   tl: {
     ...SELF,
+    fmsBulk: ["view"],
     fmsEntries: ["view", "add", "edit"],
     checklist: ["view", "add", "edit"],
     delegation: ["view", "add", "edit"],
-    reports: ["view", "edit"],
+    ...STAFF_REPORTS,
     leave: ["view", "add", "edit"],
     attendance: ["view", "edit"],
     tickets: ["view", "edit"],
@@ -112,15 +153,16 @@ const ROLE_DEFAULTS = {
   auditor: {
     ...SELF,
     fms: ["view"],
+    ...view([...FMS_LISTS, "autoComplete", "fmsBulk"]),
     fmsEntries: ["view"],
     checklist: ["view"],
     delegation: ["view"],
-    reports: ["view"],
+    ...view(REPORT_PAGES),
   },
   doer: {
     ...SELF,
     fmsEntries: ["view", "add"],
-    reports: ["view"],
+    ...DOER_REPORTS,
   },
 };
 
@@ -173,4 +215,4 @@ function cleanOverrides(input) {
   return Object.keys(out).length ? out : undefined;
 }
 
-export = { ACTIONS, MODULES, MODULE_ACTIONS, MODULE_GROUPS, ROLES, FULL_ROLES, ADMIN_ONLY_ROLES, ROLE_DEFAULTS, isAdmin, permissionsFor, can, cleanOverrides };
+export = { ACTIONS, MODULES, MODULE_ACTIONS, MODULE_GROUPS, ROLES, FULL_ROLES, ADMIN_ONLY_ROLES, ROLE_DEFAULTS, REPORT_PAGES, FMS_LISTS, FMS_PAGES, isAdmin, permissionsFor, can, cleanOverrides };

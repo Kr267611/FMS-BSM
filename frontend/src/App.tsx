@@ -110,12 +110,12 @@ function menuFor(user) {
       items: [
         { to: "/processes", label: "List Master FMS", end: true, show: can(user, "fms") },
         { to: "/processes/new", label: "Add Master FMS", show: can(user, "fms", "add") },
-        { to: "/fms/import-sheet", label: "Import FMS from Sheet", show: can(user, "fms", "add") && can(user, "settings", "edit") },
-        { to: "/fms/doer-conditions", label: "Doer Conditions", show: can(user, "fms") },
-        { to: "/fms/override-tat", label: "Override TAT", show: can(user, "fms") },
-        { to: "/fms/auto-calculate", label: "Auto-calculate Fields", show: can(user, "fms") },
-        { to: "/fms/auto-complete", label: "FMS Auto Complete", show: can(user, "fms") },
-        { to: "/fms/bulk", label: "Bulk Delete/Download", show: can(user, "fmsEntries") && user.role !== "doer" },
+        { to: "/fms/import-sheet", label: "Import FMS from Sheet", show: can(user, "fmsImport", "add") },
+        { to: "/fms/doer-conditions", label: "Doer Conditions", show: can(user, "doerConditions") },
+        { to: "/fms/override-tat", label: "Override TAT", show: can(user, "overrideTat") },
+        { to: "/fms/auto-calculate", label: "Auto-calculate Fields", show: can(user, "autoCalc") },
+        { to: "/fms/auto-complete", label: "FMS Auto Complete", show: can(user, "autoComplete") },
+        { to: "/fms/bulk", label: "Bulk Delete/Download", show: can(user, "fmsBulk") || can(user, "fmsBulk", "delete") },
         { to: "/jobs", label: "FMS Entries", show: can(user, "fmsEntries") },
       ],
     },
@@ -123,14 +123,14 @@ function menuFor(user) {
     {
       title: "PC Reports",
       items: [
-        { to: "/reports/tasks", label: "List Doer Tasks", show: can(user, "reports") && user.role !== "doer" },
-        { to: "/reports/fms-tasks", label: "List FMS Tasks", show: can(user, "reports") && user.role !== "doer" },
-        { to: "/mis", label: "MIS Score", end: true, show: can(user, "reports") },
-        { to: "/mis/weekly", label: "Weekly MIS Score", show: can(user, "reports") },
-        { to: "/reports/meeting", label: "Weekly MIS Meeting", show: can(user, "reports") && user.role !== "doer" },
-        { to: "/mis/performance", label: "Performance Score", show: can(user, "reports") },
-        { to: "/reports/auditor", label: "Auditor Report", show: can(user, "reports") && user.role !== "doer" },
-        { to: "/reports/effort", label: "List Effort Time", show: can(user, "reports") },
+        { to: "/reports/tasks", label: "List Doer Tasks", show: can(user, "doerTasks") },
+        { to: "/reports/fms-tasks", label: "List FMS Tasks", show: can(user, "fmsTasks") },
+        { to: "/mis", label: "MIS Score", end: true, show: can(user, "misScore") },
+        { to: "/mis/weekly", label: "Weekly MIS Score", show: can(user, "weeklyMis") },
+        { to: "/reports/meeting", label: "Weekly MIS Meeting", show: can(user, "misMeeting") },
+        { to: "/mis/performance", label: "Performance Score", show: can(user, "performance") },
+        { to: "/reports/auditor", label: "Auditor Report", show: can(user, "auditorReport") },
+        { to: "/reports/effort", label: "List Effort Time", show: can(user, "effortReport") },
       ],
     },
     {
@@ -294,26 +294,26 @@ function Shell() {
             <Route path="/" element={<MyTasks />} />
             <Route path="/account" element={<Account />} />
             <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/mis/performance" element={guard(can(user, "reports"), <Performance />)} />
-            <Route path="/reports/meeting" element={guard(can(user, "reports"), <MeetingReport />)} />
-            <Route path="/mis/weekly" element={guard(can(user, "reports"), <WeeklyMis />)} />
-            <Route path="/fms/doer-conditions" element={guard(can(user, "fms"), <FmsRules kind="doer" />)} />
-            <Route path="/fms/override-tat" element={guard(can(user, "fms"), <FmsRules kind="tat" />)} />
-            <Route path="/fms/import-sheet" element={guard(can(user, "fms", "add") && can(user, "settings", "edit"), <SheetFmsImport />)} />
-            <Route path="/fms/bulk" element={guard(can(user, "fmsEntries"), <BulkFms />)} />
-            <Route path="/fms/auto-complete" element={guard(can(user, "fms"), <AutoComplete />)} />
-            <Route path="/fms/auto-calculate" element={guard(can(user, "fms"), <FmsRules kind="calc" />)} />
+            <Route path="/mis/performance" element={guard(can(user, "performance"), <Performance />)} />
+            <Route path="/reports/meeting" element={guard(can(user, "misMeeting"), <MeetingReport />)} />
+            <Route path="/mis/weekly" element={guard(can(user, "weeklyMis"), <WeeklyMis />)} />
+            <Route path="/fms/doer-conditions" element={guard(can(user, "doerConditions"), <FmsRules kind="doer" />)} />
+            <Route path="/fms/override-tat" element={guard(can(user, "overrideTat"), <FmsRules kind="tat" />)} />
+            <Route path="/fms/import-sheet" element={guard(can(user, "fmsImport", "add"), <SheetFmsImport />)} />
+            <Route path="/fms/bulk" element={guard(can(user, "fmsBulk") || can(user, "fmsBulk", "delete"), <BulkFms />)} />
+            <Route path="/fms/auto-complete" element={guard(can(user, "autoComplete"), <AutoComplete />)} />
+            <Route path="/fms/auto-calculate" element={guard(can(user, "autoCalc"), <FmsRules kind="calc" />)} />
             <Route path="/audits" element={guard(isAdmin(user) || user.role === "auditor" || Boolean(user.isAuditor), <AuditList />)} />
             <Route path="/audits/settings" element={guard(can(user, "settings", "edit"), <AuditorSettings />)} />
-            <Route path="/reports/effort" element={guard(can(user, "reports"), <EffortReport />)} />
-            <Route path="/reports/auditor" element={guard(can(user, "reports"), <AuditorReport />)} />
-            <Route path="/reports/fms-tasks" element={guard(can(user, "reports"), <FmsTasks />)} />
-            <Route path="/reports/tasks" element={guard(can(user, "reports"), <DoerTasks />)} />
+            <Route path="/reports/effort" element={guard(can(user, "effortReport"), <EffortReport />)} />
+            <Route path="/reports/auditor" element={guard(can(user, "auditorReport"), <AuditorReport />)} />
+            <Route path="/reports/fms-tasks" element={guard(can(user, "fmsTasks"), <FmsTasks />)} />
+            <Route path="/reports/tasks" element={guard(can(user, "doerTasks"), <DoerTasks />)} />
             <Route path="/checklists" element={guard(can(user, "checklist"), <Checklists />)} />
             <Route path="/checklists/bulk" element={guard(can(user, "checklist", "add"), <ChecklistBulk />)} />
             <Route path="/delegations" element={<Delegations />} />
             <Route path="/jobs" element={guard(can(user, "fmsEntries"), <Jobs />)} />
-            <Route path="/mis" element={guard(can(user, "reports"), <Mis />)} />
+            <Route path="/mis" element={guard(can(user, "misScore"), <Mis />)} />
             <Route path="/processes" element={guard(can(user, "fms"), <Processes />)} />
             <Route path="/processes/new" element={guard(can(user, "fms", "add"), <FmsBuilder />)} />
             <Route path="/processes/:id" element={guard(can(user, "fms", "edit"), <FmsBuilder />)} />

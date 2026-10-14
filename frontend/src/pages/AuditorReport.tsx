@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState } from "react";
 import { PeopleFilter } from "../components/ListFilters";
 import { api } from "../api";
 import { csvCell, download } from "../csv";
+import ScopeNote from "../components/ScopeNote";
 
 // MIDAP "Auditor Report": per auditor (or per doer) – tasks for audit, audited, waiting, OK / Not OK, rating
 export default function AuditorReport() {
@@ -48,6 +49,7 @@ export default function AuditorReport() {
       <div className="page-head">
         <div>
           <h2>Auditor Report</h2>
+          <ScopeNote />
           <div className="muted small">Tasks that have an auditor: how many were audited, how many are waiting, and how they were rated.</div>
         </div>
         <div className="row wrap">
