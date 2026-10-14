@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ROLE_LABELS, api, can, showDateTime } from "../api";
+import { ROLE_LABELS, api, can, isAdmin, showDateTime } from "../api";
 import { useAuth } from "../App";
 import { WEEKDAYS } from "../tasks";
 import DoerSelect, { clearUsersCache } from "../components/DoerSelect";
@@ -114,8 +114,8 @@ export default function Users() {
       permissions: u.permissions || null,
     });
   }
-  const canEditUser = (u) => can(user, "users", "edit") && (u.role !== "admin" || user.role === "admin");
-  const canDeleteUser = (u) => can(user, "users", "delete") && String(u._id) !== String(user._id) && (u.role !== "admin" || user.role === "admin");
+  const canEditUser = (u) => can(user, "users", "edit") && (!isAdmin(u) || isAdmin(user));
+  const canDeleteUser = (u) => can(user, "users", "delete") && String(u._id) !== String(user._id) && (!isAdmin(u) || isAdmin(user));
 
   async function act(u, action) {
     setBusy(u._id);
@@ -349,7 +349,7 @@ function UserForm({ initial, meta, org, me, people, onClose, onSaved, onOrgAdded
   const isNew = !initial._id;
   const set = (patch) => setV({ ...v, ...patch });
   const oversees = v.role === "hod" || v.role === "pc";
-  const roles = Object.entries(meta.roles as Record<string, string>).filter(([k]) => k !== "admin" || me.role === "admin");
+  const roles = Object.entries(meta.roles as Record<string, string>).filter(([k]) => !["admin", "developer"].includes(k) || isAdmin(me));
   const [types, setTypes] = useState<string[]>(meta.doerTypes || []);
   const photoSrc = v.photo ? (String(v.photo).startsWith("data:") ? v.photo : `/api/files/${v.photo}`) : "";
   async function choosePhoto(e) {
@@ -390,7 +390,7 @@ function UserForm({ initial, meta, org, me, people, onClose, onSaved, onOrgAdded
     setError("");
     const body = { ...v, managedDepartments: oversees ? v.managedDepartments : [] };
     if (!body.password) delete body.password;
-    if (me.role !== "admin") delete body.permissions;
+    if (!isAdmin(me)) delete body.permissions;
     else if (body.permissions === null) body.permissions = {};
     try {
       await api(isNew ? "/users" : `/users/${v._id}`, { method: isNew ? "POST" : "PUT", body });
@@ -486,7 +486,7 @@ function UserForm({ initial, meta, org, me, people, onClose, onSaved, onOrgAdded
       <label>
         <span>
           Doer type <Help text="Permanent, Contract, Intern… (Admin can change this list)" />
-          {me.role === "admin" && (
+          {isAdmin(me) && (
             <button type="button" className="link-btn small" onClick={editTypes}>
               Edit list
             </button>
@@ -526,7 +526,7 @@ function UserForm({ initial, meta, org, me, people, onClose, onSaved, onOrgAdded
         </div>
         <small className="muted">*File upload maximum limit 2MB</small>
       </div>
-      {!["auditor", "admin"].includes(v.role) && (
+      {!(v.role === "auditor" || isAdmin(v)) && (
         <label className="check span-all make-auditor">
           <input type="checkbox" checked={Boolean(v.isAuditor)} onChange={(e) => set({ isAuditor: e.target.checked })} /> Make Auditor{" "}
           <Help text="Keeps their role and can also be chosen as the auditor of checklists, delegations and FMS steps. They see only the tasks they audit." />
@@ -587,7 +587,7 @@ function UserForm({ initial, meta, org, me, people, onClose, onSaved, onOrgAdded
         </label>
       )}
 
-      {me.role === "admin" && v.role !== "admin" && (
+      {isAdmin(me) && !isAdmin(v) && (
         <div className="span-all perm-box">
           <div className="row between wrap">
             <div>
@@ -601,7 +601,7 @@ function UserForm({ initial, meta, org, me, people, onClose, onSaved, onOrgAdded
               <select value="" onChange={(e) => e.target.value && copyFrom(e.target.value)} aria-label="Copy access from">
                 <option value="">Copy access from…</option>
                 {(people || [])
-                  .filter((p) => p._id !== v._id && p.role !== "admin")
+                  .filter((p) => p._id !== v._id && !isAdmin(p))
                   .map((p) => (
                     <option key={p._id} value={p._id}>
                       {p.name}

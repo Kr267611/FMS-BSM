@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api } from "../api";
+import { api, isAdmin } from "../api";
 
 let cache = null;
 let loading = null; // one request for the whole page, however many selects ask at once
@@ -35,14 +35,14 @@ export interface DoerSelectProps {
   auditors?: boolean;
 }
 
-const canAudit = (u) => u.role === "auditor" || u.role === "admin" || u.isAuditor;
+const canAudit = (u) => u.role === "auditor" || isAdmin(u) || u.isAuditor;
 
 export default function DoerSelect({ value, onChange, placeholder = "Select doer", required, auditors }: DoerSelectProps) {
   const everyone = useUsers();
   const users = useMemo(() => {
     if (!auditors) return everyone;
     const list = everyone.filter((u) => canAudit(u) || u._id === value);
-    return list.some((u) => u.role !== "admin" && canAudit(u)) ? list : everyone;
+    return list.some((u) => !isAdmin(u) && canAudit(u)) ? list : everyone;
   }, [everyone, auditors, value]);
   if (users.length > SEARCH_FROM) return <PeopleSearch users={users} value={value} onChange={onChange} placeholder={placeholder} required={required} />;
   return (

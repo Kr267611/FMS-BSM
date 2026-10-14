@@ -14,7 +14,7 @@ import scopeLib = require("./scope");
 const { visibleUserIds } = scopeLib;
 import att = require("./attendance");
 import permissionsLib = require("./permissions");
-const { can } = permissionsLib;
+const { can, isAdmin } = permissionsLib;
 
 const MAX_BACK_DAYS = 30; // a correction can be asked for up to 30 days back
 const MIN = 60 * 1000;
@@ -92,7 +92,7 @@ async function list(me, { view = "mine", state = "", user = "", month = "" }: an
     .populate("decidedBy", "name")
     .populate("appliedBy", "name")
     .lean<any>();
-  if (view === "approve") rows = rows.filter((r) => me.role === "admin" || String(r.user?._id) !== String(me._id));
+  if (view === "approve") rows = rows.filter((r) => isAdmin(me) || String(r.user?._id) !== String(me._id));
   for (const r of rows) r.canDecide = r.state === "pending" && (await att.canManage(me, r.user?._id));
   return rows;
 }
@@ -156,8 +156,8 @@ async function pendingCount(me) {
   if (!can(me, "attendance", "edit")) return 0;
   const visible = await visibleUserIds(me);
   const filter: Record<string, any> = { state: "pending" };
-  if (visible !== null) filter.user = { $in: visible.filter((id) => me.role === "admin" || id !== String(me._id)) };
-  else if (me.role !== "admin") filter.user = { $ne: me._id };
+  if (visible !== null) filter.user = { $in: visible.filter((id) => isAdmin(me) || id !== String(me._id)) };
+  else if (!isAdmin(me)) filter.user = { $ne: me._id };
   return AttendanceRequest.countDocuments(filter);
 }
 

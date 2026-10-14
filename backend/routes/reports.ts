@@ -16,7 +16,7 @@ const { auth, permit } = authLib;
 import scopeLib = require("../services/scope");
 const { visibleUserIds, canSeeUser } = scopeLib;
 import permissionsLib = require("../services/permissions");
-const { can } = permissionsLib;
+const { can, isAdmin } = permissionsLib;
 import auditLib = require("../services/audit");
 const { audit } = auditLib;
 import taskFiltersLib = require("../services/taskFilters");
@@ -126,7 +126,7 @@ router.post("/tasks/switch", async (req, res) => {
     else if (t.status !== "pending") error = "is not pending";
     else if (String(t.doer) === String(to)) error = "already belongs to this doer";
     else if (!(await canSeeUser(req.user, t.doer))) error = "belongs to someone outside your department";
-    else if (t.planned && t.planned < now && req.user.role !== "admin") error = "is overdue (only an admin can move it)";
+    else if (t.planned && t.planned < now && !isAdmin(req.user)) error = "is overdue (only an admin can move it)";
     if (!error) {
       const update: Record<string, any> = { $set: { doer: doer._id }, $inc: { __v: 1 } };
       if (t.kind === "delegation") update.$push = { log: { $each: [{ at: now, by: req.user._id, action: "switched the doer", note: `→ ${doer.name}` }], $slice: -60 } };
@@ -226,7 +226,7 @@ router.get("/fms-tasks", async (req, res) => {
 
 // Admin only: move the planned date of pending FMS steps (recorded in the audit log)
 router.post("/fms-tasks/planned", async (req, res) => {
-  if (req.user.role !== "admin") throw fail("Only an admin can change planned dates", 403);
+  if (!isAdmin(req.user)) throw fail("Only an admin can change planned dates", 403);
   const ids = (Array.isArray(req.body?.ids) ? req.body.ids : []).filter((id) => mongoose.isValidObjectId(id)).slice(0, 500);
   const planned = new Date(req.body?.planned);
   if (!ids.length) throw fail("Select the tasks first");

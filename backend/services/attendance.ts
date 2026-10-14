@@ -22,7 +22,7 @@ const { personalCalendar, daysOf } = doerCalendarLib;
 import scopeLib = require("./scope");
 const { canSeeUser } = scopeLib;
 import permissionsLib = require("./permissions");
-const { can } = permissionsLib;
+const { can, isAdmin } = permissionsLib;
 import uploadsLib = require("./uploads");
 const { saveImage } = uploadsLib;
 
@@ -322,7 +322,7 @@ async function punch(me, body: any = {}, now = new Date()) {
 // HRMS – Attendance (edit): mark days by hand, approve correction requests – for the people they reach, never themselves (except an admin)
 async function canManage(me, userId) {
   if (!can(me, "attendance", "edit")) return false;
-  if (String(me._id) === String(userId) && me.role !== "admin") return false;
+  if (String(me._id) === String(userId) && !isAdmin(me)) return false;
   return canSeeUser(me, userId);
 }
 

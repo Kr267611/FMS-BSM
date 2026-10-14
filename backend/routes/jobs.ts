@@ -6,6 +6,8 @@ import Process = require("../models/Process");
 import AuditLog = require("../models/AuditLog");
 import authLib = require("../middleware/auth");
 const { auth, permit } = authLib;
+import permissionsLib = require("../services/permissions");
+const { isAdmin } = permissionsLib;
 import auditLib = require("../services/audit");
 const { audit } = auditLib;
 import datesLib = require("../services/dates");
@@ -197,7 +199,7 @@ router.post("/:id/reopen", permit("fmsEntries", "edit"), async (req, res) => {
 
 // Admin only; the body must say confirm: "DELETE". Entries and all their steps go, and leave the MIS.
 router.post("/bulk-delete", async (req, res) => {
-  if (req.user.role !== "admin") return res.status(403).json({ message: "Only an admin can delete entries in bulk" });
+  if (!isAdmin(req.user)) return res.status(403).json({ message: "Only an admin can delete entries in bulk" });
   if (req.body?.confirm !== "DELETE") return res.status(400).json({ message: 'Type DELETE to confirm' });
   const filter = jobFilter(req.body);
   const process = await Process.findById(req.body.process).select("name").lean<any>();

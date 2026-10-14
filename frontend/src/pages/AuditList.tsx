@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, showDateTime, showDay, todayKey } from "../api";
+import { api, isAdmin, showDateTime, showDay, todayKey } from "../api";
 import { useAuth } from "../App";
 import DoerSelect from "../components/DoerSelect";
 import { PRIORITY_OPTIONS, RangeSelect, MoreFilters } from "../components/ListFilters";
@@ -56,7 +56,7 @@ export default function AuditList() {
           <option value="fms">FMS</option>
           <option value="delegation">Delegation</option>
         </select>
-        {user.role === "admin" && <DoerSelect value={auditor} onChange={setAuditor} placeholder="All auditors" />}
+        {isAdmin(user) && <DoerSelect value={auditor} onChange={setAuditor} placeholder="All auditors" />}
         <DoerSelect value={f.doer} onChange={(doer) => set({ doer })} placeholder="All doers" />
         <select value={f.priority} onChange={(e) => set({ priority: e.target.value })} aria-label="Priority">
           {PRIORITY_OPTIONS.map(([k, l]) => (

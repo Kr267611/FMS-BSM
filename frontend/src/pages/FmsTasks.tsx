@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, can, showDateTime } from "../api";
+import { api, can, isAdmin as isAdminRole, showDateTime } from "../api";
 import { useAuth } from "../App";
 import DoerSelect from "../components/DoerSelect";
 import { MoreFilters, RangeSelect, STATUSES, moreCount } from "../components/ListFilters";
@@ -20,7 +20,7 @@ const todayIst = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkat
 export default function FmsTasks() {
   const { user } = useAuth();
   const canSwitch = can(user, "reports", "edit");
-  const isAdmin = user.role === "admin";
+  const isAdmin = isAdminRole(user);
   const [processes, setProcesses] = useState([]);
   const [f, setF] = useState({ process: "", step: "", status: "pending", doer: "", delay: "", field: "", value: "", from: "", to: "", mode: "", pc: "", department: "" });
   const [more, setMore] = useState(false);

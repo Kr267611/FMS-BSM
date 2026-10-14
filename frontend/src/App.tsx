@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import { ROLE_LABELS, api, can } from "./api";
+import { ROLE_LABELS, api, can, isAdmin } from "./api";
 import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
@@ -119,7 +119,7 @@ function menuFor(user) {
         { to: "/jobs", label: "FMS Entries", show: can(user, "fmsEntries") },
       ],
     },
-    { title: "Audit", items: [{ to: "/audits", label: "Audit List", show: user.role === "admin" || user.role === "auditor" || Boolean(user.isAuditor) }, { to: "/audits/settings", label: "Auditor Settings", show: can(user, "settings", "edit") }] },
+    { title: "Audit", items: [{ to: "/audits", label: "Audit List", show: isAdmin(user) || user.role === "auditor" || Boolean(user.isAuditor) }, { to: "/audits/settings", label: "Auditor Settings", show: can(user, "settings", "edit") }] },
     {
       title: "PC Reports",
       items: [
@@ -165,7 +165,7 @@ function menuFor(user) {
         { to: "/users/bulk", label: "Bulk Upload", show: can(user, "users", "add") },
         { to: "/org", label: "Branches & Departments", show: can(user, "org") },
         { to: "/users/leave", label: "Doer Leave", show: can(user, "users") },
-        { to: "/users/access", label: "Access Overview", show: user.role === "admin" },
+        { to: "/users/access", label: "Access Overview", show: isAdmin(user) },
       ],
     },
     {
@@ -303,7 +303,7 @@ function Shell() {
             <Route path="/fms/bulk" element={guard(can(user, "fmsEntries"), <BulkFms />)} />
             <Route path="/fms/auto-complete" element={guard(can(user, "fms"), <AutoComplete />)} />
             <Route path="/fms/auto-calculate" element={guard(can(user, "fms"), <FmsRules kind="calc" />)} />
-            <Route path="/audits" element={guard(user.role === "admin" || user.role === "auditor" || Boolean(user.isAuditor), <AuditList />)} />
+            <Route path="/audits" element={guard(isAdmin(user) || user.role === "auditor" || Boolean(user.isAuditor), <AuditList />)} />
             <Route path="/audits/settings" element={guard(can(user, "settings", "edit"), <AuditorSettings />)} />
             <Route path="/reports/effort" element={guard(can(user, "reports"), <EffortReport />)} />
             <Route path="/reports/auditor" element={guard(can(user, "reports"), <AuditorReport />)} />
@@ -336,7 +336,7 @@ function Shell() {
             <Route path="/hr/leave/types" element={guard(can(user, "hrSetup"), <LeaveTypes />)} />
             <Route path="/hr/leave/policies" element={guard(can(user, "hrSetup"), <LeavePolicies />)} />
             <Route path="/hr/leave/assignment" element={guard(can(user, "hrSetup"), <PolicyAssignment />)} />
-            <Route path="/users/access" element={guard(user.role === "admin", <AccessOverview />)} />
+            <Route path="/users/access" element={guard(isAdmin(user), <AccessOverview />)} />
             <Route path="/users/leave" element={guard(can(user, "users"), <Leaves />)} />
             <Route path="/sheets" element={guard(can(user, "settings", "edit"), <SheetLinks />)} />
             <Route path="/reminders" element={guard(can(user, "settings"), <Reminders />)} />

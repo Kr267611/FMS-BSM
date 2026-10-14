@@ -17,7 +17,7 @@ const { loadDoerCalendars, applyLeave, daysOf, checkLeave } = doerCalendarLib;
 import scopeLib = require("./scope");
 const { canSeeUser } = scopeLib;
 import permissionsLib = require("./permissions");
-const { can } = permissionsLib;
+const { can, isAdmin } = permissionsLib;
 
 const half = (n) => Math.round(n * 2) / 2; // leave counts in half days
 
@@ -176,8 +176,8 @@ async function createRequest(me, body: any = {}, { now = new Date() }: any = {})
 
 // Who may approve: someone with HRMS – Leave (edit) who reaches the person (never for themselves, except an admin)
 async function canDecide(me, request) {
-  if (String(request.user._id || request.user) === String(me._id)) return me.role === "admin";
-  if (me.role === "admin") return true;
+  if (String(request.user._id || request.user) === String(me._id)) return isAdmin(me);
+  if (isAdmin(me)) return true;
   return can(me, "leave", "edit") && (await canSeeUser(me, request.user._id || request.user));
 }
 

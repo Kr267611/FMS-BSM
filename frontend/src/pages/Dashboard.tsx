@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, can } from "../api";
+import { api, can, isAdmin } from "../api";
 import { useAuth } from "../App";
 import DashTaskTables from "../components/DashTaskTables";
 
@@ -68,7 +68,7 @@ export default function Dashboard() {
                 Me
               </button>
               <button className={scope === "team" ? "active" : ""} onClick={() => setScope("team")}>
-                {user.role === "admin" || user.role === "auditor" ? "Company" : "My team"}
+                {isAdmin(user) || user.role === "auditor" ? "Company" : "My team"}
               </button>
             </div>
           )}

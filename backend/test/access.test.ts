@@ -21,6 +21,13 @@ test("effective access: role defaults, then the department, then the user's own"
   assert.deepStrictEqual(permissionsFor({ role: "doer", permissions: { audit: ["view", "edit"] } }).audit, ["view"]); // the audit log has only "view"
 });
 
+test("Developer: everything an admin has, and cannot be locked out either", () => {
+  const { permissionsFor, isAdmin, ROLES } = permissionsLib;
+  assert.strictEqual(ROLES.developer, "Developer");
+  assert.deepStrictEqual(permissionsFor({ role: "developer", permissions: { users: [], fms: [] } }), permissionsFor({ role: "admin" }));
+  assert.deepStrictEqual([isAdmin({ role: "admin" }), isAdmin({ role: "developer" }), isAdmin({ role: "hod" }), isAdmin(null)], [true, true, false, false]);
+});
+
 let srv, server, base;
 const cookies: Record<string, any> = {};
 test.before(async () => {
@@ -130,4 +137,25 @@ test("taking away reports closes the MIS too (not only the menu)", async () => {
   for (const p of ["/mis?from=2026-10-01&to=2026-10-07", "/mis/weekly", "/mis/performance", "/reports/tasks"]) {
     assert.strictEqual((await call("asha", p)).status, 403, p);
   }
+});
+
+test("Developer: only an admin makes one; then it works like an admin (whole company, access, admin-only pages)", async () => {
+  // the HOD (with users add / edit) cannot make a developer, nor edit one
+  assert.match((await call("hod", "/users", { method: "POST", body: { name: "d", username: "d1", password: "1234", role: "developer" } })).data.message, /Only an admin/);
+  const dev = await call("admin", "/users", { method: "POST", body: { name: "dev", username: "dev", password: "1234", role: "developer", department: ids.prod } });
+  assert.strictEqual(dev.status, 201, dev.data.message);
+  ids.dev = dev.data._id;
+  await login("dev");
+  assert.strictEqual((await call("hod", `/users/${ids.dev}`, { method: "PUT", body: { name: "dev 2" } })).status, 403);
+  const me = (await call("dev", "/auth/me")).data;
+  assert.deepStrictEqual([me.role, me.permissions.users, me.permissions.fms], ["developer", ["view", "add", "edit", "delete"], ["view", "add", "edit", "delete"]]);
+  // the whole company: a doer of another department (Accounts)
+  assert.strictEqual((await call("dev", `/attendance/register?user=${ids.asha}`)).status, 200);
+  // admin-only: everyone's access, and changing someone's access
+  assert.strictEqual((await call("dev", "/users/access")).status, 200);
+  await call("dev", `/users/${ids.ravi}`, { method: "PUT", body: { permissions: { fms: ["view"] } } });
+  await login("ravi");
+  assert.deepStrictEqual((await call("ravi", "/auth/me")).data.permissions.fms, ["view"]);
+  // a developer may make another developer
+  assert.strictEqual((await call("dev", "/users", { method: "POST", body: { name: "dev2", username: "dev2", password: "1234", role: "developer" } })).status, 201);
 });

@@ -10,7 +10,7 @@ const { auth, permit } = authLib;
 import passwordsLib = require("../services/passwords");
 const { passwordProblem } = passwordsLib;
 import permissionsLib = require("../services/permissions");
-const { ROLES, MODULES, ACTIONS, ROLE_DEFAULTS, MODULE_ACTIONS, MODULE_GROUPS, ADMIN_ONLY_ROLES, cleanOverrides, permissionsFor } = permissionsLib;
+const { ROLES, MODULES, ACTIONS, ROLE_DEFAULTS, MODULE_ACTIONS, MODULE_GROUPS, ADMIN_ONLY_ROLES, cleanOverrides, permissionsFor, isAdmin } = permissionsLib;
 import scopeLib = require("../services/scope");
 const { visibleUserIds, canSeeUser } = scopeLib;
 import auditLib = require("../services/audit");
@@ -37,7 +37,7 @@ async function emailProblem(email, exceptId?) {
 // Only admins can create or promote admins
 function roleProblem(actor, role) {
   if (!ROLES[role]) return "Choose a valid role";
-  if (ADMIN_ONLY_ROLES.includes(role) && actor.role !== "admin") return `Only an admin can make someone ${ROLES[role]}`;
+  if (ADMIN_ONLY_ROLES.includes(role) && !isAdmin(actor)) return `Only an admin can make someone ${ROLES[role]}`;
   return null;
 }
 
@@ -107,7 +107,7 @@ router.get("/meta", auth, async (req, res) => {
 
 // Access Overview (admin): every user's effective access, and which modules their department / they themselves change
 router.get("/access", auth, async (req, res) => {
-  if (req.user.role !== "admin") return res.status(403).json({ message: "Only an admin can see everyone's access" });
+  if (!isAdmin(req.user)) return res.status(403).json({ message: "Only an admin can see everyone's access" });
   const [users, depts] = await Promise.all([
     User.find({ active: true }).select("name role department permissions seesAll isAuditor").populate("department", "name").sort({ name: 1 }).lean<any>(),
     Department.find().select("permissions").lean<any>(),
@@ -121,7 +121,7 @@ router.get("/access", auth, async (req, res) => {
         name: u.name,
         role: u.role,
         department: u.department?.name || "",
-        seesAll: Boolean(u.seesAll) || ["admin", "auditor", "hr"].includes(u.role),
+        seesAll: Boolean(u.seesAll) || isAdmin(u) || ["auditor", "hr"].includes(u.role),
         isAuditor: Boolean(u.isAuditor),
         permissions: permissionsFor({ ...u, deptPermissions: dp || undefined }),
         own: Object.keys(u.permissions || {}),
@@ -187,11 +187,11 @@ router.post("/", auth, permit("users", "add"), async (req, res) => {
   const user = await User.create({
     ...f,
     ...profile.set,
-    seesAll: req.user.role === "admin" ? Boolean(req.body?.seesAll) : false,
+    seesAll: isAdmin(req.user) ? Boolean(req.body?.seesAll) : false,
     username,
     email,
     password: await bcrypt.hash(String(password), 10),
-    permissions: req.user.role === "admin" ? cleanOverrides(req.body?.permissions) : undefined,
+    permissions: isAdmin(req.user) ? cleanOverrides(req.body?.permissions) : undefined,
     weekOff: ((w) => (w.length && w.length < 7 ? w : undefined))(Array.isArray(req.body?.weekOff) ? [...new Set<any>(req.body.weekOff.map(Number))].filter((n) => Number.isInteger(n) && n >= 0 && n <= 6).sort() : []),
   });
   audit(req, "user.create", { entity: "User", entityId: user._id, summary: `${user.name} (${user.role})` });
@@ -202,7 +202,7 @@ router.put("/:id", auth, permit("users", "edit"), async (req, res) => {
   const user = await User.findById(req.params.id);
   if (!user) return res.status(404).json({ message: "User not found" });
   if (!(await canSeeUser(req.user, user._id))) return res.status(403).json({ message: "You can only edit people in your department" });
-  if (ADMIN_ONLY_ROLES.includes(user.role) && req.user.role !== "admin") return res.status(403).json({ message: `Only an admin can edit ${user.role === "admin" ? "an admin" : "an HR user"}` });
+  if (ADMIN_ONLY_ROLES.includes(user.role) && !isAdmin(req.user)) return res.status(403).json({ message: `Only an admin can edit ${isAdmin(user) ? "an admin" : "an HR user"}` });
 
   const b = req.body || {};
   const isSelf = String(user._id) === String(req.user._id);
@@ -230,7 +230,7 @@ router.put("/:id", auth, permit("users", "edit"), async (req, res) => {
   const same = (a, c) => JSON.stringify(a ?? null) === JSON.stringify(c ?? null);
   const idStr = (x) => (x ? String(x) : null);
   for (const k of ["name", "phone"]) if (b[k] !== undefined && b[k] !== user[k]) (user[k] = b[k]), changes.push(k);
-  if (b.seesAll !== undefined && req.user.role === "admin" && Boolean(b.seesAll) !== Boolean(user.seesAll)) (user.seesAll = Boolean(b.seesAll)), changes.push(user.seesAll ? "sees everyone" : "sees their own people");
+  if (b.seesAll !== undefined && isAdmin(req.user) && Boolean(b.seesAll) !== Boolean(user.seesAll)) (user.seesAll = Boolean(b.seesAll)), changes.push(user.seesAll ? "sees everyone" : "sees their own people");
   if (b.isAuditor !== undefined && Boolean(b.isAuditor) !== Boolean(user.isAuditor)) (user.isAuditor = Boolean(b.isAuditor)), changes.push(user.isAuditor ? "made auditor" : "no longer auditor");
   for (const [k, v] of Object.entries(profile.set)) if (v !== (user[k] || "")) (user[k] = v), changes.push(k === "photo" ? (v ? "photo" : "photo removed") : k);
   if (b.email !== undefined && cleanEmail(b.email) !== user.email) (user.email = cleanEmail(b.email)), changes.push("email");
@@ -253,7 +253,7 @@ router.put("/:id", auth, permit("users", "edit"), async (req, res) => {
       changes.push(next.length ? `own week-off ${next.join(",")}` : "company week-off");
     }
   }
-  if (b.permissions !== undefined && req.user.role === "admin") {
+  if (b.permissions !== undefined && isAdmin(req.user)) {
     const next = cleanOverrides(b.permissions);
     if (!same(next, user.permissions)) {
       user.permissions = next;
@@ -288,7 +288,7 @@ router.delete("/:id", auth, permit("users", "delete"), async (req, res) => {
   const user = await User.findById(req.params.id).lean<any>();
   if (!user) return res.status(404).json({ message: "User not found" });
   if (String(user._id) === String(req.user._id)) return res.status(400).json({ message: "You cannot delete yourself" });
-  if (ADMIN_ONLY_ROLES.includes(user.role) && req.user.role !== "admin") return res.status(403).json({ message: "Only an admin can delete this user" });
+  if (ADMIN_ONLY_ROLES.includes(user.role) && !isAdmin(req.user)) return res.status(403).json({ message: "Only an admin can delete this user" });
   if (!(await canSeeUser(req.user, user._id))) return res.status(403).json({ message: "You can only delete people in your department" });
   const id = user._id;
   const [tasks, checklists, fms, leaves, team] = await Promise.all([

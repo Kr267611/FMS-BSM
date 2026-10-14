@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, can } from "../api";
+import { api, can, isAdmin } from "../api";
 import { useAuth } from "../App";
 import DoerSelect from "../components/DoerSelect";
 import PermissionGrid from "../components/PermissionGrid";
@@ -103,7 +103,7 @@ export default function Org() {
                           Edit
                         </button>
                       )}
-                      {user.role === "admin" && (
+                      {isAdmin(user) && (
                         <button className="btn ghost small" onClick={() => (setAccess(d), setMsg(""))} title="Access for everyone in this department">
                           Access{d.permissions && Object.keys(d.permissions).length ? " ✓" : ""}
                         </button>

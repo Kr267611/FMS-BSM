@@ -80,7 +80,7 @@ An FMS made with **Import FMS from Sheet** keeps each step's columns and each en
 
 ## Roles, departments and permissions
 
-- Roles: **Admin**, **HOD**, **PC** (process coordinator), **Team Leader** (sees and assigns work to the people who have them as team leader), **Auditor**, **Doer**. Each user belongs to a branch and department and can have a team leader.
+- Roles: **Admin**, **Developer** (everything an admin has; only an admin or developer can give it), **HOD**, **PC** (process coordinator), **Team Leader** (sees and assigns work to the people who have them as team leader), **Auditor**, **Doer**. Each user belongs to a branch and department and can have a team leader.
 - HOD and PC see only their own department, the extra departments they oversee, and their team members — in task lists, MIS and Users.
 - Each role has default page permissions (view / add / edit / delete per module); an admin can override them per user.
 - **Users → Bulk upload** creates many users from a CSV (template on the page) and returns temporary passwords to hand out.

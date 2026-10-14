@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { api } from "../api";
+import { api, isAdmin as isAdminRole } from "../api";
 import { useAuth } from "../App";
 
 // MIDAP "Bulk Delete/Download": choose FMS, status and entry date range; download as Excel or delete
 export default function BulkFms() {
   const { user } = useAuth();
-  const isAdmin = user.role === "admin";
+  const isAdmin = isAdminRole(user);
   const [processes, setProcesses] = useState([]);
   const [f, setF] = useState({ process: "", status: "", from: "", to: "" });
   const [count, setCount] = useState(null);

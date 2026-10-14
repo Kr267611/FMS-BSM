@@ -9,7 +9,7 @@ import LatePolicy = require("../models/LatePolicy");
 import authLib = require("../middleware/auth");
 const { auth, permit } = authLib;
 import permissionsLib = require("../services/permissions");
-const { can } = permissionsLib;
+const { can, isAdmin } = permissionsLib;
 import scopeLib = require("../services/scope");
 const { visibleUserIds } = scopeLib;
 import auditLib = require("../services/audit");
@@ -252,7 +252,7 @@ router.get("/requests", async (req, res) => {
     .populate("buddies.checklist buddies.fms buddies.delegation", "name")
     .lean<any>();
   // waiting for me: only the ones I may decide (not my own)
-  if (req.query.view === "approve") list = list.filter((r) => String(r.user._id) !== String(req.user._id) || req.user.role === "admin");
+  if (req.query.view === "approve") list = list.filter((r) => String(r.user._id) !== String(req.user._id) || isAdmin(req.user));
   for (const r of list) r.canDecide = r.status === "pending" && (await book.canDecide(req.user, r));
   res.json(list);
 });

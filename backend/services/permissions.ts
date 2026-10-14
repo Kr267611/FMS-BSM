@@ -58,8 +58,11 @@ const MODULE_GROUPS = [
 const allOf = (m) => Object.keys(MODULE_ACTIONS[m]);
 // everyone can punch, apply for leave and raise tickets unless an admin takes it away (user or department)
 const SELF = { myAttendance: ["view"], myLeave: ["view"], myTickets: ["view"] };
+const EVERYTHING = Object.fromEntries(Object.keys(MODULES).map((m) => [m, allOf(m)]));
 const ROLE_DEFAULTS = {
-  admin: Object.fromEntries(Object.keys(MODULES).map((m) => [m, allOf(m)])),
+  admin: EVERYTHING,
+  // Developer: everything an admin has (keeps the software running)
+  developer: EVERYTHING,
   hod: {
     ...SELF,
     fms: ["view"],
@@ -123,6 +126,7 @@ const ROLE_DEFAULTS = {
 
 const ROLES = {
   admin: "Admin",
+  developer: "Developer",
   hod: "HOD",
   pc: "PC (Process Coordinator)",
   tl: "Team Leader",
@@ -130,8 +134,11 @@ const ROLES = {
   auditor: "Auditor",
   doer: "Doer",
 };
-// Roles only an admin may give: they reach the whole company
-const ADMIN_ONLY_ROLES = ["admin", "hr"];
+// Roles with every permission, the whole company and the admin-only actions
+const FULL_ROLES = ["admin", "developer"];
+const isAdmin = (user) => FULL_ROLES.includes(user?.role);
+// Roles only an admin (or developer) may give: they reach the whole company
+const ADMIN_ONLY_ROLES = ["admin", "developer", "hr"];
 
 const keep = (mod, acts) => [...new Set<any>(acts.filter((a) => MODULE_ACTIONS[mod]?.[a]))];
 
@@ -140,7 +147,7 @@ const keep = (mod, acts) => [...new Set<any>(acts.filter((a) => MODULE_ACTIONS[m
 //   set at a later level replaces the earlier one. user.deptPermissions is attached when the user is loaded.
 function permissionsFor(user) {
   if (!user) return {};
-  if (user.role === "admin") return ROLE_DEFAULTS.admin; // admins cannot lock themselves out
+  if (isAdmin(user)) return EVERYTHING; // admins and developers cannot lock themselves out
   const base = ROLE_DEFAULTS[user.role] || ROLE_DEFAULTS.doer;
   const out: Record<string, any> = { ...base };
   for (const layer of [user.deptPermissions, user.permissions]) {
@@ -166,4 +173,4 @@ function cleanOverrides(input) {
   return Object.keys(out).length ? out : undefined;
 }
 
-export = { ACTIONS, MODULES, MODULE_ACTIONS, MODULE_GROUPS, ROLES, ADMIN_ONLY_ROLES, ROLE_DEFAULTS, permissionsFor, can, cleanOverrides };
+export = { ACTIONS, MODULES, MODULE_ACTIONS, MODULE_GROUPS, ROLES, FULL_ROLES, ADMIN_ONLY_ROLES, ROLE_DEFAULTS, isAdmin, permissionsFor, can, cleanOverrides };

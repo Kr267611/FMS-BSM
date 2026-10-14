@@ -7,7 +7,7 @@ const { auth, permit } = authLib;
 import auditLib = require("../services/audit");
 const { audit } = auditLib;
 import permissionsLib = require("../services/permissions");
-const { cleanOverrides } = permissionsLib;
+const { cleanOverrides, isAdmin } = permissionsLib;
 
 const router = express.Router();
 router.use(auth);
@@ -94,7 +94,7 @@ router.put("/departments/:id", permit("org", "edit"), async (req, res) => {
 
 // The department's access (admin): { permissions: { module: [actions] } } – {} or null clears it
 router.put("/departments/:id/permissions", async (req, res) => {
-  if (req.user.role !== "admin") return res.status(403).json({ message: "Only an admin can change access" });
+  if (!isAdmin(req.user)) return res.status(403).json({ message: "Only an admin can change access" });
   const d = await Department.findById(req.params.id);
   if (!d) return res.status(404).json({ message: "Department not found" });
   const next = cleanOverrides(req.body?.permissions);

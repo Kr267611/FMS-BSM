@@ -17,7 +17,7 @@ const { loadCalendar } = workflowLib;
 import scopeLib = require("./scope");
 const { visibleUserIds, canSeeUser } = scopeLib;
 import permissionsLib = require("./permissions");
-const { can } = permissionsLib;
+const { can, isAdmin } = permissionsLib;
 
 const PRIORITIES = ["normal", "high", "critical"];
 const DEFAULT_CATEGORIES = [
@@ -71,7 +71,7 @@ async function solverFor(category) {
 // Manage a ticket (assign / solve / cancel): the category's solver or its department's HOD, or anyone with
 // Help Ticket – Manage (edit) who reaches the raiser or the solver
 async function canManage(me, t) {
-  if (me.role === "admin") return true;
+  if (isAdmin(me)) return true;
   const cat = await TicketCategory.findById(t.category?._id || t.category).select("solver department").lean<any>();
   if (cat?.solver && String(cat.solver) === String(me._id)) return true;
   if (cat?.department) {

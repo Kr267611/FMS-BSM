@@ -5,7 +5,7 @@ const { Department } = orgLib;
 import sessionLib = require("../services/session");
 const { readToken, endSession } = sessionLib;
 import permissionsLib = require("../services/permissions");
-const { can } = permissionsLib;
+const { can, isAdmin } = permissionsLib;
 
 async function auth(req, res, next) {
   const token = readToken(req);
@@ -35,7 +35,7 @@ async function auth(req, res, next) {
 }
 
 function adminOnly(req, res, next) {
-  if (req.user?.role !== "admin") return res.status(403).json({ message: "Admins only" });
+  if (!isAdmin(req.user)) return res.status(403).json({ message: "Admins only" });
   next();
 }
 

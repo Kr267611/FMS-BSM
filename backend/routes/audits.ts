@@ -5,6 +5,8 @@ import authLib = require("../middleware/auth");
 const { auth, permit } = authLib;
 import scopeLib = require("../services/scope");
 const { visibleUserIds } = scopeLib;
+import permissionsLib = require("../services/permissions");
+const { isAdmin } = permissionsLib;
 import auditLib = require("../services/audit");
 const { audit } = auditLib;
 import User = require("../models/User");
@@ -34,7 +36,7 @@ function fail(message, status = 400) {
 // &from= &to= (done day) &order=asc|desc &page=
 router.get("/", async (req, res) => {
   const filter: Record<string, any> = { auditor: { $ne: null }, "audit.status": { $exists: true } };
-  if (req.user.role === "admin") {
+  if (isAdmin(req.user)) {
     if (mongoose.isValidObjectId(req.query.auditor)) filter.auditor = oid(req.query.auditor);
   } else filter.auditor = req.user._id;
   if (mongoose.isValidObjectId(req.query.doer)) filter.doer = oid(req.query.doer);
@@ -94,7 +96,7 @@ router.post("/:id", async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) throw fail("Invalid ID");
   const t = await Task.findById(req.params.id).lean<any>();
   if (!t || !t.audit) throw fail("This task is not waiting for an audit", 404);
-  if (String(t.auditor) !== String(req.user._id) && req.user.role !== "admin") throw fail("Only the auditor of this task can audit it", 403);
+  if (String(t.auditor) !== String(req.user._id) && !isAdmin(req.user)) throw fail("Only the auditor of this task can audit it", 403);
   if (t.audit.status !== "pending") throw fail("This task is already audited");
   const result = req.body?.result;
   if (!["ok", "notok"].includes(result)) throw fail("Choose OK or Not OK");

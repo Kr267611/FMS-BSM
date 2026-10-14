@@ -10,7 +10,7 @@ import User = require("../models/User");
 import datesLib = require("./dates");
 const { dayKey } = datesLib;
 import permissionsLib = require("./permissions");
-const { can } = permissionsLib;
+const { can, isAdmin } = permissionsLib;
 import scopeLib = require("./scope");
 const { canSeeUser } = scopeLib;
 
@@ -50,7 +50,7 @@ function addLog(task, by, action, note, now) {
 
 // The assigner, an admin, or a HOD / PC with edit rights over the doer
 async function canManage(task, user) {
-  if (user.role === "admin" || idStr(task.assignedBy) === String(user._id)) return true;
+  if (isAdmin(user) || idStr(task.assignedBy) === String(user._id)) return true;
   return can(user, "delegation", "edit") && (await canSeeUser(user, task.doer));
 }
 
@@ -92,7 +92,7 @@ async function updateDelegation(taskId, user, body: any = {}, { now = new Date()
   const task = await load(taskId);
   if (!(await canManage(task, user))) throw fail("Only the person who assigned this task can change it", 403);
   if (task.status !== "pending") throw fail("Only a pending task can be changed. Reopen it first.");
-  const overdue = now > task.planned && user.role !== "admin";
+  const overdue = now > task.planned && !isAdmin(user);
   const notes = [];
 
   if (body.title !== undefined) {
@@ -139,7 +139,7 @@ async function updateDelegation(taskId, user, body: any = {}, { now = new Date()
 async function deleteDelegation(taskId, user, { now = new Date() }: any = {}) {
   const task = await load(taskId);
   if (!(await canManage(task, user))) throw fail("Only the person who assigned this task can delete it", 403);
-  if (user.role !== "admin") {
+  if (!isAdmin(user)) {
     if (task.status !== "pending") throw fail("A finished task stays in the MIS and cannot be deleted");
     if (now > task.planned) throw fail("This task is already overdue, so it stays in the MIS. Only an admin can delete it.");
   }
@@ -174,7 +174,7 @@ async function decideRevision(taskId, user, approve, body: any = {}, { now = new
   const i = (task.revisions || []).findIndex((r) => r.status === "pending");
   if (i < 0) throw fail("There is no request waiting");
   const r = task.revisions[i];
-  if (idStr(r.by) === String(user._id) && user.role !== "admin") throw fail("Someone else has to approve your own request", 403);
+  if (idStr(r.by) === String(user._id) && !isAdmin(user)) throw fail("Someone else has to approve your own request", 403);
   const note = text(body.note, 500);
   Object.assign(r, { status: approve ? "approved" : "rejected", decidedBy: user._id, decidedAt: now, note });
   if (approve) {
