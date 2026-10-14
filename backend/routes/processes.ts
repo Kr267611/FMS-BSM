@@ -21,6 +21,7 @@ const { directory } = doersLib;
 import templates = require("../templates");
 import sheetSync = require("../services/fmsSheetSync");
 import sheetSyncLib = require("../services/sheetSync");
+import sheetFmsLib = require("../services/sheetFms");
 
 const router = express.Router();
 
@@ -174,6 +175,59 @@ router.post("/:id/sheet-sync/pull", auth, permit("fms", "edit"), async (req, res
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
+});
+
+// ---------- Doer check ----------
+// Each step: its doer rule, the name the sheet gave (import), the user that name matches, and who holds its open
+// steps now. A step with no doer sends its work to the FMS PC or the person who made the entry – flagged here.
+router.get("/:id/doer-check", auth, permit("fms", "view"), async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: "Invalid ID" });
+  const p = await Process.findById(req.params.id).select("name steps pc").lean<any>();
+  if (!p) return res.status(404).json({ message: "FMS not found" });
+  const users = await User.find({ active: true }).select("name username").lean<any>();
+  const nameOf = new Map<string, string>(users.map((u) => [String(u._id), u.name]));
+  const open = await Task.aggregate([
+    { $match: { process: p._id, kind: "app", status: "pending" } },
+    { $group: { _id: { step: "$stepKey", doer: "$doer" }, n: { $sum: 1 } } },
+  ]);
+  const steps = p.steps.map((s) => {
+    const d = s.doer || {};
+    const fixed = d.mode === "fixed" || !d.mode ? (d.user ? String(d.user) : null) : null;
+    const suggested = d.hint ? sheetFmsLib.matchUser(d.hint, users) : null;
+    const holders = open
+      .filter((o) => o._id.step === s.key)
+      .map((o) => ({ _id: o._id.doer ? String(o._id.doer) : null, name: nameOf.get(String(o._id.doer)) || "(nobody)", count: o.n }))
+      .sort((a, b) => b.count - a.count);
+    const notMatched = d.mode === "map" ? (d.map || []).filter((m) => !m.user).map((m) => m.name || (m.match || []).join(" + ")) : [];
+    const problems = [];
+    if ((d.mode || "fixed") === "fixed" && !fixed) problems.push("No doer chosen: its work goes to the FMS PC or to whoever made the entry");
+    if (fixed && suggested && String(suggested._id) !== fixed) problems.push(`The sheet names "${d.hint}", which matches ${suggested.name}, not ${nameOf.get(fixed) || "the chosen doer"}`);
+    if (notMatched.length) problems.push(`${notMatched.length} name(s) of the doer table have no user: ${notMatched.slice(0, 5).join(", ")}${notMatched.length > 5 ? "…" : ""}`);
+    const wrong = fixed ? holders.filter((h) => h._id !== fixed).reduce((n, h) => n + h.count, 0) : d.mode === "map" ? 0 : holders.reduce((n, h) => n + h.count, 0);
+    if (wrong) problems.push(`${wrong} open step(s) are with someone other than the step's doer`);
+    return { key: s.key, name: s.name, mode: d.mode || "fixed", doer: fixed ? { _id: fixed, name: nameOf.get(fixed) || "(inactive user)" } : null, hint: d.hint || "", suggested: suggested ? { _id: String(suggested._id), name: suggested.name } : null, holders, wrong, problems };
+  });
+  res.json({ steps, problems: steps.reduce((n, s) => n + s.problems.length, 0) });
+});
+
+// Fix one step: { step, user } makes `user` its fixed doer and gives them the step's open entries (pending steps
+// with anyone else, overdue ones too: they were never theirs). Done / closed steps keep who did them.
+router.post("/:id/doer-fix", auth, permit("fms", "edit"), async (req, res) => {
+  const p = await Process.findById(req.params.id);
+  if (!p) return res.status(404).json({ message: "FMS not found" });
+  const step = p.steps.find((s) => s.key === req.body?.step);
+  if (!step) return res.status(400).json({ message: "Step not found" });
+  if (step.doer?.mode && step.doer.mode !== "fixed") return res.status(400).json({ message: "This step's doer comes from the entry or a doer table: change it in the step" });
+  if (!mongoose.isValidObjectId(req.body?.user)) return res.status(400).json({ message: "Choose the doer" });
+  const user = await User.findOne({ _id: req.body.user, active: true }).select("name").lean<any>();
+  if (!user) return res.status(400).json({ message: "The doer must be an active user" });
+  const hint = step.doer?.hint;
+  (step as any).doer = { mode: "fixed", user: user._id, keys: [], map: [], ...(hint ? { hint } : {}) };
+  p.markModified("steps");
+  await p.save();
+  const moved = req.body?.move === false ? { modifiedCount: 0 } : await Task.updateMany({ process: p._id, kind: "app", stepKey: step.key, status: "pending", doer: { $ne: user._id } }, { $set: { doer: user._id }, $inc: { __v: 1 } });
+  audit(req, "fms.doer_fix", { entity: "Process", entityId: p._id, summary: `${p.name} – ${step.name}: doer ${user.name}, ${moved.modifiedCount} open step(s) moved to them` });
+  res.json({ step: step.key, doer: user.name, moved: moved.modifiedCount });
 });
 
 router.delete("/:id", auth, async (req, res) => {

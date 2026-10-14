@@ -43,7 +43,12 @@ function matchUser(hint, users) {
   const exact = users.find((u) => personKey(u.name) === h || personKey(u.username) === h);
   if (exact) return exact;
   const first = users.filter((u) => personKey(String(u.name).split(/\s+/)[0]) === h);
-  return first.length === 1 ? first[0] : null;
+  if (first.length === 1) return first[0];
+  // "Vinod Patel" in the sheet, "Vinod" in the software: the sheet's first name, when only one user has it
+  const hintFirst = personKey(text(hint).split(/\s+/)[0]);
+  if (hintFirst.length < 3 || hintFirst === h) return null;
+  const byFirst = users.filter((u) => personKey(u.name) === hintFirst || personKey(String(u.name).split(/\s+/)[0]) === hintFirst);
+  return byFirst.length === 1 ? byFirst[0] : null;
 }
 
 // Who the sheet names for a step: "Accountable Person ( PRADEEP BHAI )", "Update to AYUSH SIR", or the name written under it

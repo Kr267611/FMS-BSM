@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import SheetSyncPanel from "../components/SheetSyncPanel";
+import DoerCheck from "../components/DoerCheck";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api, can } from "../api";
 import { useAuth } from "../App";
@@ -350,6 +351,13 @@ export default function FmsBuilder() {
         </p>
       )}
       {error && <div className="error">{error}</div>}
+      {!isNew && (
+        <DoerCheck
+          processId={id}
+          canEdit={can(user, "fms", "edit")}
+          onFixed={(key, uid) => setP((prev) => ({ ...prev, steps: prev.steps.map((s) => (s.key === key ? { ...s, doer: { ...(s.doer || {}), mode: "fixed", user: uid } } : s)) }))}
+        />
+      )}
 
       <div className="card form-grid">
         <label className="span-2">

@@ -1294,3 +1294,11 @@ tr.clickable:hover td { background: var(--tint-primary); }
 .access-summary { margin: 10px 0 4px; padding: 8px 12px; border-radius: 10px; background: var(--gold-tint); border: 1px solid var(--gold-line); color: var(--navy); font-size: 13px; }
 .reach-pick { display: grid; gap: 4px; margin: 8px 0 12px; max-width: 520px; }
 .scope-note { margin-top: 4px; color: var(--gold-deep); }
+/* Master FMS: Doer check */
+.doer-check.has-problems { border-color: #f1c27d; background: #fffaf0; }
+.doer-check h3 { margin: 0; }
+.doer-check-table td { vertical-align: top; }
+.doer-check-table tr.needs-fix td:first-child { box-shadow: inset 3px 0 0 #d97706; }
+.doer-check .good-text { color: #15803d; }
+.doer-check .bad-text { color: #b45309; }
+.doer-check .ok { color: #15803d; margin: 6px 0; }
