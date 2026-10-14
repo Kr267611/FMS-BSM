@@ -11,6 +11,7 @@ async function runMigrations() {
   await migrateDepartments();
   await migrateProcessesToV2();
   await migratePageAccess();
+  await migratePageAccess2();
 }
 
 // ---- One tick per page (Oct 2026) ----
@@ -65,36 +66,59 @@ function oldPages(user, deptPerms) {
   return out;
 }
 
-async function migratePageAccess() {
-  const KEY = "migration.pageAccess";
+// Part 2: the Audit List (was: the Auditor role, or Make Auditor), Auditor Settings (was: Settings edit) and the
+// Ticket Report (was: Help Ticket – Manage view) get their own ticks
+function oldPages2(user, deptPerms) {
+  const role = ROLE_DEFAULTS[user.role] ? user.role : "doer";
+  const layered = (key) => {
+    let v = OLD_DEFAULTS2[key]?.[role] || [];
+    if (Array.isArray(deptPerms?.[key])) v = deptPerms[key];
+    if (Array.isArray(user.permissions?.[key])) v = user.permissions[key];
+    return v;
+  };
+  return {
+    auditList: role === "auditor" ? ["view"] : [],
+    auditorSettings: layered("settings").includes("edit") ? ["edit"] : [],
+    ticketReport: layered("tickets").includes("view") ? ["view"] : [],
+  };
+}
+const OLD_DEFAULTS2 = { tickets: { hod: ["view", "edit"], pc: ["view", "edit"], tl: ["view", "edit"] } };
+
+// Every user keeps the pages they had: where the new ticks (role → department → own) give something else for
+// `pages`, the old value is written as the user's own tick. split turns a layer's old ticks into the new ones.
+async function keepOldPages(KEY, pages, oldOf, split = (layer, role?) => layer) {
   if (await Setting.exists({ key: KEY })) return;
   const depts = await Department.collection.find({}).project({ permissions: 1 }).toArray();
   const oldDept = new Map<string, any>(depts.map((d) => [String(d._id), d.permissions]));
   const newDept = new Map<string, any>();
   for (const d of depts) {
-    const next = splitLayer(d.permissions);
+    const next = split(d.permissions);
     newDept.set(String(d._id), next);
     if (d.permissions && JSON.stringify(next) !== JSON.stringify(d.permissions)) {
-      await Department.collection.updateOne({ _id: d._id }, { $set: { permissions: next, permissionsV1: d.permissions } });
+      await Department.collection.updateOne({ _id: d._id }, { $set: { permissions: next, ...(d.permissionsV1 === undefined ? { permissionsV1: d.permissions } : {}) } });
     }
   }
   let changed = 0;
-  const users = await User.collection.find({}).project({ role: 1, department: 1, permissions: 1 }).toArray();
+  const users = await User.collection.find({}).project({ role: 1, department: 1, permissions: 1, permissionsV1: 1 }).toArray();
   for (const u of users) {
     if (isAdmin(u)) continue;
     const dept = u.department ? String(u.department) : "";
-    const before = oldPages(u, oldDept.get(dept));
-    const own = splitLayer(u.permissions, u.role) || {};
+    const before = oldOf(u, oldDept.get(dept));
+    const own = { ...(split(u.permissions, u.role) || {}) };
     const now = permissionsFor({ ...u, permissions: own, deptPermissions: newDept.get(dept) || undefined });
-    for (const p of NEW_PAGES) if (!same(now[p], before[p])) own[p] = before[p];
+    for (const p of pages) if (!same(now[p], before[p])) own[p] = before[p];
     const next = Object.keys(own).length ? own : undefined;
     if (JSON.stringify(next) === JSON.stringify(u.permissions)) continue;
-    await User.collection.updateOne({ _id: u._id }, next ? { $set: { permissions: next, permissionsV1: u.permissions ?? null } } : { $unset: { permissions: "" } });
+    const backup = u.permissionsV1 === undefined ? { permissionsV1: u.permissions ?? null } : {}; // the first backup stays
+    await User.collection.updateOne({ _id: u._id }, next ? { $set: { permissions: next, ...backup } } : { $unset: { permissions: "" }, ...(Object.keys(backup).length ? { $set: backup } : {}) });
     changed++;
   }
   await Setting.create({ key: KEY, value: { at: new Date(), users: changed } });
-  if (changed) console.log(`Page access: ${changed} user(s) keep their old pages as their own ticks`);
+  if (changed) console.log(`Page access (${KEY}): ${changed} user(s) keep their old pages as their own ticks`);
 }
+
+const migratePageAccess = () => keepOldPages("migration.pageAccess", NEW_PAGES, oldPages, splitLayer);
+const migratePageAccess2 = () => keepOldPages("migration.pageAccess2", ["auditList", "auditorSettings", "ticketReport"], oldPages2);
 
 // v1 stored User.department as text ("QC"); v2 references a Department document.
 async function migrateDepartments() {
@@ -172,4 +196,4 @@ async function migrateProcessesToV2() {
   }
 }
 
-export = { runMigrations, migratePageAccess, oldPages, splitLayer };
+export = { runMigrations, migratePageAccess, migratePageAccess2, oldPages, oldPages2, splitLayer };

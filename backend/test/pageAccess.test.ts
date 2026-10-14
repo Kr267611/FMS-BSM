@@ -153,3 +153,29 @@ test("the entry panel says who may mark a step done, and why not", async () => {
   await login("dd");
   assert.strictEqual((await step("dd")).canAct, true);
 });
+
+test("part 2: Audit List, Auditor Settings and Ticket Report – defaults as before, each its own tick, old access kept", async () => {
+  const P2 = ["auditList", "auditorSettings", "ticketReport"];
+  const pick2 = (p) => Object.fromEntries(P2.map((k) => [k, [...(p[k] || [])].sort()]));
+  for (const role of ["hod", "pc", "tl", "hr", "auditor", "doer"]) {
+    assert.deepStrictEqual(pick2(permissionsFor({ role })), pick2(migrations.oldPages2({ role }, null)), role);
+  }
+  // before: Settings (edit) also opened Auditor Settings; Help Ticket – Manage (view) also the Ticket Report
+  await User.collection.updateOne({ _id: new (require("mongoose").Types.ObjectId)(ids.ss) }, { $set: { "permissions.settings": ["view", "edit"], "permissions.tickets": ["view"] } });
+  await Setting.deleteOne({ key: "migration.pageAccess2" });
+  await migrations.migratePageAccess2();
+  await login("ss");
+  const ss = (await me("ss")).permissions;
+  assert.deepStrictEqual([ss.auditorSettings, ss.ticketReport, ss.auditList || []], [["edit"], ["view"], []]);
+  assert.strictEqual((await call("ss", "/audits/settings")).status, 200);
+  assert.strictEqual((await call("ss", "/tickets/report")).status, 200);
+  assert.strictEqual((await call("ss", "/audits")).status, 403); // no Audit List tick, not an auditor
+  // Make Auditor opens the Audit List without the tick; the tick alone opens it too
+  await call("admin", `/users/${ids.ss}`, { method: "PUT", body: { isAuditor: true } });
+  assert.strictEqual((await call("ss", "/audits")).status, 200);
+  await call("admin", `/users/${ids.ss}`, { method: "PUT", body: { isAuditor: false, permissions: { ...ss, auditList: ["view"], settings: [], ticketReport: [] } } });
+  await login("ss");
+  assert.strictEqual((await call("ss", "/audits")).status, 200);
+  assert.strictEqual((await call("ss", "/tickets/report")).status, 403);
+  assert.strictEqual((await call("ss", "/audits/settings")).status, 200); // its own tick, not Settings any more
+});

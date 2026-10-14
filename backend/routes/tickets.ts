@@ -76,7 +76,7 @@ router.put("/settings", config, async (req, res) => {
 });
 
 // ---------- report ----------
-router.get("/report", permit("tickets", "view"), async (req, res) => {
+router.get("/report", permit("ticketReport", "view"), async (req, res) => {
   const from = isDay(req.query.from) ? String(req.query.from) : "";
   const to = isDay(req.query.to) ? String(req.query.to) : "";
   res.json(await tickets.report(req.user, { from, to }));

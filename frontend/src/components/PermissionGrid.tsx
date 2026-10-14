@@ -28,65 +28,69 @@ export default function PermissionGrid({ meta, value, base, baseLabel, onChange,
   }
   return (
     <div className="perm-grid">
-      {meta.groups.map(([group, mods]) => (
-        <div key={group} className="perm-group">
-          <div className="perm-group-title">{group}</div>
-          <table className="grid perm-table">
-            <thead>
-              <tr>
-                <th>Module</th>
-                {ACTIONS.map((a) => (
-                  <th key={a}>{ACTION_LABEL[a]}</th>
-                ))}
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {mods.map((m) => {
-                const acts = meta.moduleActions[m] || {};
-                const custom = own[m] !== undefined;
-                const eff = effective(m);
-                return (
-                  <tr key={m} className={custom ? "perm-custom" : base ? "" : "perm-inherit"}>
-                    <td>
-                      <b>{meta.modules[m]}</b>
-                      <div className="muted small">{custom ? "Set here" : base ? `${baseLabel}${eff.length ? "" : " (no access)"}` : `Not changed – ${baseLabel.toLowerCase()}`}</div>
-                    </td>
-                    {ACTIONS.map((a) =>
-                      acts[a] ? (
-                        <td key={a} title={acts[a]}>
-                          <label className="perm-cell">
-                            <input type="checkbox" disabled={disabled} checked={eff.includes(a)} onChange={() => toggle(m, a)} aria-label={`${meta.modules[m]}: ${acts[a]}`} />
-                            <span className="perm-what">{acts[a]}</span>
-                          </label>
-                        </td>
-                      ) : (
-                        <td key={a} className="muted center">
-                          —
-                        </td>
-                      )
-                    )}
-                    <td className="nowrap">
-                      {!disabled && (
-                        <>
-                          <button type="button" className="link-btn small" onClick={() => setAll(m, eff.length < Object.keys(acts).length)}>
-                            {eff.length < Object.keys(acts).length ? "All" : "None"}
-                          </button>
-                          {custom && (
-                            <button type="button" className="link-btn small" onClick={() => reset(m)} title={`Back to ${baseLabel.toLowerCase()}`}>
-                              Reset
-                            </button>
-                          )}
-                        </>
+      {meta.groups.map(([group, mods]) => {
+        // only the actions some page of this area has (e.g. no "Add" column for the PC Reports)
+        const cols = ACTIONS.filter((a) => mods.some((m) => meta.moduleActions[m]?.[a]));
+        return (
+          <div key={group} className="perm-group">
+            <div className="perm-group-title">{group}</div>
+            <table className="grid perm-table">
+              <thead>
+                <tr>
+                  <th>Module</th>
+                  {cols.map((a) => (
+                    <th key={a}>{ACTION_LABEL[a]}</th>
+                  ))}
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {mods.map((m) => {
+                  const acts = meta.moduleActions[m] || {};
+                  const custom = own[m] !== undefined;
+                  const eff = effective(m);
+                  return (
+                    <tr key={m} className={custom ? "perm-custom" : base ? "" : "perm-inherit"}>
+                      <td>
+                        <b>{meta.modules[m]}</b>
+                        <div className="muted small">{custom ? "Set here" : base ? `${baseLabel}${eff.length ? "" : " (no access)"}` : `Not changed – ${baseLabel.toLowerCase()}`}</div>
+                      </td>
+                      {cols.map((a) =>
+                        acts[a] ? (
+                          <td key={a} title={acts[a]}>
+                            <label className="perm-cell">
+                              <input type="checkbox" disabled={disabled} checked={eff.includes(a)} onChange={() => toggle(m, a)} aria-label={`${meta.modules[m]}: ${acts[a]}`} />
+                              <span className="perm-what">{acts[a]}</span>
+                            </label>
+                          </td>
+                        ) : (
+                          <td key={a} className="muted center">
+                            —
+                          </td>
+                        )
                       )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      ))}
+                      <td className="nowrap">
+                        {!disabled && (
+                          <>
+                            <button type="button" className="link-btn small" onClick={() => setAll(m, eff.length < Object.keys(acts).length)}>
+                              {eff.length < Object.keys(acts).length ? "All" : "None"}
+                            </button>
+                            {custom && (
+                              <button type="button" className="link-btn small" onClick={() => reset(m)} title={`Back to ${baseLabel.toLowerCase()}`}>
+                                Reset
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        );
+      })}
     </div>
   );
 }

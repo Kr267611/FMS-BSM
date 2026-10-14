@@ -119,7 +119,7 @@ function menuFor(user) {
         { to: "/jobs", label: "FMS Entries", show: can(user, "fmsEntries") },
       ],
     },
-    { title: "Audit", items: [{ to: "/audits", label: "Audit List", show: isAdmin(user) || user.role === "auditor" || Boolean(user.isAuditor) }, { to: "/audits/settings", label: "Auditor Settings", show: can(user, "settings", "edit") }] },
+    { title: "Audit", items: [{ to: "/audits", label: "Audit List", show: can(user, "auditList") || Boolean(user.isAuditor) }, { to: "/audits/settings", label: "Auditor Settings", show: can(user, "auditorSettings", "edit") }] },
     {
       title: "PC Reports",
       items: [
@@ -139,7 +139,7 @@ function menuFor(user) {
         { to: "/tickets/new", label: "Raise Ticket", show: can(user, "myTickets") },
         { to: "/tickets/mine", label: "My Tickets", show: can(user, "myTickets") },
         { to: "/tickets", label: "Ticket List", end: true, show: can(user, "myTickets") || can(user, "tickets") },
-        { to: "/tickets/report", label: "Ticket Report", show: can(user, "tickets") },
+        { to: "/tickets/report", label: "Ticket Report", show: can(user, "ticketReport") },
         { to: "/tickets/categories", label: "Ticket Categories", show: can(user, "ticketSetup", "edit") },
       ],
     },
@@ -303,8 +303,8 @@ function Shell() {
             <Route path="/fms/bulk" element={guard(can(user, "fmsBulk") || can(user, "fmsBulk", "delete"), <BulkFms />)} />
             <Route path="/fms/auto-complete" element={guard(can(user, "autoComplete"), <AutoComplete />)} />
             <Route path="/fms/auto-calculate" element={guard(can(user, "autoCalc"), <FmsRules kind="calc" />)} />
-            <Route path="/audits" element={guard(isAdmin(user) || user.role === "auditor" || Boolean(user.isAuditor), <AuditList />)} />
-            <Route path="/audits/settings" element={guard(can(user, "settings", "edit"), <AuditorSettings />)} />
+            <Route path="/audits" element={guard(can(user, "auditList") || Boolean(user.isAuditor), <AuditList />)} />
+            <Route path="/audits/settings" element={guard(can(user, "auditorSettings", "edit"), <AuditorSettings />)} />
             <Route path="/reports/effort" element={guard(can(user, "effortReport"), <EffortReport />)} />
             <Route path="/reports/auditor" element={guard(can(user, "auditorReport"), <AuditorReport />)} />
             <Route path="/reports/fms-tasks" element={guard(can(user, "fmsTasks"), <FmsTasks />)} />
@@ -324,7 +324,7 @@ function Shell() {
             <Route path="/tickets/new" element={guard(can(user, "myTickets"), <RaiseTicket />)} />
             <Route path="/tickets/mine" element={guard(can(user, "myTickets"), <TicketList mode="mine" />)} />
             <Route path="/tickets" element={guard(can(user, "myTickets") || can(user, "tickets"), <TicketList mode="work" />)} />
-            <Route path="/tickets/report" element={guard(can(user, "tickets"), <TicketReport />)} />
+            <Route path="/tickets/report" element={guard(can(user, "ticketReport"), <TicketReport />)} />
             <Route path="/tickets/categories" element={guard(can(user, "ticketSetup", "edit"), <TicketCategories />)} />
             <Route path="/hr/attendance" element={guard(can(user, "myAttendance"), <MyAttendance />)} />
             <Route path="/hr/attendance/register" element={guard(can(user, "attendance"), <AttendanceRegister />)} />

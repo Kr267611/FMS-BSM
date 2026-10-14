@@ -6,7 +6,7 @@ const { auth, permit } = authLib;
 import scopeLib = require("../services/scope");
 const { visibleUserIds } = scopeLib;
 import permissionsLib = require("../services/permissions");
-const { isAdmin } = permissionsLib;
+const { can, isAdmin } = permissionsLib;
 import auditLib = require("../services/audit");
 const { audit } = auditLib;
 import User = require("../models/User");
@@ -35,6 +35,7 @@ function fail(message, status = 400) {
 // ?status=pending|done|all &auditor= (admin) &doer= &kind=checklist|delegation|fms &q= (task name) &priority= &department=
 // &from= &to= (done day) &order=asc|desc &page=
 router.get("/", async (req, res) => {
+  if (!can(req.user, "auditList", "view") && !req.user.isAuditor) throw fail("The Audit List needs its tick in Users (or Make Auditor). Ask your admin.", 403);
   const filter: Record<string, any> = { auditor: { $ne: null }, "audit.status": { $exists: true } };
   if (isAdmin(req.user)) {
     if (mongoose.isValidObjectId(req.query.auditor)) filter.auditor = oid(req.query.auditor);
@@ -75,12 +76,12 @@ router.get("/", async (req, res) => {
 });
 
 // MIDAP "Auditor Settings": per auditor the share (%) of checklist / delegation / FMS tasks to audit and the Audit TAT
-router.get("/settings", permit("settings", "edit"), async (req, res) => {
+router.get("/settings", permit("auditorSettings", "edit"), async (req, res) => {
   const users = await User.find({ active: true }).select("name role department isAuditor").populate("department", "name").sort({ name: 1 }).lean<any>();
   res.json({ settings: await getAuditorSettings(), users: users.map((u) => ({ _id: u._id, name: u.name, role: u.role, isAuditor: Boolean(u.isAuditor), department: u.department?.name || "" })) });
 });
 
-router.put("/settings", permit("settings", "edit"), async (req, res) => {
+router.put("/settings", permit("auditorSettings", "edit"), async (req, res) => {
   try {
     const value = await saveAuditorSettings(req.body?.settings);
     audit(req, "settings.auditors", { entity: "Setting", summary: `Auditor settings for ${Object.keys(value).length} auditor(s)` });
