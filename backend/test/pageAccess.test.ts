@@ -57,6 +57,12 @@ async function call(who, p, { method = "GET", body }: any = {}) {
   return { status: res.status, data: ((await res.json()) as any) };
 }
 const me = async (who) => (await call(who, "/auth/me")).data;
+// run one upgrade step again as on a database that never had it: forget the step and the marks it left
+async function rerun(key) {
+  await Setting.deleteOne({ key });
+  await User.collection.updateMany({}, { $pull: { accessUpgrades: key } } as any);
+  await Department.collection.updateMany({}, { $unset: { [`accessBefore.${key.replace(/\./g, "_")}`]: "" } });
+}
 
 test("the upgrade: everyone keeps their old pages; the old access is kept; it runs once", async () => {
   await login("admin", "Admin1234");
@@ -70,7 +76,7 @@ test("the upgrade: everyone keeps their old pages; the old access is kept; it ru
   // access as it was saved before the change: the department and the HOD have the old "reports" / "fms" ticks
   await Department.collection.updateOne({ _id: new (require("mongoose").Types.ObjectId)(ids.prod) }, { $set: { permissions: { reports: ["view"] } } });
   await User.collection.updateOne({ _id: new (require("mongoose").Types.ObjectId)(ids.hh) }, { $set: { permissions: { reports: [], fms: ["view", "add"], settings: ["view", "edit"] } } });
-  await Setting.deleteOne({ key: "migration.pageAccess" });
+  await rerun("migration.pageAccess");
   await migrations.migratePageAccess();
 
   for (const k of ["dd", "hh", "ss"]) await login(k);
@@ -85,6 +91,11 @@ test("the upgrade: everyone keeps their old pages; the old access is kept; it ru
   const saved = await User.collection.findOne({ _id: new (require("mongoose").Types.ObjectId)(ids.hh) });
   assert.deepStrictEqual(saved.permissionsV1, { reports: [], fms: ["view", "add"], settings: ["view", "edit"] });
   assert.strictEqual((await Department.collection.findOne({ _id: new (require("mongoose").Types.ObjectId)(ids.prod) })).permissions.reports, undefined);
+  // stopped half-way (no "done" flag) and started again: people already done are not redone – the HOD does not
+  // get the reports back from the old role default, and a change made since stays
+  await Setting.deleteOne({ key: "migration.pageAccess" });
+  await migrations.migratePageAccess();
+  assert.deepStrictEqual((await User.findById(ids.hh).lean()).permissions.misScore, []);
   // a second start changes nothing
   await User.updateOne({ _id: ids.hh }, { $set: { "permissions.misScore": ["view"] } });
   await migrations.migratePageAccess();
@@ -162,7 +173,7 @@ test("part 2: Audit List, Auditor Settings and Ticket Report – defaults as bef
   }
   // before: Settings (edit) also opened Auditor Settings; Help Ticket – Manage (view) also the Ticket Report
   await User.collection.updateOne({ _id: new (require("mongoose").Types.ObjectId)(ids.ss) }, { $set: { "permissions.settings": ["view", "edit"], "permissions.tickets": ["view"] } });
-  await Setting.deleteOne({ key: "migration.pageAccess2" });
+  await rerun("migration.pageAccess2");
   await migrations.migratePageAccess2();
   await login("ss");
   const ss = (await me("ss")).permissions;
@@ -193,7 +204,7 @@ test("part 3: HRMS, Users & Org and Settings pages – defaults as before, each 
 
   // before: HRMS – Setup (view) showed all four setup pages, Attendance (add) the biometric upload, Settings (view) the reminders
   await User.collection.updateOne({ _id: new (require("mongoose").Types.ObjectId)(ids.dd) }, { $set: { permissions: { hrSetup: ["view"], attendance: ["view", "add"], settings: ["view"] } } });
-  await Setting.deleteOne({ key: "migration.pageAccess3" });
+  await rerun("migration.pageAccess3");
   await migrations.migratePageAccess3();
   await login("dd");
   const dd = (await me("dd")).permissions;

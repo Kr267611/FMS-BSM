@@ -147,31 +147,50 @@ function oldPages3(user, deptPerms) {
 
 // Every user keeps the pages they had: where the new ticks (role → department → own) give something else for
 // `pages`, the old value is written as the user's own tick. split turns a layer's old ticks into the new ones.
+// Safe to stop half-way (a restart, a lost connection): each department keeps its access from before this step
+// (accessBefore.<step>) and each user is marked when done (accessUpgrades), so a second run neither redoes a person
+// nor reads an already changed department as the old one.
 async function keepOldPages(KEY, pages, oldOf, split = (layer, role?) => layer) {
   if (await Setting.exists({ key: KEY })) return;
-  const depts = await Department.collection.find({}).project({ permissions: 1 }).toArray();
-  const oldDept = new Map<string, any>(depts.map((d) => [String(d._id), d.permissions]));
+  const STEP = KEY.replace(/\./g, "_");
+  const depts = await Department.collection.find({}).project({ permissions: 1, permissionsV1: 1, accessBefore: 1 }).toArray();
+  const oldDept = new Map<string, any>();
   const newDept = new Map<string, any>();
   for (const d of depts) {
-    const next = split(d.permissions);
+    const done = d.accessBefore && STEP in d.accessBefore;
+    const before = done ? d.accessBefore[STEP] || undefined : d.permissions;
+    const next = done ? d.permissions : split(d.permissions);
+    oldDept.set(String(d._id), before);
     newDept.set(String(d._id), next);
-    if (d.permissions && JSON.stringify(next) !== JSON.stringify(d.permissions)) {
-      await Department.collection.updateOne({ _id: d._id }, { $set: { permissions: next, ...(d.permissionsV1 === undefined ? { permissionsV1: d.permissions } : {}) } });
+    if (!done) {
+      const set: Record<string, any> = { [`accessBefore.${STEP}`]: d.permissions ?? null };
+      if (d.permissions && JSON.stringify(next) !== JSON.stringify(d.permissions)) {
+        set.permissions = next;
+        if (d.permissionsV1 === undefined) set.permissionsV1 = d.permissions;
+      }
+      await Department.collection.updateOne({ _id: d._id }, { $set: set });
     }
   }
   let changed = 0;
-  const users = await User.collection.find({}).project({ role: 1, department: 1, permissions: 1, permissionsV1: 1 }).toArray();
+  const users = await User.collection.find({ accessUpgrades: { $ne: KEY } }).project({ role: 1, department: 1, permissions: 1, permissionsV1: 1 }).toArray();
   for (const u of users) {
-    if (isAdmin(u)) continue;
+    if (isAdmin(u)) {
+      await User.collection.updateOne({ _id: u._id }, { $addToSet: { accessUpgrades: KEY } });
+      continue;
+    }
     const dept = u.department ? String(u.department) : "";
     const before = oldOf(u, oldDept.get(dept));
     const own = { ...(split(u.permissions, u.role) || {}) };
     const now = permissionsFor({ ...u, permissions: own, deptPermissions: newDept.get(dept) || undefined });
     for (const p of pages) if (!same(now[p], before[p])) own[p] = before[p];
     const next = Object.keys(own).length ? own : undefined;
-    if (JSON.stringify(next) === JSON.stringify(u.permissions)) continue;
+    const mark = { $addToSet: { accessUpgrades: KEY } };
+    if (JSON.stringify(next) === JSON.stringify(u.permissions)) {
+      await User.collection.updateOne({ _id: u._id }, mark);
+      continue;
+    }
     const backup = u.permissionsV1 === undefined ? { permissionsV1: u.permissions ?? null } : {}; // the first backup stays
-    await User.collection.updateOne({ _id: u._id }, next ? { $set: { permissions: next, ...backup } } : { $unset: { permissions: "" }, ...(Object.keys(backup).length ? { $set: backup } : {}) });
+    await User.collection.updateOne({ _id: u._id }, next ? { $set: { permissions: next, ...backup }, ...mark } : { $unset: { permissions: "" }, ...(Object.keys(backup).length ? { $set: backup } : {}), ...mark });
     changed++;
   }
   await Setting.create({ key: KEY, value: { at: new Date(), users: changed } });

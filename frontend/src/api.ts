@@ -84,8 +84,32 @@ export interface SessionUser {
   [key: string]: any;
 }
 
+// The page ticks a server from before "one tick per page" sends under one name (Vercel can be live before Render):
+// read those until the server sends the page's own tick
+const OLD_TICK: Record<string, string> = {
+  doerTasks: "reports", fmsTasks: "reports", misScore: "reports", weeklyMis: "reports", misMeeting: "reports", performance: "reports", auditorReport: "reports", effortReport: "reports",
+  doerConditions: "fms", overrideTat: "fms", autoCalc: "fms", autoComplete: "fms", fmsImport: "fms", fmsBulk: "fmsEntries",
+  auditorSettings: "settings", ticketReport: "tickets",
+  attendanceRequests: "attendance", biometric: "attendance", attendanceSetup: "hrSetup", leaveTypes: "hrSetup", leavePolicies: "hrSetup", policyAssignment: "hrSetup",
+  doerLeave: "users", calendar: "settings", sheetLinks: "settings", reminders: "settings",
+};
+
 export function can(user: SessionUser | null | undefined, module: string, action: Action = "view"): boolean {
-  return Boolean((user?.permissions?.[module] as string[] | undefined)?.includes(action));
+  const p = user?.permissions;
+  if (!p) return false;
+  const oldServer = p.reports !== undefined || p.hrSetup !== undefined; // a new server never sends these
+  if (oldServer && p[module] === undefined && (module === "auditList" || module === "accessOverview")) {
+    return user.role === "admin" || (module === "auditList" && user.role === "auditor");
+  }
+  if (p[module] === undefined && OLD_TICK[module] && p[OLD_TICK[module]] !== undefined) {
+    if (user.role === "doer" && ["doerTasks", "fmsTasks", "misMeeting", "auditorReport", "fmsBulk"].includes(module)) return false; // hidden from doers then
+    const old = p[OLD_TICK[module]] as string[];
+    if (module === "fmsImport") return old.includes("add") && Boolean((p.settings as string[] | undefined)?.includes("edit"));
+    if (module === "sheetLinks" || module === "auditorSettings") return old.includes("edit");
+    if (module === "biometric") return old.includes("add");
+    return old.includes(action);
+  }
+  return Boolean((p[module] as string[] | undefined)?.includes(action));
 }
 
 // Admin and Developer: every permission, the whole company and the admin-only screens
