@@ -252,6 +252,15 @@ router.put("/:id", auth, permit("users", "edit"), async (req, res) => {
   if (b.isAuditor !== undefined && Boolean(b.isAuditor) !== Boolean(user.isAuditor)) (user.isAuditor = Boolean(b.isAuditor)), changes.push(user.isAuditor ? "made auditor" : "no longer auditor");
   for (const [k, v] of Object.entries(profile.set)) if (v !== (user[k] || "")) (user[k] = v), changes.push(k === "photo" ? (v ? "photo" : "photo removed") : k);
   if (b.email !== undefined && cleanEmail(b.email) !== user.email) (user.email = cleanEmail(b.email)), changes.push("email");
+  // employee code (the biometric machine id): one person per code, or the machine's punches go to the wrong person
+  if (b.employeeCode !== undefined) {
+    const code = String(b.employeeCode ?? "").trim().slice(0, 30);
+    if (code !== (user.employeeCode || "")) {
+      if (code && (await User.exists({ _id: { $ne: user._id }, employeeCode: code }))) return res.status(400).json({ message: `Employee code ${code} already belongs to someone else` });
+      user.employeeCode = code;
+      changes.push("employee code");
+    }
+  }
   if (b.role !== undefined && b.role !== user.role) (user.role = b.role), changes.push(`role→${b.role}`);
   for (const k of ["branch", "department", "teamLeader"]) {
     if (b[k] !== undefined && idStr(b[k] || null) !== idStr(user[k])) (user[k] = b[k] || undefined), changes.push(k);

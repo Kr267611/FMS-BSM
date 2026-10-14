@@ -78,3 +78,17 @@ test("check first, then create: existing people are filled, PC from the designat
   const again = (await call("/users/bulk", { rows: ROWS, createMissing: true, dryRun: true, skip: [5] })).data;
   assert.deepStrictEqual([again.created, again.updated, again.same], [0, 0, 3]);
 });
+
+test('quick edit: employee code, joining date and team leader through the user form, one person per code', async () => {
+  const shivam = await User.findOne({ username: 'shivam' }).lean();
+  const nikunj = await User.findOne({ username: 'nikunj' }).lean();
+  const put = (id, body) => fetch(base + '/users/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json', Cookie: cookies.admin }, body: JSON.stringify(body) }).then(async (r) => ({ status: r.status, data: (await r.json()) as any }));
+  const dup = await put(nikunj._id, { employeeCode: '8374' }); // Shivam has 8374
+  assert.deepStrictEqual([dup.status, /already belongs/.test(dup.data.message)], [400, true]);
+  const ok = await put(nikunj._id, { employeeCode: '6847', joiningDate: '2025-06-02', teamLeader: String(shivam._id) });
+  assert.strictEqual(ok.status, 200, ok.data.message);
+  const after = await User.findById(nikunj._id).lean();
+  assert.deepStrictEqual([after.employeeCode, after.joiningDate, String(after.teamLeader)], ['6847', '2025-06-02', String(shivam._id)]);
+  assert.strictEqual((await put(nikunj._id, { teamLeader: '' })).status, 200);
+  assert.strictEqual((await User.findById(nikunj._id).lean()).teamLeader, undefined);
+});

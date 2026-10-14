@@ -1308,3 +1308,22 @@ tr.clickable:hover td { background: var(--tint-primary); }
 .file-pick { cursor: pointer; }
 tr.row-bad td { background: #fdf0f0; }
 tr.row-warn td { background: #fffaf0; }
+/* User List (quick edit) */
+.quick-edit td { padding: 4px 6px; vertical-align: top; }
+.quick-edit .q-cell { min-width: 0; padding: 5px 7px; font-size: 13px; }
+.quick-edit input.q-cell[type="date"] { width: 140px; }
+.quick-edit .q-name input { min-width: 190px; }
+.quick-edit select.q-cell { max-width: 190px; }
+.quick-edit .q-dirty { background: #fff4c2; border-color: #e0b84a; }
+.quick-edit tr.row-changed td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
+.quick-bulk { position: sticky; top: 56px; z-index: 5; align-items: center; gap: 8px; border-color: var(--gold-line); background: var(--gold-tint); }
+.quick-filters { gap: 8px; align-items: center; }
+.quick-filters input { max-width: 260px; }
+.quick-filters select { width: auto; }
+.quick-edit .q-cell { width: auto; }
+.quick-edit select.q-cell { min-width: 140px; }
+.quick-edit input.q-cell { min-width: 90px; }
+.quick-edit td:nth-child(3) input.q-cell { min-width: 125px; }
+.quick-edit td:nth-child(4) input.q-cell { min-width: 80px; width: 80px; }
+.quick-bulk select, .quick-filters select { width: auto; min-width: 160px; }
+.quick-bulk { flex-wrap: wrap; }

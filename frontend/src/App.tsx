@@ -48,6 +48,7 @@ import Mis from "./pages/Mis";
 import Reminders from "./pages/Reminders";
 import Users from "./pages/Users";
 import BulkUsers from "./pages/BulkUsers";
+import UsersQuickEdit from "./pages/UsersQuickEdit";
 import Org from "./pages/Org";
 import Audit from "./pages/Audit";
 import Account from "./pages/Account";
@@ -162,6 +163,7 @@ function menuFor(user) {
       title: "Users & Org",
       items: [
         { to: "/users", label: "Users", show: can(user, "users") },
+        { to: "/users/quick", label: "User List (Quick Edit)", show: can(user, "users", "edit") },
         { to: "/users/bulk", label: "Bulk Upload", show: can(user, "users", "add") },
         { to: "/org", label: "Branches & Departments", show: can(user, "org") },
         { to: "/users/leave", label: "Doer Leave", show: can(user, "doerLeave") },
@@ -320,6 +322,7 @@ function Shell() {
             <Route path="/calendar" element={guard(can(user, "calendar"), <CalendarSettings />)} />
             <Route path="/users" element={guard(can(user, "users"), <Users />)} />
             <Route path="/users/bulk" element={guard(can(user, "users", "add"), <BulkUsers />)} />
+            <Route path="/users/quick" element={guard(can(user, "users", "edit"), <UsersQuickEdit />)} />
             <Route path="/org" element={guard(can(user, "org"), <Org />)} />
             <Route path="/tickets/new" element={guard(can(user, "myTickets"), <RaiseTicket />)} />
             <Route path="/tickets/mine" element={guard(can(user, "myTickets"), <TicketList mode="mine" />)} />
