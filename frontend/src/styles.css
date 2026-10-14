@@ -1302,3 +1302,9 @@ tr.clickable:hover td { background: var(--tint-primary); }
 .doer-check .good-text { color: #15803d; }
 .doer-check .bad-text { color: #b45309; }
 .doer-check .ok { color: #15803d; margin: 6px 0; }
+/* Bulk upload users */
+.bulk-map { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px 16px; }
+.bulk-map label { display: grid; gap: 4px; }
+.file-pick { cursor: pointer; }
+tr.row-bad td { background: #fdf0f0; }
+tr.row-warn td { background: #fffaf0; }

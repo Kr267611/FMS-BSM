@@ -448,4 +448,4 @@ async function importSheetFms(sheets, spreadsheetId, tab, body, user, { now = ne
   return { process: { _id: process._id, name: process.name }, counts };
 }
 
-export = { planFms, applyFormulas, rowTasks, rowValues, entryRows, definition, settleRows, matchUser, guessType, previewSheetFms, importSheetFms };
+export = { planFms, applyFormulas, rowTasks, rowValues, entryRows, definition, settleRows, matchUser, personKey, guessType, previewSheetFms, importSheetFms };

@@ -18,6 +18,7 @@ const { audit } = auditLib;
 import uploadsLib = require("../services/uploads");
 const { saveImage, decodeDataUrl } = uploadsLib;
 import Setting = require("../models/Setting");
+import sheetFmsLib = require("../services/sheetFms");
 
 const router = express.Router();
 
@@ -330,58 +331,146 @@ const tempPassword = () => {
   return `Bsm${s}${crypto.randomInt(10, 99)}`;
 };
 
+// Bulk upload. rows: [{ name, phone, employeeCode, joiningDate, department, designation, role, username, email, branch }]
+// dryRun: true only checks and says what each row will do. A person already in the software (same mobile, same
+// employee code, or the same full name) is not made twice: only their empty mobile / code / joining date /
+// department are filled; their role, department and password stay. skip: line numbers to leave out.
+// Role: as given, else PC when the designation is "PC", else doer. Username: as given, else the mobile number, the
+// part of the email before @, or the employee code. Departments match ignoring dots and spaces ("M.I.S" = "MIS").
+const deptKey = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+const cleanName = (s) => String(s || "").replace(/\s+/g, " ").trim();
+const titleCase = (s) => (s === s.toUpperCase() ? s.toLowerCase().replace(/(^|[\s.(-])([a-z])/g, (m, a, b) => a + b.toUpperCase()) : s);
+// "3/12/2015", "03-12-2015" (day first, as in Indian sheets) or "2015-12-03" -> "2015-12-03"
+function dayFrom(v) {
+  const t = String(v || "").trim();
+  if (!t) return "";
+  if (isDay(t)) return t;
+  const m = t.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2}|\d{4})$/);
+  if (!m) return null;
+  const y = m[3].length === 2 ? `20${m[3]}` : m[3];
+  const d = `${y}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  return isDay(d) ? d : null;
+}
+
 router.post("/bulk", auth, permit("users", "add"), async (req, res) => {
   const rows = Array.isArray(req.body?.rows) ? req.body.rows.slice(0, 1000) : [];
   const createMissing = Boolean(req.body?.createMissing);
+  const dryRun = Boolean(req.body?.dryRun);
+  const skip = new Set<number>((Array.isArray(req.body?.skip) ? req.body.skip : []).map(Number));
   if (!rows.length) return res.status(400).json({ message: "The file has no rows" });
 
-  const deptCache = new Map<any, any>((await Department.find().lean<any>()).map((d) => [d.name.toLowerCase(), d._id]));
-  const branchCache = new Map<any, any>((await Branch.find().lean<any>()).map((b) => [b.name.toLowerCase(), b._id]));
+  const deptCache = new Map<string, any>((await Department.find().lean<any>()).map((d) => [deptKey(d.name), d._id]));
+  const branchCache = new Map<string, any>((await Branch.find().lean<any>()).map((b) => [deptKey(b.name), b._id]));
+  const newNames = { department: new Set<string>(), branch: new Set<string>() };
   async function resolve(cache, Model, name, label) {
-    const key = String(name || "").trim().toLowerCase();
+    const key = deptKey(name);
     if (!key) return undefined;
     if (cache.has(key)) return cache.get(key);
-    if (!createMissing) throw new Error(`${label} "${name}" does not exist`);
+    if (!createMissing) throw new Error(`${label} "${String(name).trim()}" does not exist`);
+    newNames[label.toLowerCase()].add(String(name).trim());
+    if (dryRun) return null;
     const doc = await Model.create({ name: String(name).trim() });
     cache.set(key, doc._id);
     return doc._id;
   }
 
+  const people = await User.find().select("name username phone employeeCode joiningDate department role").lean<any>();
+  const byPhone = new Map<string, any>(people.filter((p) => p.phone).map((p) => [p.phone, p]));
+  const byCode = new Map<string, any>(people.filter((p) => p.employeeCode).map((p) => [String(p.employeeCode).toLowerCase(), p]));
+  const nameKey = (n) => sheetFmsLib.personKey(n);
+  const byName = new Map<string, any[]>();
+  for (const p of people) byName.set(nameKey(p.name), [...(byName.get(nameKey(p.name)) || []), p]);
+  const firstKey = (n) => nameKey(String(n).split(/\s+/)[0]);
+  const seen = { phone: new Set<string>(), code: new Set<string>(), username: new Set<string>() };
+
   const results = [];
   for (const [i, r] of rows.entries()) {
     const line = i + 2; // row 1 is the header
+    if (skip.has(line)) {
+      results.push({ line, ok: true, action: "skipped", name: cleanName(r.name) });
+      continue;
+    }
     try {
-      const name = String(r.name || "").trim();
-      const email = cleanEmail(r.email);
-      const username = String(r.username || email.split("@")[0] || "").toLowerCase().trim();
-      const role = String(r.role || "doer").toLowerCase().trim();
+      const name = titleCase(cleanName(r.name));
       if (!name) throw new Error("Name is missing");
-      if (!username) throw new Error("Give an email or a username");
+      const email = cleanEmail(r.email);
+      const ph = cleanPhone(r.phone);
+      if (ph.problem) throw new Error(`Mobile "${String(r.phone).trim()}": ${ph.problem.toLowerCase()}`);
+      const phone = ph.phone;
+      const code = String(r.employeeCode ?? "").trim().slice(0, 30);
+      const joiningDate = dayFrom(r.joiningDate);
+      if (joiningDate === null) throw new Error(`Joining date "${String(r.joiningDate).trim()}" is not a date (day/month/year)`);
+      if (phone && seen.phone.has(phone)) throw new Error(`Mobile ${phone} is twice in the file`);
+      if (code && seen.code.has(code.toLowerCase())) throw new Error(`Code ${code} is twice in the file`);
+
+      // already in the software?
+      const sameName = (byName.get(nameKey(name)) || []).filter((p) => !p.phone || !phone || p.phone === phone);
+      const existing = (phone && byPhone.get(phone)) || (code && byCode.get(code.toLowerCase())) || (sameName.length === 1 ? sameName[0] : null);
+      if (phone) seen.phone.add(phone);
+      if (code) seen.code.add(code.toLowerCase());
+      if (existing) {
+        if (phone && existing.phone && existing.phone !== phone) throw new Error(`Matches ${existing.name}, whose mobile is ${existing.phone}: check the row`);
+        const set: Record<string, any> = {};
+        if (phone && !existing.phone) set.phone = phone;
+        if (code && !existing.employeeCode) set.employeeCode = code;
+        if (joiningDate && !existing.joiningDate) set.joiningDate = joiningDate;
+        if (r.department && !existing.department) set.department = await resolve(deptCache, Department, r.department, "Department");
+        if (!dryRun && Object.keys(set).length) await User.updateOne({ _id: existing._id }, { $set: set });
+        results.push({ line, ok: true, action: Object.keys(set).length ? "updated" : "same", name, existing: existing.name, username: existing.username, filled: Object.keys(set), id: existing._id });
+        continue;
+      }
+
+      const designation = String(r.designation || "").trim();
+      const role = String(r.role || (/^p\.?\s*c\.?$/i.test(designation) ? "pc" : "doer")).toLowerCase().trim();
+      const username = String(r.username || phone || email.split("@")[0] || code || "").toLowerCase().trim();
+      if (!username) throw new Error("Give a mobile number, an email, a username or an employee code");
       const problem =
         roleProblem(req.user, role) ||
         (await emailProblem(email)) ||
-        ((await User.exists({ username })) ? `Username "${username}" is already taken` : null);
+        ((await User.exists({ username })) || seen.username.has(username) ? `Username "${username}" is already taken` : null);
       if (problem) throw new Error(problem);
-
+      seen.username.add(username);
+      // only one person of that first name, without a mobile: maybe the same person under a short name ("Vinod")
+      const alike = people.filter((p) => firstKey(p.name) === firstKey(name));
+      const warning = alike.length === 1 && !alike[0].phone ? `Maybe the same person as "${alike[0].name}" (already in the software, no mobile). If so, leave this row out and add the details to ${alike[0].name}.` : undefined;
+      const department = await resolve(deptCache, Department, r.department, "Department");
+      const branch = await resolve(branchCache, Branch, r.branch, "Branch");
+      if (dryRun) {
+        results.push({ line, ok: true, action: "create", name, username, role, department: String(r.department || "").trim(), warning });
+        continue;
+      }
       const password = tempPassword();
       const user = await User.create(<any>{
         name,
         username,
         email,
-        phone: String(r.phone || "").trim(),
+        phone,
+        employeeCode: code,
+        joiningDate,
         role,
-        department: await resolve(deptCache, Department, r.department, "Department"),
-        branch: await resolve(branchCache, Branch, r.branch, "Branch"),
+        department,
+        branch,
         password: await bcrypt.hash(password, 10),
       });
-      results.push({ line, ok: true, name, username, email, tempPassword: password, id: user._id });
+      results.push({ line, ok: true, action: "created", name, username, email, phone, role, tempPassword: password, id: user._id, warning });
     } catch (err) {
-      results.push({ line, ok: false, name: r.name, error: err.message });
+      results.push({ line, ok: false, name: cleanName(r.name), error: err.message });
     }
   }
-  const created = results.filter((r) => r.ok).length;
-  audit(req, "user.bulk_upload", { entity: "User", summary: `${created} created, ${results.length - created} failed` });
-  res.json({ created, failed: results.length - created, results });
+  const count = (a) => results.filter((r) => r.action === a).length;
+  const out = {
+    dryRun,
+    created: count("created") + count("create"),
+    updated: count("updated"),
+    same: count("same"),
+    skipped: count("skipped"),
+    failed: results.filter((r) => !r.ok).length,
+    newDepartments: [...newNames.department],
+    newBranches: [...newNames.branch],
+    results,
+  };
+  if (!dryRun) audit(req, "user.bulk_upload", { entity: "User", summary: `${out.created} created, ${out.updated} updated, ${out.failed} failed` });
+  res.json(out);
 });
 
 export = router;
