@@ -6,6 +6,7 @@ import { useAuth } from "../App";
 import { useUsers } from "../components/DoerSelect";
 import FieldInput, { FieldValue } from "../components/FieldInput";
 import StepForm from "../components/StepForm";
+import ColumnFilter, { describeFilter } from "../components/ColumnFilter";
 import { SKIP_REASONS, dependentsOf, describeCondition, describeStart, headlineValue, stepKeyOf, taskState } from "../fms";
 
 const shortDt = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
@@ -35,7 +36,19 @@ export default function Jobs() {
   const [form, setForm] = useState(false);
   const [openId, setOpenId] = useState(null);
   const [error, setError] = useState("");
+  // column filters and sort, like a sheet's filter view: { fields: { key: {...} }, steps: { key: {...} } }
+  const [colf, setColf] = useState({ fields: {}, steps: {} });
+  const [sort, setSort] = useState("");
   const pid = params.get("process") || "";
+  const filtersOn = Object.keys(colf.fields).length + Object.keys(colf.steps).length;
+  const fParam = filtersOn ? JSON.stringify(colf) : "";
+  function setColumnFilter(kind, key, value) {
+    const next = { fields: { ...colf.fields }, steps: { ...colf.steps } };
+    if (value) next[kind][key] = value;
+    else delete next[kind][key];
+    setColf(next);
+    setPage(1);
+  }
 
   const nameOf = useMemo(() => {
     const m = new Map(users.map((u) => [u._id, u.name]));
@@ -60,6 +73,8 @@ export default function Jobs() {
     setProcess(null);
     setData(null);
     setForm(false);
+    setColf({ fields: {}, steps: {} });
+    setSort("");
     try {
       localStorage.setItem(REMEMBER, pid);
     } catch {
@@ -79,10 +94,10 @@ export default function Jobs() {
   const load = useCallback(() => {
     if (!pid) return;
     setError("");
-    api("/jobs", { query: { process: pid, status, q: search, page, from: range.from, to: range.to } })
+    api("/jobs", { query: { process: pid, status, q: search, page, from: range.from, to: range.to, f: fParam, sort } })
       .then(setData)
       .catch((e) => setError(e.message));
-  }, [pid, status, search, page, range.from, range.to]);
+  }, [pid, status, search, page, range.from, range.to, fParam, sort]);
   useEffect(load, [load]);
 
   if (processes && !processes.length) {
@@ -91,7 +106,9 @@ export default function Jobs() {
 
   const pages = data ? Math.max(1, Math.ceil(data.total / data.limit)) : 1;
   const canAdd = can(user, "fmsEntries", "add");
-  const exportUrl = `/api/jobs/export?${new URLSearchParams({ process: pid, status, q: search })}`;
+  const exportUrl = `/api/jobs/export?${new URLSearchParams({ process: pid, status, q: search, from: range.from, to: range.to, ...(fParam ? { f: fParam } : {}), ...(sort ? { sort } : {}) })}`;
+  const labels = new Map<string, string>(users.map((u) => [u._id, u.name]));
+  const sortField = process?.fields.find((x) => x.key === sort.split(":")[0]);
 
   return (
     <>
@@ -152,7 +169,49 @@ export default function Jobs() {
         />
       )}
 
-      {process && data && <Grid process={process} data={data} nameOf={nameOf} onOpen={setOpenId} />}
+      {process && (filtersOn > 0 || sort) && (
+        <div className="filter-chips row wrap">
+          {Object.entries(colf.fields).map(([k, v]) => (
+            <span key={k} className="chip-filter">
+              {describeFilter(v, { field: process.fields.find((x) => x.key === k), labels })}
+              <button type="button" aria-label="Remove this filter" onClick={() => setColumnFilter("fields", k, null)}>
+                ×
+              </button>
+            </span>
+          ))}
+          {Object.entries(colf.steps).map(([k, v]) => (
+            <span key={k} className="chip-filter">
+              {describeFilter(v, { step: process.steps.find((x) => x.key === k), labels })}
+              <button type="button" aria-label="Remove this filter" onClick={() => setColumnFilter("steps", k, null)}>
+                ×
+              </button>
+            </span>
+          ))}
+          {sort && (
+            <span className="chip-filter">
+              Sorted: {sortField?.label || sort.split(":")[0]} {sortField?.type === "number" ? (sort.endsWith(":asc") ? "0 → 9" : "9 → 0") : sort.endsWith(":asc") ? "A → Z" : "Z → A"}
+              <button type="button" aria-label="Remove the sort" onClick={() => setSort("")}>
+                ×
+              </button>
+            </span>
+          )}
+          <button type="button" className="link-btn small" onClick={() => (setColf({ fields: {}, steps: {} }), setSort(""), setPage(1))}>
+            Clear all filters
+          </button>
+        </div>
+      )}
+      {process && data && (
+        <Grid
+          process={process}
+          data={data}
+          nameOf={nameOf}
+          onOpen={setOpenId}
+          filters={colf}
+          sort={sort}
+          onFilter={setColumnFilter}
+          onSort={(key, dir) => (setSort(`${key}:${dir}`), setPage(1))}
+        />
+      )}
       {process && data && (
         <div className="pager">
           <span className="muted small">
@@ -182,12 +241,45 @@ function FieldCell({ field, value }) {
 }
 
 // The FMS as the sheet shows it: entry columns, then Planned | Actual | Delay | Status per step
-function Grid({ process, data, nameOf, onOpen }) {
+function Grid({ process, data, nameOf, onOpen, filters, sort, onFilter, onSort }) {
   const steps = process.steps;
   const today = data.today;
   const fields = process.fields;
+  const [open, setOpen] = useState(null); // { kind: "fields" | "steps", key, rect }
+  const funnel = (kind, key, label) => {
+    const on = Boolean(filters[kind][key]) || (kind === "fields" && sort.startsWith(`${key}:`));
+    return (
+      <button
+        type="button"
+        className={"th-filter" + (on ? " on" : "")}
+        title={`Filter / sort ${label}`}
+        aria-label={`Filter ${label}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          const rect = e.currentTarget.getBoundingClientRect();
+          setOpen(open?.key === key && open?.kind === kind ? null : { kind, key, rect });
+        }}
+      >
+        ▾
+      </button>
+    );
+  };
   return (
     <div className="card table-card">
+      {open && (
+        <ColumnFilter
+          key={open.kind + open.key}
+          processId={process._id}
+          field={open.kind === "fields" ? fields.find((f) => f.key === open.key) : undefined}
+          step={open.kind === "steps" ? steps.find((s) => s.key === open.key) : undefined}
+          value={filters[open.kind][open.key]}
+          sort={sort}
+          anchor={open.rect}
+          onApply={(v) => (onFilter(open.kind, open.key, v), setOpen(null))}
+          onSort={open.kind === "fields" ? (dir) => (onSort(open.key, dir), setOpen(null)) : undefined}
+          onClose={() => setOpen(null)}
+        />
+      )}
       <div className="table-scroll sheet">
         <table className="grid sheet-grid">
           <thead>
@@ -198,12 +290,13 @@ function Grid({ process, data, nameOf, onOpen }) {
               <th rowSpan={2}>Entry date</th>
               {fields.map((f) => (
                 <th key={f.key} rowSpan={2} className={f.type === "number" ? "num" : ""}>
-                  {f.label}
+                  <span className="th-label">{f.label}</span>
+                  {f.type !== "photo" && funnel("fields", f.key, f.label)}
                 </th>
               ))}
               {steps.map((s, i) => (
                 <th key={s.key} colSpan={4} className="step-head" title={describeStart(s, steps) + (s.when ? ` · only if ${describeCondition(s.when, fields, steps)}` : "")}>
-                  {i + 1}. {s.name}
+                  {i + 1}. {s.name} {funnel("steps", s.key, s.name)}
                   <div className="muted small">
                     TAT {s.tat} {s.tatUnit === "hours" ? "h" : s.tatUnit === "minutes" ? "min" : "d"}
                     {s.start?.mode === "afterDue" ? " · escalation" : s.start?.mode === "withStart" ? " · parallel" : ""}

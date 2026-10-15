@@ -1327,3 +1327,20 @@ tr.row-warn td { background: #fffaf0; }
 .quick-edit td:nth-child(4) input.q-cell { min-width: 80px; width: 80px; }
 .quick-bulk select, .quick-filters select { width: auto; min-width: 160px; }
 .quick-bulk { flex-wrap: wrap; }
+/* FMS Entries: column filters (like a sheet's filter view) */
+.th-filter { border: 0; background: none; padding: 0 3px; margin-left: 4px; cursor: pointer; color: var(--muted); font-size: 12px; border-radius: 4px; }
+.th-filter:hover { background: var(--gold-tint); color: var(--navy); }
+.th-filter.on { background: var(--navy); color: var(--gold-soft); }
+.col-filter { position: fixed; z-index: 60; width: 300px; max-height: 70vh; overflow: auto; background: #fff; border: 1px solid #dde3ec; border-radius: 12px; box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18); padding: 12px; display: grid; gap: 10px; text-align: left; font-weight: 400; }
+.col-filter-title { font-weight: 700; color: var(--navy); }
+.col-filter-sort .btn.active { background: var(--navy); color: var(--gold-soft); border-color: var(--navy); }
+.col-filter-part { display: grid; gap: 6px; }
+.col-filter-part.row input { min-width: 0; flex: 1; }
+.col-filter-values { max-height: 220px; overflow: auto; display: grid; gap: 2px; border: 1px solid #eef1f6; border-radius: 8px; padding: 6px; }
+.col-filter-values .check { display: grid; grid-template-columns: auto 1fr auto; gap: 6px; align-items: center; }
+.col-filter-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.col-filter-states { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px; }
+.col-filter-actions { justify-content: flex-end; gap: 8px; }
+.filter-chips { gap: 6px; margin: 6px 0 10px; align-items: center; }
+.chip-filter { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px; border-radius: 999px; background: var(--gold-tint); border: 1px solid var(--gold-line); color: var(--navy); font-size: 12px; }
+.chip-filter button { border: 0; background: none; cursor: pointer; font-size: 14px; line-height: 1; color: var(--gold-deep); }

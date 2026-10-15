@@ -8,6 +8,7 @@ import authLib = require("../middleware/auth");
 const { auth, permit } = authLib;
 import permissionsLib = require("../services/permissions");
 const { can } = permissionsLib;
+import entryFilters = require("../services/entryFilters");
 import scopeLib = require("../services/scope");
 const { visibleUserIds } = scopeLib;
 import auditLib = require("../services/audit");
@@ -46,6 +47,19 @@ function jobFilter(q) {
   return filter;
 }
 
+// The entry filter of a request: FMS, open / closed, search, entry date, then the column filters (f) of that FMS
+async function entryQuery(q) {
+  const filter = jobFilter(q);
+  const process = await Process.findById(q.process).select("name fields steps closure").lean<any>();
+  if (!process) {
+    const err = new Error("FMS not found");
+    err.status = 404;
+    throw err;
+  }
+  await entryFilters.applyColumnFilters(filter, q.f, process);
+  return { filter, process, sort: entryFilters.sortOf(q.sort, process) };
+}
+
 async function withTasks(jobs) {
   const tasks = await Task.find({ job: { $in: jobs.map((j) => j._id) } })
     .select("-label -process -kind -__v")
@@ -65,14 +79,14 @@ async function withTasks(jobs) {
 // The FMS as a sheet: each entry with all of its steps
 router.get("/", permit("fmsEntries", "view"), async (req, res) => {
   await sweepSoon();
-  const filter = jobFilter(req.query);
+  const { filter, sort } = await entryQuery(req.query);
   const page = Math.max(1, Number(req.query.page) || 1);
   const limit = Math.min(200, Number(req.query.limit) || 50);
   const [total, open, jobs] = await Promise.all([
     Job.countDocuments(filter),
     Job.countDocuments({ ...filter, status: "open" }),
     Job.find(filter)
-      .sort({ startDate: -1, _id: -1 })
+      .sort(sort)
       .skip((page - 1) * limit)
       .limit(limit)
       .populate("createdBy", "name")
@@ -103,10 +117,9 @@ const STATUS_TEXT = { waiting: "Not started", pending: "Pending", done: "Done", 
 const days = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
 
 router.get("/export", permit("fmsEntries", "view"), async (req, res) => {
-  const filter = jobFilter(req.query);
+  const { filter, sort } = await entryQuery(req.query);
   const process = await Process.findById(req.query.process).lean<any>();
-  if (!process) return res.status(404).json({ message: "FMS not found" });
-  const jobs = await withTasks(await Job.find(filter).sort({ startDate: -1 }).limit(5000).lean<any>());
+  const jobs = await withTasks(await Job.find(filter).sort(sort).limit(5000).lean<any>());
   const today = todayKey();
 
   const head = ["Entry No", "Entry date", ...process.fields.map((f) => f.label)];
@@ -144,7 +157,15 @@ router.post("/preview", permit("fmsEntries", "add"), async (req, res) => {
 
 // Bulk Delete / Download: how many entries match (FMS, open / closed, entry date range)
 router.get("/count", permit("fmsEntries", "view"), async (req, res) => {
-  res.json({ count: await Job.countDocuments(jobFilter(req.query)) });
+  res.json({ count: await Job.countDocuments((await entryQuery(req.query)).filter) });
+});
+
+// A column's values for its filter list: ?process= &field=<entry field> or &step=<step key> (the step's doers)
+router.get("/values", permit("fmsEntries", "view"), async (req, res) => {
+  if (!mongoose.isValidObjectId(req.query.process)) return res.status(400).json({ message: "Choose an FMS" });
+  const process = await Process.findById(req.query.process).select("fields steps").lean<any>();
+  if (!process) return res.status(404).json({ message: "FMS not found" });
+  res.json(await entryFilters.columnValues(process, { field: req.query.field ? String(req.query.field) : "", step: req.query.step ? String(req.query.step) : "" }));
 });
 
 router.get("/:id", permit("fmsEntries", "view"), async (req, res) => {
