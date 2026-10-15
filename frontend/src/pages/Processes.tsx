@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { api, can } from "../api";
 import { useAuth } from "../App";
 import { useUsers } from "../components/DoerSelect";
+import DeleteFms from "../components/DeleteFms";
 import { describeCondition, describeDoer, describePlan, describeStart } from "../fms";
 
 // Master FMS: every FMS as a ladder of steps
@@ -15,6 +16,8 @@ export default function Processes() {
   const [error, setError] = useState("");
   const canAdd = can(user, "fms", "add");
   const canEdit = can(user, "fms", "edit");
+  const canDelete = can(user, "fms", "delete");
+  const [deleting, setDeleting] = useState(null); // the FMS whose delete box is open
 
   const load = () =>
     api("/processes", { query: { all: 1 } })
@@ -98,8 +101,14 @@ export default function Processes() {
                     Edit
                   </Link>
                 )}
+                {canDelete && (
+                  <button className="btn ghost small danger" onClick={() => setDeleting(deleting === p._id ? null : p._id)}>
+                    Delete
+                  </button>
+                )}
               </div>
             </div>
+            {deleting === p._id && <DeleteFms id={p._id} name={p.name} startOpen onCancel={() => setDeleting(null)} onDeleted={() => (setDeleting(null), load())} />}
             <ol className="ladder">
               {p.steps.map((s) => (
                 <li key={s._id || s.key} className={`start-${s.start?.mode || "entry"}`}>
