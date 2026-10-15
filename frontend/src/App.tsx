@@ -205,6 +205,58 @@ const initials = (name) =>
 
 const MENU_KEY = "fms_bsm_menu";
 
+// Phones: a tab bar at the bottom with the pages opened most (the first four of these the person may open), then the full menu
+const QUICK: { to: string; label: string; icon: string; end?: boolean; show?: (u) => boolean }[] = [
+  { to: "/", label: "Tasks", icon: "tasks", end: true },
+  { to: "/dashboard", label: "Dashboard", icon: "grid" },
+  { to: "/hr/attendance", label: "Attendance", icon: "clock", end: true, show: (u) => can(u, "myAttendance") },
+  { to: "/jobs", label: "FMS", icon: "sheet", show: (u) => can(u, "fmsEntries") },
+  { to: "/tickets/new", label: "Ticket", icon: "ticket", show: (u) => can(u, "myTickets") },
+  { to: "/kra/me", label: "Scorecard", icon: "target" },
+];
+const ICONS = {
+  tasks: (
+    <>
+      <rect x="3.5" y="3.5" width="17" height="17" rx="4" />
+      <path d="m8 12.5 2.8 2.8L16.5 9" />
+    </>
+  ),
+  grid: (
+    <>
+      <rect x="3.5" y="3.5" width="7" height="7" rx="1.8" />
+      <rect x="13.5" y="3.5" width="7" height="7" rx="1.8" />
+      <rect x="3.5" y="13.5" width="7" height="7" rx="1.8" />
+      <rect x="13.5" y="13.5" width="7" height="7" rx="1.8" />
+    </>
+  ),
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 7.5V12l3 2" />
+    </>
+  ),
+  sheet: (
+    <>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
+      <path d="M3.5 9.5h17M9.5 9.5v10" />
+    </>
+  ),
+  ticket: <path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z" />,
+  target: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <circle cx="12" cy="12" r="4.5" />
+      <circle cx="12" cy="12" r="1" />
+    </>
+  ),
+  menu: <path d="M4 7h16M4 12h16M4 17h16" />,
+};
+const Icon = ({ name }) => (
+  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {ICONS[name]}
+  </svg>
+);
+
 function Shell() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -226,6 +278,18 @@ function Shell() {
   });
   const isHere = (i) => i.to && (i.end ? location.pathname === i.to : location.pathname === i.to || location.pathname.startsWith(i.to + "/"));
   const activeGroup = groups.find((g) => g.items.some(isHere))?.title;
+  // The page's name in the top bar when the side menu is folded away (tablets, phones)
+  const path = location.pathname;
+  const here = groups
+    .flatMap((g) => g.items)
+    .filter((i) => i.to && (path === i.to || (i.to !== "/" && path.startsWith(i.to + "/"))))
+    .sort((a, b) => b.to.length - a.to.length)[0];
+  const pageTitle = here?.label || (path === "/account" ? "My account" : "FMS BSM");
+  const quick = QUICK.filter((q) => !q.show || q.show(user)).slice(0, 4);
+  const signOut = async () => {
+    await logout();
+    navigate("/login");
+  };
   function toggleGroup(title) {
     setExpanded((prev) => {
       const next = prev.includes(title) ? prev.filter((t) => t !== title) : [...prev, title];
@@ -270,6 +334,19 @@ function Shell() {
             );
           })}
         </nav>
+        {/* phones: who is signed in, and Logout (the top bar has no room for it) */}
+        <div className="side-foot">
+          <NavLink to="/account" className="side-me">
+            <b className="avatar">{initials(user.name)}</b>
+            <span>
+              {user.name}
+              <small>{ROLE_LABELS[user.role] || user.role}</small>
+            </span>
+          </NavLink>
+          <button type="button" className="btn ghost small" onClick={signOut}>
+            Logout
+          </button>
+        </div>
       </aside>
       <div className="scrim" onClick={() => setOpen(false)} />
 
@@ -278,6 +355,7 @@ function Shell() {
           <button className="menu-btn" onClick={() => setOpen(!open)} aria-label="Menu">
             ☰
           </button>
+          <div className="topbar-title">{pageTitle}</div>
           <div className="topbar-spacer" />
           <InstallApp />
           <NavLink to="/account" className="who-name" title="My account">
@@ -290,13 +368,7 @@ function Shell() {
               </small>
             </span>
           </NavLink>
-          <button
-            className="btn ghost small"
-            onClick={async () => {
-              await logout();
-              navigate("/login");
-            }}
-          >
+          <button className="btn ghost small topbar-logout" onClick={signOut}>
             Logout
           </button>
         </header>
@@ -362,6 +434,18 @@ function Shell() {
           </div>
         </main>
       </div>
+      <nav className="bottom-nav" aria-label="Quick menu">
+        {quick.map((q) => (
+          <NavLink key={q.to} to={q.to} end={q.end} className="bn-item">
+            <Icon name={q.icon} />
+            <span>{q.label}</span>
+          </NavLink>
+        ))}
+        <button type="button" className={"bn-item" + (open ? " active" : "")} onClick={() => setOpen(!open)} aria-expanded={open}>
+          <Icon name="menu" />
+          <span>Menu</span>
+        </button>
+      </nav>
     </div>
   );
 }

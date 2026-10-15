@@ -123,6 +123,8 @@ export default function Mis() {
                       <td>
                         <span className="caret">{open[d.doer._id] ? "▾" : "▸"}</span> <b>{d.doer.name}</b>
                         {d.doer.department && <span className="muted small"> · {d.doer.department}</span>}
+                        {/* phones: the score next to the name, without scrolling to the Score column */}
+                        <span className={"phone-score " + scoreClass(d.total.score)}>{d.total.score}</span>
                       </td>
                       <Counts r={d.total} />
                       <td>

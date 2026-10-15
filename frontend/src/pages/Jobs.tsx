@@ -36,6 +36,7 @@ export default function Jobs() {
   const [form, setForm] = useState(false);
   const [openId, setOpenId] = useState(null);
   const [error, setError] = useState("");
+  const [showFilters, setShowFilters] = useState(false); // phones: search, dates and export fold away under one button
   // column filters and sort, like a sheet's filter view: { fields: { key: {...} }, steps: { key: {...} } }
   const [colf, setColf] = useState({ fields: {}, steps: {}, close: null });
   const [sort, setSort] = useState("");
@@ -137,17 +138,22 @@ export default function Jobs() {
               </button>
             ))}
           </div>
-          <input className="search" placeholder="Search item, machine, entry no…" value={q} onChange={(e) => setQ(e.target.value)} />
-          <RangeSelect value={range.mode} onChange={(mode, r) => (setRange({ mode, from: r?.[0] || "", to: r?.[1] || "" }), setPage(1))} label="Entry date" />
-          <label className="inline small">
-            Entry from <input type="date" value={range.from} onChange={(e) => (setRange({ ...range, mode: "", from: e.target.value }), setPage(1))} />
-          </label>
-          <label className="inline small">
-            to <input type="date" value={range.to} onChange={(e) => (setRange({ ...range, mode: "", to: e.target.value }), setPage(1))} />
-          </label>
-          <a className="btn ghost small" href={exportUrl}>
-            Export (Excel)
-          </a>
+          <button type="button" className={"btn ghost small filters-toggle" + (q || range.from || range.to ? " active" : "")} onClick={() => setShowFilters(!showFilters)} aria-expanded={showFilters}>
+            {showFilters ? "Hide search" : "Search & dates"}
+          </button>
+          <div className={"fold-group fold-sm" + (showFilters ? " open" : "")}>
+            <input className="search" placeholder="Search item, machine, entry no…" value={q} onChange={(e) => setQ(e.target.value)} />
+            <RangeSelect value={range.mode} onChange={(mode, r) => (setRange({ mode, from: r?.[0] || "", to: r?.[1] || "" }), setPage(1))} label="Entry date" />
+            <label className="inline small">
+              Entry from <input type="date" value={range.from} onChange={(e) => (setRange({ ...range, mode: "", from: e.target.value }), setPage(1))} />
+            </label>
+            <label className="inline small">
+              to <input type="date" value={range.to} onChange={(e) => (setRange({ ...range, mode: "", to: e.target.value }), setPage(1))} />
+            </label>
+            <a className="btn ghost small" href={exportUrl}>
+              Export (Excel)
+            </a>
+          </div>
           {canAdd && (
             <button className="btn primary" onClick={() => setForm(!form)} disabled={!process}>
               + New Entry
@@ -590,12 +596,12 @@ function EntryPanel({ id, process, nameOf, onClose, onChanged }) {
 
   return (
     <div className="modal-bg" onClick={onClose}>
-      <div className="modal entry-panel" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+      <div className="modal card entry-panel" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
         {!job ? (
           <p className="muted">{error || "Loading…"}</p>
         ) : (
           <>
-            <div className="row between">
+            <div className="row between panel-head">
               <div>
                 <h3>
                   Entry #{job.jobNo} <span className="muted">· {process.name}</span>

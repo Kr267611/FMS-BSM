@@ -927,8 +927,10 @@ button.side-title:hover { background: rgba(255, 255, 255, 0.06); color: #ffffff;
 .side-group.open .side-toggle::after { transform: rotate(0deg); }
 .side-group.open .side-toggle::before { transform: rotate(180deg); }
 
-/* page content fades in on every page change (opacity only: a transform here would move fixed popups) */
-.page-anim { animation: page-in 0.35s var(--ease) both; }
+/* page content fades in on every page change (opacity only: a transform here would move fixed popups).
+   "backwards", not "both": an opacity kept after the fade would make this a stacking layer of its own, and
+   pop-ups inside the page would then sit under the top bar and the phone tab bar */
+.page-anim { animation: page-in 0.35s var(--ease) backwards; }
 @keyframes page-in { from { opacity: 0; } }
 
 /* cards lift a little under the mouse */
@@ -1135,7 +1137,7 @@ tr.picked td { background: var(--tint-primary); }
 .punch-btn { font-size: 18px; padding: 14px 44px; border-radius: 999px; min-width: 220px; }
 .month-nav { margin: 6px 0 12px; gap: 8px; }
 .att-summary { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; margin-bottom: 14px; }
-.att-summary .card { display: grid; gap: 2px; padding: 12px 14px; }
+.att-summary .card { display: grid; gap: 2px; padding: 12px 14px; margin: 0; }
 .att-summary b { font-size: 22px; }
 .att-calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; padding: 12px; margin-bottom: 8px; }
 .att-wday { text-align: center; font-size: 12px; font-weight: 700; color: var(--muted); }
@@ -1369,3 +1371,111 @@ tr.row-warn td { background: #fffaf0; }
 .kra-bar span { position: relative; padding-left: 8px; font-size: 12px; line-height: 22px; font-weight: 600; color: var(--navy); }
 .good-text { color: #15803d; }
 .bad-text { color: #b45309; }
+
+/* ---------- phones & tablets: an app-like layout ---------- */
+.topbar-title, .bottom-nav, .side-foot, .filters-toggle, .phone-score { display: none; }
+.fold-group { display: contents; } /* a wrapper that only phones fold away */
+@keyframes sheet-up { from { opacity: 0; transform: translateY(48px); } }
+
+/* Tablets and phones: the side menu is a drawer, so the top bar names the page */
+@media (max-width: 1024px) {
+  .topbar-title { display: block; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; font-size: 16px; color: var(--navy); }
+  .topbar-title::before { content: ""; display: inline-block; width: 24px; height: 24px; margin-right: 10px; vertical-align: -6px; border-radius: 8px; background: linear-gradient(135deg, #e2b763, var(--gold-deep)); }
+  .topbar-spacer { display: none; }
+  .sidebar { height: 100vh; height: 100dvh; }
+  .table-card { overflow-x: auto; } /* a wide table scrolls sideways instead of being cut off */
+}
+
+@media (max-width: 640px) {
+  /* top bar: the page name and me; Menu is in the tab bar, Logout in the menu */
+  .menu-btn, .topbar-logout { display: none; }
+  .topbar { gap: 10px; padding: env(safe-area-inset-top, 0px) 12px 0; height: calc(56px + env(safe-area-inset-top, 0px)); }
+
+  /* tab bar at the bottom, in the thumb's reach */
+  .bottom-nav { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 15; padding: 6px 6px calc(6px + env(safe-area-inset-bottom, 0px)); background: var(--navy); box-shadow: 0 -6px 20px rgba(15, 27, 45, 0.18); }
+  .bn-item { display: grid; justify-items: center; align-content: center; gap: 3px; min-height: 52px; padding: 4px 2px; border: 0; border-radius: 12px; background: none; color: rgba(255, 255, 255, 0.66); font: inherit; font-size: 10.5px; font-weight: 600; text-decoration: none; cursor: pointer; transition: background 0.15s, color 0.15s, transform 0.12s; }
+  .bn-item span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bn-item.active { color: var(--gold-soft); background: rgba(255, 255, 255, 0.09); }
+  .bn-item.active svg { stroke: var(--gold); }
+  .bn-item:active { transform: scale(0.95); }
+  .main-col { padding-bottom: calc(66px + env(safe-area-inset-bottom, 0px)); }
+
+  /* the menu drawer: bigger rows, and who is signed in with Logout at the bottom */
+  .sidebar { width: min(86vw, 300px); }
+  .side-link { padding: 11px 12px; font-size: 15px; }
+  button.side-title { padding: 12px 10px; }
+  .side-foot { display: flex; align-items: center; gap: 10px; margin-top: auto; padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid rgba(255, 255, 255, 0.1); }
+  .side-me { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; color: #fff; text-decoration: none; font-weight: 600; }
+  .side-me span { display: grid; min-width: 0; overflow: hidden; line-height: 1.25; }
+  .side-me small { color: rgba(255, 255, 255, 0.6); font-weight: 500; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .side-foot .btn.ghost { background: transparent; border-color: rgba(255, 255, 255, 0.28); color: #fff; }
+
+  /* page */
+  .page { padding: 14px 12px 20px; }
+  h2 { font-size: 20px; }
+  .page-head { margin-bottom: 12px; }
+  input, select, textarea { font-size: 16px; } /* iPhone zooms into a box whose text is smaller than 16px */
+  .tabs { scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  a, button, label, select, .btn { -webkit-tap-highlight-color: transparent; }
+  .btn, .tabs button, .tab-btn, .link-btn, .bn-item { touch-action: manipulation; }
+  .btn.small { min-height: 36px; }
+  .page-head .row > select { flex: 1 1 150px; }
+  dl.kv { grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); gap: 6px 12px; }
+
+  /* search and filters fold away under one button */
+  .filters-toggle { display: inline-flex; }
+  .fold-sm:not(.open) { display: none !important; }
+
+  /* My Tasks: the four counts in one row, so the work shows on the first screen */
+  .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-bottom: 14px; }
+  .stats .stat { padding: 9px 4px 8px; text-align: center; border-radius: 12px; }
+  .stats .stat .label { font-size: 10.5px; line-height: 1.2; min-height: 2.4em; display: grid; place-items: center; }
+  .stats .stat .value { font-size: 21px; }
+  .stats .stat .note { display: none; }
+  .task-filters { gap: 8px; }
+  .task-search { max-width: none; flex: 1 1 100%; }
+  .task-filter-row select { flex: 1 1 140px; max-width: none; min-width: 0; }
+  .card.task { padding: 12px 14px; gap: 8px; }
+  .task-name { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  /* finger-sized buttons: a wide Done, the others at least 36px tall */
+  .task-actions { flex-wrap: wrap; gap: 8px; }
+  .task-actions > .btn.primary { flex: 1 1 140px; min-height: 44px; font-size: 14px; }
+  .task-actions > .link-btn { min-height: 40px; padding: 0 10px; font-size: 13px; }
+  .task-dates .link-btn { min-height: 32px; padding: 0 2px; font-size: 13px; }
+  .task-confirm input { flex: 1 1 100%; }
+  .task-confirm .btn { flex: 1 1 auto; min-height: 44px; }
+
+  /* Dashboard: the top bar already says Dashboard; Me / Company and New Entry on one line */
+  .dash-top .eyebrow { display: none; }
+  .dash-top > .row { flex: 1; justify-content: space-between; flex-wrap: nowrap; }
+  .task-tabs { flex-direction: column; align-items: stretch; gap: 10px; }
+  .task-tabs > .row { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  .task-tabs > .row::-webkit-scrollbar { display: none; }
+  .tab-btn { flex: none; padding: 9px 14px; }
+
+  /* pop-ups come up from the bottom like a phone sheet */
+  .modal-bg { place-items: end stretch; padding: 0; }
+  .modal-bg > .modal { width: 100%; max-width: none; max-height: 92vh; max-height: 92dvh; border-radius: 18px 18px 0 0; padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); animation-name: sheet-up; }
+  .col-filter { left: 8px !important; right: 8px !important; top: auto !important; bottom: calc(8px + env(safe-area-inset-bottom, 0px)) !important; width: auto; max-height: 78vh; border-radius: 16px; box-shadow: 0 -8px 40px rgba(15, 23, 42, 0.3); animation: sheet-up 0.25s var(--ease) both; }
+  /* MIS tables: the doer's name stays on the left while the numbers scroll */
+  table.mis:not(.perf-table) th:first-child, table.mis:not(.perf-table) td:first-child { position: sticky; left: 0; z-index: 1; background: #fff; min-width: 140px; box-shadow: inset -1px 0 0 var(--stroke-14); }
+  table.mis:not(.perf-table) thead th:first-child { z-index: 3; background: #f8fafc; }
+  table.mis .step-row td:first-child { background: #f9fafb; padding-left: 22px; }
+  table.mis .total-row td:first-child { background: #f8fafc; }
+  .meeting-block table.mis th:first-child, .meeting-block table.mis td:first-child { position: static; min-width: 0; box-shadow: none; }
+  table.mis .phone-score { display: table; min-width: 0; margin-top: 4px; padding: 1px 8px; font-size: 12px; }
+
+  /* My Attendance: month arrows on one line, the counts three to a row */
+  .month-nav { flex-wrap: nowrap; }
+  .month-nav .btn { padding: 4px 9px; font-size: 12px; }
+  .month-nav b { white-space: nowrap; text-align: center; }
+  .att-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .att-summary .card { padding: 10px; }
+  .att-summary b { font-size: 19px; }
+
+  .entry-panel .panel-head { flex-wrap: nowrap; align-items: flex-start; }
+  .entry-panel .panel-head > div { min-width: 0; }
+  .col-filter-values { max-height: 34vh; }
+  .col-filter .check { min-height: 34px; }
+}

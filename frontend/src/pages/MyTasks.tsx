@@ -47,6 +47,7 @@ export default function MyTasks() {
   const [fms, setFms] = useState("");
   const [step, setStep] = useState("");
   const [age, setAge] = useState("");
+  const [showFilters, setShowFilters] = useState(false); // phones: search and filters fold away under one button
 
   const load = useCallback(() => {
     setError("");
@@ -77,6 +78,7 @@ export default function MyTasks() {
   const stepList = [...new Set<string>(all.filter((t) => t.process && (!fms || String(t.process._id) === fms)).map((t) => titleOf(t)))].sort();
   const ageRange = AGES.find(([k]) => k === age);
   const filtered = Boolean(words || fms || step || age);
+  const filtersOn = [words, fms, step, age].filter(Boolean).length;
   const tasks = (kind ? all.filter((t) => t.kind === kind) : all.slice()).filter((t) => {
     if (words && !searchText(t).includes(words)) return false;
     if (fms && String(t.process?._id) !== fms) return false;
@@ -154,10 +156,16 @@ export default function MyTasks() {
         ) : (
           <span />
         )}
-        {all.length > 10 && <input className="task-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search item, machine, entry no…" />}
+        {all.length > 10 && (
+          <button type="button" className={"btn ghost small filters-toggle" + (filtersOn ? " active" : "")} onClick={() => setShowFilters(!showFilters)} aria-expanded={showFilters}>
+            {showFilters ? "Hide filters" : "Search & filters"}
+            {filtersOn > 0 && ` · ${filtersOn} on`}
+          </button>
+        )}
+        {all.length > 10 && <input className={"task-search fold-sm" + (showFilters ? " open" : "")} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search item, machine, entry no…" />}
       </div>
       {all.length > 10 && (
-        <div className="row wrap task-filter-row">
+        <div className={"row wrap task-filter-row fold-sm" + (showFilters ? " open" : "")}>
           {fmsList.length > 0 && (
             <select value={fms} onChange={(e) => (setFms(e.target.value), setStep(""))} aria-label="FMS">
               <option value="">All FMS</option>
