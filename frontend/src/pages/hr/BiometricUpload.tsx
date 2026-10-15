@@ -80,26 +80,28 @@ export default function BiometricUpload() {
             {pre.problemCount > 0 && <span className="txt-bad"> {pre.problemCount} line(s) cannot be read and will be left out.</span>}
           </p>
           {pre.sample.length > 0 && (
-            <table className="grid">
-              <thead>
-                <tr>
-                  <th>Line</th>
-                  <th>Person</th>
-                  <th>Punch</th>
-                  <th>Counts for</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pre.sample.map((r) => (
-                  <tr key={r.line}>
-                    <td>{r.line}</td>
-                    <td>{r.name}</td>
-                    <td className="nowrap">{showDateTime(r.at)}</td>
-                    <td>{r.day}</td>
+            <div className="table-scroll">
+              <table className="grid">
+                <thead>
+                  <tr>
+                    <th>Line</th>
+                    <th>Person</th>
+                    <th>Punch</th>
+                    <th>Counts for</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {pre.sample.map((r) => (
+                    <tr key={r.line}>
+                      <td>{r.line}</td>
+                      <td>{r.name}</td>
+                      <td className="nowrap">{showDateTime(r.at)}</td>
+                      <td>{r.day}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
           {pre.count > pre.sample.length && <p className="muted small">First {pre.sample.length} shown.</p>}
           <Problems list={pre.problems} />

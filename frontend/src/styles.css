@@ -37,6 +37,10 @@
 
 html {
   background: var(--bg-deep);
+  /* phones: the text keeps its size when the phone turns sideways, and a double tap does not zoom */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  touch-action: manipulation;
 }
 
 body {
@@ -660,7 +664,7 @@ textarea { resize: vertical; }
 .badge.start-withStart { background: rgba(13, 148, 136, 0.14); color: var(--teal); border-color: rgba(13, 148, 136, 0.35); }
 .badge.start-afterDone, .badge.start-entry { background: var(--tint-primary); color: var(--primary); border-color: rgba(20, 135, 122, 0.35); }
 .badge.cond { background: rgba(190, 24, 93, 0.14); color: var(--pink); border-color: rgba(190, 24, 93, 0.35); }
-.step-body { display: grid; gap: 16px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--stroke-14); }
+.step-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--stroke-14); }
 .step-body h4 { margin: 0 0 8px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
 .step-body .row select, .step-body .row input { width: auto; }
 .add-step { width: 100%; border-style: dashed; margin-bottom: 16px; }
@@ -938,8 +942,9 @@ button.side-title:hover { background: rgba(255, 255, 255, 0.06); color: #ffffff;
 .card.task:hover, .dash-tile:hover, .bucket:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(15, 27, 45, 0.09); }
 .week-tile:hover, .pill:hover { transform: translateY(-2px); }
 
-/* dashboard: cards come in one after another */
-.mid-row > *, .dash-stats > * { animation: pop-in 0.45s var(--ease) both; }
+/* dashboard: cards come in one after another (backwards, not both: nothing of the animation stays on the card
+   afterwards, so a pop-up inside it is not trapped under the next card or moved by a leftover transform) */
+.mid-row > *, .dash-stats > * { animation: pop-in 0.45s var(--ease) backwards; }
 .mid-row > *:nth-child(2), .dash-stats > *:nth-child(2) { animation-delay: 0.06s; }
 .mid-row > *:nth-child(3), .dash-stats > *:nth-child(3) { animation-delay: 0.12s; }
 .dash-stats > *:nth-child(4) { animation-delay: 0.18s; }
@@ -964,7 +969,7 @@ button.side-title:hover { background: rgba(255, 255, 255, 0.06); color: #ffffff;
 .modal-bg > .modal { animation: zoom-in 0.28s var(--ease) both; }
 @keyframes fade-in { from { opacity: 0; } }
 @keyframes zoom-in { from { opacity: 0; transform: translateY(10px) scale(0.97); } }
-.task-list > .card { animation: pop-in 0.35s var(--ease) both; }
+.task-list > .card { animation: pop-in 0.35s var(--ease) backwards; }
 .task-list > .card:nth-child(2) { animation-delay: 0.04s; } .task-list > .card:nth-child(3) { animation-delay: 0.08s; }
 .task-list > .card:nth-child(4) { animation-delay: 0.12s; } .task-list > .card:nth-child(n + 5) { animation-delay: 0.16s; }
 
@@ -1384,6 +1389,7 @@ tr.row-warn td { background: #fffaf0; }
   .topbar-spacer { display: none; }
   .sidebar { height: 100vh; height: 100dvh; }
   .table-card { overflow-x: auto; } /* a wide table scrolls sideways instead of being cut off */
+  html { overflow-x: hidden; } /* the page itself never slides sideways; wide tables scroll inside their own box */
 }
 
 @media (max-width: 640px) {
@@ -1397,7 +1403,7 @@ tr.row-warn td { background: #fffaf0; }
   .bn-item span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .bn-item.active { color: var(--gold-soft); background: rgba(255, 255, 255, 0.09); }
   .bn-item.active svg { stroke: var(--gold); }
-  .bn-item:active { transform: scale(0.95); }
+  .bn-item:active { background: rgba(255, 255, 255, 0.14); }
   .main-col { padding-bottom: calc(66px + env(safe-area-inset-bottom, 0px)); }
 
   /* the menu drawer: bigger rows, and who is signed in with Logout at the bottom */
@@ -1421,6 +1427,9 @@ tr.row-warn td { background: #fffaf0; }
   .btn, .tabs button, .tab-btn, .link-btn, .bn-item { touch-action: manipulation; }
   .btn.small { min-height: 36px; }
   .page-head .row > select { flex: 1 1 150px; }
+  main select { min-width: 0; } /* a long option does not push a select past the screen */
+  label.inline > select, label.inline > input { flex: 1 1 auto; }
+  .cards { grid-template-columns: minmax(0, 1fr); }
   dl.kv { grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); gap: 6px 12px; }
 
   /* search and filters fold away under one button */
@@ -1449,7 +1458,7 @@ tr.row-warn td { background: #fffaf0; }
   /* Dashboard: the top bar already says Dashboard; Me / Company and New Entry on one line */
   .dash-top .eyebrow { display: none; }
   .dash-top > .row { flex: 1; justify-content: space-between; flex-wrap: nowrap; }
-  .task-tabs { flex-direction: column; align-items: stretch; gap: 10px; }
+  .task-tabs { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 10px; } /* one line: the tab strip is as wide as the screen and scrolls */
   .task-tabs > .row { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
   .task-tabs > .row::-webkit-scrollbar { display: none; }
   .tab-btn { flex: none; padding: 9px 14px; }
@@ -1466,10 +1475,10 @@ tr.row-warn td { background: #fffaf0; }
   .meeting-block table.mis th:first-child, .meeting-block table.mis td:first-child { position: static; min-width: 0; box-shadow: none; }
   table.mis .phone-score { display: table; min-width: 0; margin-top: 4px; padding: 1px 8px; font-size: 12px; }
 
-  /* My Attendance: month arrows on one line, the counts three to a row */
-  .month-nav { flex-wrap: nowrap; }
-  .month-nav .btn { padding: 4px 9px; font-size: 12px; }
-  .month-nav b { white-space: nowrap; text-align: center; }
+  /* My Attendance: the month on top, the previous / next month buttons under it; the counts three to a row */
+  .month-nav { flex-wrap: wrap; }
+  .month-nav b { order: -1; flex: 1 1 100%; text-align: center; }
+  .month-nav .btn { padding: 4px 10px; font-size: 12px; }
   .att-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
   .att-summary .card { padding: 10px; }
   .att-summary b { font-size: 19px; }
@@ -1479,3 +1488,27 @@ tr.row-warn td { background: #fffaf0; }
   .col-filter-values { max-height: 34vh; }
   .col-filter .check { min-height: 34px; }
 }
+
+/* Touch screens: no hover effects (a tap leaves them stuck on), no grow / shrink when pressed */
+@media (hover: none) {
+  .card.task:hover, .dash-tile:hover, .bucket:hover { transform: none; box-shadow: var(--shadow); }
+  .week-tile:hover, .pill:hover { transform: none; }
+  .side-link:hover { transform: none !important; }
+  .tab-btn:active, .tabs button:active { transform: none; }
+}
+
+/* Phones: calm like an installed app – cards fade in without zooming, and a long press on the menus or a button
+   does not select text or open a link preview */
+@media (max-width: 640px) {
+  .mid-row > *, .dash-stats > *, .task-list > .card { animation-name: fade-in; }
+  .bottom-nav, .sidebar, .topbar, .btn, .tabs button, .tab-btn, .link-btn { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+}
+
+/* iPhone / iPad: date and time boxes as wide as the other boxes, not wider (their own look made them overflow) */
+@supports (-webkit-touch-callout: none) {
+  input[type="date"], input[type="time"], input[type="month"], input[type="datetime-local"] { -webkit-appearance: none; appearance: none; min-width: 0; }
+  input::-webkit-date-and-time-value { text-align: left; }
+}
+
+/* One-column boxes stay as wide as their space: a long select option or word does not push them past the screen */
+.doer-rule, .override, .cond, .map-box, .paste-box, .kra-box, .kra-when, .kra-form .stack-sm, .ticket-form, .ticket-detail, .att-daybox, .att-mark, .sync-switches, .sheet-find, .danger-zone, .decide-box, .leave-preview, .reach-pick, .own-weekoff, .share-with, .timeline, .col-filter-part, .perm-grid { grid-template-columns: minmax(0, 1fr); }

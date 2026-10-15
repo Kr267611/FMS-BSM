@@ -204,45 +204,47 @@ function DayBox({ person, cell, onClose, onSaved }: { person: Person; cell: DayC
       </div>
 
       {detail?.punches?.length > 0 && (
-        <table className="grid">
-          <thead>
-            <tr>
-              <th>Punch</th>
-              <th>Time</th>
-              <th>From</th>
-              <th>Place</th>
-              <th>Selfie</th>
-            </tr>
-          </thead>
-          <tbody>
-            {detail.punches.map((p, i) => (
-              <tr key={i}>
-                <td>{i % 2 ? "Out" : "In"}</td>
-                <td className="nowrap">{showDateTime(p.at)}</td>
-                <td>{p.source === "app" ? "Phone" : p.source === "biometric" ? "Biometric" : "Manager"}</td>
-                <td className="small">
-                  {p.lat != null ? (
-                    <a href={`https://www.google.com/maps?q=${p.lat},${p.lng}`} target="_blank" rel="noreferrer">
-                      Map
-                    </a>
-                  ) : (
-                    "—"
-                  )}
-                  {p.distance != null && <span className={p.outside ? " txt-bad" : " muted"}> {p.distance} m{p.outside ? " (outside)" : ""}</span>}
-                </td>
-                <td>
-                  {p.photo ? (
-                    <a href={`/api/files/${p.photo}`} target="_blank" rel="noreferrer">
-                      <img className="att-selfie" src={`/api/files/${p.photo}`} alt="Selfie" loading="lazy" />
-                    </a>
-                  ) : (
-                    "—"
-                  )}
-                </td>
+        <div className="table-scroll">
+          <table className="grid">
+            <thead>
+              <tr>
+                <th>Punch</th>
+                <th>Time</th>
+                <th>From</th>
+                <th>Place</th>
+                <th>Selfie</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {detail.punches.map((p, i) => (
+                <tr key={i}>
+                  <td>{i % 2 ? "Out" : "In"}</td>
+                  <td className="nowrap">{showDateTime(p.at)}</td>
+                  <td>{p.source === "app" ? "Phone" : p.source === "biometric" ? "Biometric" : "Manager"}</td>
+                  <td className="small">
+                    {p.lat != null ? (
+                      <a href={`https://www.google.com/maps?q=${p.lat},${p.lng}`} target="_blank" rel="noreferrer">
+                        Map
+                      </a>
+                    ) : (
+                      "—"
+                    )}
+                    {p.distance != null && <span className={p.outside ? " txt-bad" : " muted"}> {p.distance} m{p.outside ? " (outside)" : ""}</span>}
+                  </td>
+                  <td>
+                    {p.photo ? (
+                      <a href={`/api/files/${p.photo}`} target="_blank" rel="noreferrer">
+                        <img className="att-selfie" src={`/api/files/${p.photo}`} alt="Selfie" loading="lazy" />
+                      </a>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       {detail && !detail.punches.length && <p className="muted small">No punches this day.</p>}
       {detail?.manual && (

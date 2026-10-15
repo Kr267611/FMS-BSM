@@ -64,51 +64,53 @@ export default function DoerCheck({ processId, canEdit, onFixed }: { processId: 
       {msg && <div className="ok small">{msg}</div>}
       {error && <div className="error small">{error}</div>}
       {shown.length > 0 && (
-        <table className="grid doer-check-table">
-          <thead>
-            <tr>
-              <th>Step</th>
-              <th>Doer now</th>
-              <th>Name in the sheet</th>
-              <th>Open steps are with</th>
-              <th>Fix</th>
-            </tr>
-          </thead>
-          <tbody>
-            {shown.map((s) => (
-              <tr key={s.key} className={s.problems.length ? "needs-fix" : ""}>
-                <td>
-                  <b>{s.name}</b>
-                  {s.problems.map((p) => (
-                    <div key={p} className="small bad-text">
-                      {p}
-                    </div>
-                  ))}
-                </td>
-                <td className="nowrap">{s.mode === "fixed" ? s.doer?.name || <span className="bad-text">none</span> : s.mode === "map" ? "doer table" : "from the entry"}</td>
-                <td className="nowrap">
-                  {s.hint || <span className="muted">—</span>}
-                  {s.suggested && <div className="small muted">= {s.suggested.name}</div>}
-                </td>
-                <td className="small">{s.holders.length ? s.holders.map((h) => `${h.name} (${h.count})`).join(", ") : <span className="muted">none open</span>}</td>
-                <td>
-                  {canEdit && s.mode === "fixed" && s.problems.length > 0 ? (
-                    <div className="row wrap">
-                      <DoerSelect value={pick[s.key] || ""} onChange={(u) => setPick({ ...pick, [s.key]: u })} placeholder="Choose doer" />
-                      <button type="button" className="btn primary small" disabled={busy === s.key || !pick[s.key]} onClick={() => fix(s)}>
-                        {busy === s.key ? "Saving…" : movable(s) ? `Set doer + move ${movable(s)}` : "Set doer"}
-                      </button>
-                    </div>
-                  ) : s.mode !== "fixed" && s.problems.length ? (
-                    <span className="small muted">Change it in the step below</span>
-                  ) : (
-                    <span className="muted">—</span>
-                  )}
-                </td>
+        <div className="table-scroll">
+          <table className="grid doer-check-table">
+            <thead>
+              <tr>
+                <th>Step</th>
+                <th>Doer now</th>
+                <th>Name in the sheet</th>
+                <th>Open steps are with</th>
+                <th>Fix</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {shown.map((s) => (
+                <tr key={s.key} className={s.problems.length ? "needs-fix" : ""}>
+                  <td>
+                    <b>{s.name}</b>
+                    {s.problems.map((p) => (
+                      <div key={p} className="small bad-text">
+                        {p}
+                      </div>
+                    ))}
+                  </td>
+                  <td className="nowrap">{s.mode === "fixed" ? s.doer?.name || <span className="bad-text">none</span> : s.mode === "map" ? "doer table" : "from the entry"}</td>
+                  <td className="nowrap">
+                    {s.hint || <span className="muted">—</span>}
+                    {s.suggested && <div className="small muted">= {s.suggested.name}</div>}
+                  </td>
+                  <td className="small">{s.holders.length ? s.holders.map((h) => `${h.name} (${h.count})`).join(", ") : <span className="muted">none open</span>}</td>
+                  <td>
+                    {canEdit && s.mode === "fixed" && s.problems.length > 0 ? (
+                      <div className="row wrap">
+                        <DoerSelect value={pick[s.key] || ""} onChange={(u) => setPick({ ...pick, [s.key]: u })} placeholder="Choose doer" />
+                        <button type="button" className="btn primary small" disabled={busy === s.key || !pick[s.key]} onClick={() => fix(s)}>
+                          {busy === s.key ? "Saving…" : movable(s) ? `Set doer + move ${movable(s)}` : "Set doer"}
+                        </button>
+                      </div>
+                    ) : s.mode !== "fixed" && s.problems.length ? (
+                      <span className="small muted">Change it in the step below</span>
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

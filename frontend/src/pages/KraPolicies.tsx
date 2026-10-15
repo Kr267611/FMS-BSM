@@ -212,79 +212,81 @@ function PolicyForm({ value, meta, depts, nameOf, canSave, onCancel, onSaved }) 
                 </button>
               )}
             </div>
-            <table className="grid kra-kpis">
-              <thead>
-                <tr>
-                  <th>KPI</th>
-                  <th>Measures</th>
-                  <th>Of</th>
-                  <th>Target</th>
-                  <th>Weight %</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {k.kpis.map((x, n) => {
-                  const m = meta.metrics[x.metric];
-                  return (
-                    <tr key={n}>
-                      <td>
-                        <input value={x.name} onChange={(e) => setKpi(i, n, { name: e.target.value })} placeholder={m?.label} />
-                      </td>
-                      <td>
-                        <select value={x.metric} onChange={(e) => setKpi(i, n, { metric: e.target.value })}>
-                          {Object.entries(meta.metrics as Record<string, any>).map(([key, d]) => (
-                            <option key={key} value={key}>
-                              {d.label}
-                            </option>
-                          ))}
-                        </select>
-                        <div className="muted small">{m?.noTarget ? "0 = 100 %, −20 = 80 %" : m?.better === "lower" ? "lower is better" : "higher is better"}</div>
-                      </td>
-                      <td>
-                        <select value={x.kind} onChange={(e) => setKpi(i, n, { kind: e.target.value, process: "" })}>
-                          {Object.entries(meta.kinds as Record<string, string>).map(([key, label]) => (
-                            <option key={key} value={key}>
-                              {label}
-                            </option>
-                          ))}
-                        </select>
-                        {x.kind === "fms" && (
-                          <select value={x.process} onChange={(e) => setKpi(i, n, { process: e.target.value })}>
-                            <option value="">Every FMS</option>
-                            {meta.processes.map((pr) => (
-                              <option key={pr._id} value={pr._id}>
-                                {pr.name}
+            <div className="table-scroll">
+              <table className="grid kra-kpis">
+                <thead>
+                  <tr>
+                    <th>KPI</th>
+                    <th>Measures</th>
+                    <th>Of</th>
+                    <th>Target</th>
+                    <th>Weight %</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {k.kpis.map((x, n) => {
+                    const m = meta.metrics[x.metric];
+                    return (
+                      <tr key={n}>
+                        <td>
+                          <input value={x.name} onChange={(e) => setKpi(i, n, { name: e.target.value })} placeholder={m?.label} />
+                        </td>
+                        <td>
+                          <select value={x.metric} onChange={(e) => setKpi(i, n, { metric: e.target.value })}>
+                            {Object.entries(meta.metrics as Record<string, any>).map(([key, d]) => (
+                              <option key={key} value={key}>
+                                {d.label}
                               </option>
                             ))}
                           </select>
-                        )}
-                      </td>
-                      <td>
-                        {m?.noTarget ? (
-                          <span className="muted small">—</span>
-                        ) : (
-                          <span className="row">
-                            <input type="number" className="kra-weight" value={x.target} onChange={(e) => setKpi(i, n, { target: e.target.value })} />
-                            <span className="muted small">{m?.unit}</span>
-                          </span>
-                        )}
-                      </td>
-                      <td>
-                        <input type="number" className="kra-weight" value={x.weight} onChange={(e) => setKpi(i, n, { weight: e.target.value })} placeholder="equal" />
-                      </td>
-                      <td>
-                        {k.kpis.length > 1 && (
-                          <button type="button" className="link-btn small bad-text" onClick={() => setKra(i, { kpis: k.kpis.filter((_, m2) => m2 !== n) })}>
-                            ×
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                          <div className="muted small">{m?.noTarget ? "0 = 100 %, −20 = 80 %" : m?.better === "lower" ? "lower is better" : "higher is better"}</div>
+                        </td>
+                        <td>
+                          <select value={x.kind} onChange={(e) => setKpi(i, n, { kind: e.target.value, process: "" })}>
+                            {Object.entries(meta.kinds as Record<string, string>).map(([key, label]) => (
+                              <option key={key} value={key}>
+                                {label}
+                              </option>
+                            ))}
+                          </select>
+                          {x.kind === "fms" && (
+                            <select value={x.process} onChange={(e) => setKpi(i, n, { process: e.target.value })}>
+                              <option value="">Every FMS</option>
+                              {meta.processes.map((pr) => (
+                                <option key={pr._id} value={pr._id}>
+                                  {pr.name}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </td>
+                        <td>
+                          {m?.noTarget ? (
+                            <span className="muted small">—</span>
+                          ) : (
+                            <span className="row">
+                              <input type="number" className="kra-weight" value={x.target} onChange={(e) => setKpi(i, n, { target: e.target.value })} />
+                              <span className="muted small">{m?.unit}</span>
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          <input type="number" className="kra-weight" value={x.weight} onChange={(e) => setKpi(i, n, { weight: e.target.value })} placeholder="equal" />
+                        </td>
+                        <td>
+                          {k.kpis.length > 1 && (
+                            <button type="button" className="link-btn small bad-text" onClick={() => setKra(i, { kpis: k.kpis.filter((_, m2) => m2 !== n) })}>
+                              ×
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
             <div className="row between">
               <button type="button" className="btn ghost small" onClick={() => setKra(i, { kpis: [...k.kpis, blankKpi()] })}>
                 + KPI
