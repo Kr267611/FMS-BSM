@@ -33,17 +33,20 @@ export interface DoerSelectProps {
   required?: boolean;
   // only the people who audit (Auditor role, admins, "Make Auditor"); everyone when nobody is marked yet
   auditors?: boolean;
+  // only people with one of these roles (e.g. ["pc"] for the PC of an FMS); the one already chosen always shows
+  roles?: string[];
 }
 
 const canAudit = (u) => u.role === "auditor" || isAdmin(u) || u.isAuditor;
 
-export default function DoerSelect({ value, onChange, placeholder = "Select doer", required, auditors }: DoerSelectProps) {
+export default function DoerSelect({ value, onChange, placeholder = "Select doer", required, auditors, roles }: DoerSelectProps) {
   const everyone = useUsers();
   const users = useMemo(() => {
+    if (roles?.length) return everyone.filter((u) => roles.includes(u.role) || u._id === value);
     if (!auditors) return everyone;
     const list = everyone.filter((u) => canAudit(u) || u._id === value);
     return list.some((u) => !isAdmin(u) && canAudit(u)) ? list : everyone;
-  }, [everyone, auditors, value]);
+  }, [everyone, auditors, roles, value]);
   if (users.length > SEARCH_FROM) return <PeopleSearch users={users} value={value} onChange={onChange} placeholder={placeholder} required={required} />;
   return (
     <select value={value || ""} onChange={(e) => onChange(e.target.value)} required={required} aria-label={placeholder}>
