@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { RangeSelect } from "../components/ListFilters";
 import { useSearchParams } from "react-router-dom";
 import { api, can, istDay, showDateTime, showDay, type ApiOptions } from "../api";
@@ -37,14 +37,15 @@ export default function Jobs() {
   const [openId, setOpenId] = useState(null);
   const [error, setError] = useState("");
   // column filters and sort, like a sheet's filter view: { fields: { key: {...} }, steps: { key: {...} } }
-  const [colf, setColf] = useState({ fields: {}, steps: {} });
+  const [colf, setColf] = useState({ fields: {}, steps: {}, close: null });
   const [sort, setSort] = useState("");
   const pid = params.get("process") || "";
-  const filtersOn = Object.keys(colf.fields).length + Object.keys(colf.steps).length;
+  const filtersOn = Object.keys(colf.fields).length + Object.keys(colf.steps).length + (colf.close ? 1 : 0);
   const fParam = filtersOn ? JSON.stringify(colf) : "";
   function setColumnFilter(kind, key, value) {
-    const next = { fields: { ...colf.fields }, steps: { ...colf.steps } };
-    if (value) next[kind][key] = value;
+    const next = { fields: { ...colf.fields }, steps: { ...colf.steps }, close: colf.close };
+    if (kind === "close") next.close = value || null;
+    else if (value) next[kind][key] = value;
     else delete next[kind][key];
     setColf(next);
     setPage(1);
@@ -73,7 +74,7 @@ export default function Jobs() {
     setProcess(null);
     setData(null);
     setForm(false);
-    setColf({ fields: {}, steps: {} });
+    setColf({ fields: {}, steps: {}, close: null });
     setSort("");
     try {
       localStorage.setItem(REMEMBER, pid);
@@ -187,15 +188,23 @@ export default function Jobs() {
               </button>
             </span>
           ))}
+          {colf.close && (
+            <span className="chip-filter">
+              {describeFilter(colf.close, { field: { label: process.closure?.label || "Status by PC" } })}
+              <button type="button" aria-label="Remove this filter" onClick={() => setColumnFilter("close", null, null)}>
+                ×
+              </button>
+            </span>
+          )}
           {sort && (
             <span className="chip-filter">
-              Sorted: {sortField?.label || sort.split(":")[0]} {sortField?.type === "number" ? (sort.endsWith(":asc") ? "0 → 9" : "9 → 0") : sort.endsWith(":asc") ? "A → Z" : "Z → A"}
+              Sorted: {sortField?.label || (sort.startsWith("startDate") ? "Entry date" : sort.split(":")[0])} {sortField?.type === "number" ? (sort.endsWith(":asc") ? "0 → 9" : "9 → 0") : sortField?.type === "date" || sortField?.type === "datetime" || sort.startsWith("startDate") ? (sort.endsWith(":asc") ? "Old → New" : "New → Old") : sort.endsWith(":asc") ? "A → Z" : "Z → A"}
               <button type="button" aria-label="Remove the sort" onClick={() => setSort("")}>
                 ×
               </button>
             </span>
           )}
-          <button type="button" className="link-btn small" onClick={() => (setColf({ fields: {}, steps: {} }), setSort(""), setPage(1))}>
+          <button type="button" className="link-btn small" onClick={() => (setColf({ fields: {}, steps: {}, close: null }), setSort(""), setPage(1))}>
             Clear all filters
           </button>
         </div>
@@ -210,6 +219,8 @@ export default function Jobs() {
           sort={sort}
           onFilter={setColumnFilter}
           onSort={(key, dir) => (setSort(`${key}:${dir}`), setPage(1))}
+          range={range}
+          onRange={(v) => (setRange({ mode: "", from: v?.from || "", to: v?.to || "" }), setPage(1))}
         />
       )}
       {process && data && (
@@ -241,13 +252,36 @@ function FieldCell({ field, value }) {
 }
 
 // The FMS as the sheet shows it: entry columns, then Planned | Actual | Delay | Status per step
-function Grid({ process, data, nameOf, onOpen, filters, sort, onFilter, onSort }) {
+function Grid({ process, data, nameOf, onOpen, filters, sort, onFilter, onSort, range, onRange }) {
   const steps = process.steps;
   const today = data.today;
   const fields = process.fields;
-  const [open, setOpen] = useState(null); // { kind: "fields" | "steps", key, rect }
+  const [open, setOpen] = useState(null); // { kind: "fields" | "steps" | "entry" | "close", key, rect }
+  // the second header row sits under the first: as high as the first really is (long step names take two lines)
+  const head1 = useRef<HTMLTableRowElement>(null);
+  const [headH, setHeadH] = useState(52);
+  useLayoutEffect(() => {
+    const row = head1.current;
+    if (!row) return;
+    const measure = () => row.offsetHeight && setHeadH(row.offsetHeight);
+    measure();
+    // a table row is not watched reliably: watch its header cells
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    for (const th of Array.from(row.children)) ro?.observe(th);
+    window.addEventListener("resize", measure);
+    return () => (ro?.disconnect(), window.removeEventListener("resize", measure));
+  }, []);
+  // and after every render (new entries, a filter box, a step renamed)
+  useLayoutEffect(() => {
+    const h = head1.current?.offsetHeight;
+    if (h && h !== headH) setHeadH(h);
+  });
+  const ENTRY_DATE = { key: "startDate", label: "Entry date", type: "date" };
+  const FINAL = { key: "_close", label: process.closure?.label || "Status by PC", type: "select" };
+  const isOn = (kind, key) =>
+    kind === "entry" ? Boolean(range.from || range.to) || sort.startsWith("startDate:") : kind === "close" ? Boolean(filters.close) : Boolean(filters[kind][key]) || (kind === "fields" && sort.startsWith(`${key}:`));
   const funnel = (kind, key, label) => {
-    const on = Boolean(filters[kind][key]) || (kind === "fields" && sort.startsWith(`${key}:`));
+    const on = isOn(kind, key);
     return (
       <button
         type="button"
@@ -270,24 +304,27 @@ function Grid({ process, data, nameOf, onOpen, filters, sort, onFilter, onSort }
         <ColumnFilter
           key={open.kind + open.key}
           processId={process._id}
-          field={open.kind === "fields" ? fields.find((f) => f.key === open.key) : undefined}
+          field={open.kind === "fields" ? fields.find((f) => f.key === open.key) : open.kind === "entry" ? ENTRY_DATE : open.kind === "close" ? FINAL : undefined}
           step={open.kind === "steps" ? steps.find((s) => s.key === open.key) : undefined}
-          value={filters[open.kind][open.key]}
+          value={open.kind === "entry" ? { from: range.from, to: range.to } : open.kind === "close" ? filters.close : filters[open.kind][open.key]}
           sort={sort}
           anchor={open.rect}
-          onApply={(v) => (onFilter(open.kind, open.key, v), setOpen(null))}
-          onSort={open.kind === "fields" ? (dir) => (onSort(open.key, dir), setOpen(null)) : undefined}
+          onApply={(v) => (open.kind === "entry" ? onRange(v) : onFilter(open.kind, open.key, v), setOpen(null))}
+          onSort={open.kind === "fields" || open.kind === "entry" ? (dir) => (onSort(open.key, dir), setOpen(null)) : undefined}
           onClose={() => setOpen(null)}
         />
       )}
       <div className="table-scroll sheet">
-        <table className="grid sheet-grid">
+        <table className="grid sheet-grid" style={{ ["--head1" as any]: `${headH}px` }}>
           <thead>
-            <tr>
+            <tr ref={head1}>
               <th rowSpan={2} className="sticky-col">
                 #
               </th>
-              <th rowSpan={2}>Entry date</th>
+              <th rowSpan={2}>
+                <span className="th-label">Entry date</span>
+                {funnel("entry", "startDate", "Entry date")}
+              </th>
               {fields.map((f) => (
                 <th key={f.key} rowSpan={2} className={f.type === "number" ? "num" : ""}>
                   <span className="th-label">{f.label}</span>
@@ -304,11 +341,14 @@ function Grid({ process, data, nameOf, onOpen, filters, sort, onFilter, onSort }
                   </div>
                 </th>
               ))}
-              <th rowSpan={2}>{process.closure?.label || "Status by PC"}</th>
+              <th rowSpan={2}>
+                <span className="th-label">{process.closure?.label || "Status by PC"}</span>
+                {funnel("close", "_close", process.closure?.label || "Status by PC")}
+              </th>
             </tr>
             <tr>
               {steps.map((s) => (
-                <SubHead key={s.key} />
+                <SubHead key={s.key} filter={funnel("steps", s.key, s.name)} />
               ))}
             </tr>
           </thead>
@@ -347,13 +387,14 @@ function Grid({ process, data, nameOf, onOpen, filters, sort, onFilter, onSort }
   );
 }
 
-function SubHead() {
+// Planned | Actual | Delay | Status of a step; each one's ▾ opens that step's filter
+function SubHead({ filter }) {
   return (
     <>
-      <th className="sub step-start">Planned</th>
-      <th className="sub">Actual</th>
-      <th className="sub">Delay</th>
-      <th className="sub">Status</th>
+      <th className="sub step-start">Planned {filter}</th>
+      <th className="sub">Actual {filter}</th>
+      <th className="sub">Delay {filter}</th>
+      <th className="sub">Status {filter}</th>
     </>
   );
 }

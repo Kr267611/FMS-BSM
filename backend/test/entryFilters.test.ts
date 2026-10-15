@@ -120,3 +120,21 @@ test("sorting by a column, the values list, and the export following the filters
   // the open / closed tab and the search still work with the filters
   assert.strictEqual((await call("admin", `/jobs?process=${ids.p}&status=open&q=gdsm&f=${encodeURIComponent(JSON.stringify({ fields: { meter: { min: 1 } } }))}`)).data.total, 1);
 });
+
+test("step dates and delay, and the PC's Final Status", async () => {
+  const all = (await list({})).jobs;
+  const e1 = all.find((j) => j.jobNo === "1").tasks.find((t) => t.stepKey === "s1");
+  // entry 1 was planned 9 days ago and is still open: 9 days late
+  assert.deepStrictEqual(nos(await list({ steps: { s1: { delayMin: 5 } } })), [1]);
+  assert.deepStrictEqual(nos(await list({ steps: { s1: { delayMax: 0 } } })), [2, 3, 4]);
+  assert.deepStrictEqual(nos(await list({ steps: { s1: { plannedFrom: e1.plannedDay, plannedTo: e1.plannedDay } } })), [1]);
+  const e3 = all.find((j) => j.jobNo === "3").tasks.find((t) => t.stepKey === "s1");
+  assert.deepStrictEqual(nos(await list({ steps: { s1: { actualFrom: e3.actualDay, actualTo: e3.actualDay } } })), [3]);
+  // the PC closes entry 4; Final Status filters by it, "(blank)" = not closed
+  const e4 = all.find((j) => j.jobNo === "4");
+  assert.strictEqual((await call("admin", `/jobs/${e4._id}/close`, { method: "POST", body: { status: "Closed" } })).status, 200);
+  assert.deepStrictEqual(nos(await list({ close: { in: ["Closed"] } })), [4]);
+  assert.deepStrictEqual(nos(await list({ close: { in: ["(blank)"] } })), [1, 2, 3]);
+  const finals = (await call("admin", `/jobs/values?process=${ids.p}&field=_close`)).data;
+  assert.deepStrictEqual(finals.map((v) => [v.label, v.count]), [["Closed", 1], ["(blank)", 3]]);
+});

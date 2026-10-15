@@ -39,6 +39,8 @@ export default function ColumnFilter({ processId, field, step, value, sort, anch
   const [from, setFrom] = useState(value?.from || "");
   const [to, setTo] = useState(value?.to || "");
   const [states, setStates] = useState<Set<string>>(new Set(value?.states || []));
+  // a step: its planned / actual days and its delay in days
+  const [sd, setSd] = useState({ plannedFrom: value?.plannedFrom || "", plannedTo: value?.plannedTo || "", actualFrom: value?.actualFrom || "", actualTo: value?.actualTo || "", delayMin: value?.delayMin ?? "", delayMax: value?.delayMax ?? "" });
   const [error, setError] = useState("");
   const list = step || LIST_TYPES.includes(field?.type);
   const ranges = field?.type === "number" ? "number" : field?.type === "date" || field?.type === "datetime" ? "date" : "";
@@ -83,6 +85,7 @@ export default function ColumnFilter({ processId, field, step, value, sort, anch
     const all = values && picked && picked.size === values.length;
     if (picked && values && !all) out[step ? "doers" : "in"] = [...picked];
     if (step && states.size) out.states = [...states];
+    if (step) for (const [k, v] of Object.entries(sd)) if (v !== "") out[k] = k.startsWith("delay") ? Number(v) : v;
     if (!step && TEXT_TYPES.includes(field.type) && text.trim()) out.text = text.trim();
     if (ranges === "number") (min !== "" && (out.min = Number(min)), max !== "" && (out.max = Number(max)));
     if (ranges === "date") (from && (out.from = from), to && (out.to = to));
@@ -96,10 +99,10 @@ export default function ColumnFilter({ processId, field, step, value, sort, anch
       {onSort && field && field.type !== "photo" && (
         <div className="row col-filter-sort">
           <button type="button" className={"btn ghost small" + (sort === `${key}:asc` ? " active" : "")} onClick={() => onSort("asc")}>
-            {ranges === "number" ? "0 → 9" : "A → Z"}
+            {ranges === "number" ? "0 → 9" : ranges === "date" ? "Old → New" : "A → Z"}
           </button>
           <button type="button" className={"btn ghost small" + (sort === `${key}:desc` ? " active" : "")} onClick={() => onSort("desc")}>
-            {ranges === "number" ? "9 → 0" : "Z → A"}
+            {ranges === "number" ? "9 → 0" : ranges === "date" ? "New → Old" : "Z → A"}
           </button>
         </div>
       )}
@@ -112,6 +115,25 @@ export default function ColumnFilter({ processId, field, step, value, sort, anch
                 <input type="checkbox" checked={states.has(k)} onChange={() => toggle(states, setStates, k)} /> {label}
               </label>
             ))}
+          </div>
+        </div>
+      )}
+      {step && (
+        <div className="col-filter-part">
+          <div className="muted small">Planned</div>
+          <div className="row">
+            <input type="date" value={sd.plannedFrom} onChange={(e) => setSd({ ...sd, plannedFrom: e.target.value })} aria-label="Planned from" />
+            <input type="date" value={sd.plannedTo} onChange={(e) => setSd({ ...sd, plannedTo: e.target.value })} aria-label="Planned to" />
+          </div>
+          <div className="muted small">Actual</div>
+          <div className="row">
+            <input type="date" value={sd.actualFrom} onChange={(e) => setSd({ ...sd, actualFrom: e.target.value })} aria-label="Actual from" />
+            <input type="date" value={sd.actualTo} onChange={(e) => setSd({ ...sd, actualTo: e.target.value })} aria-label="Actual to" />
+          </div>
+          <div className="muted small">Delay (days)</div>
+          <div className="row">
+            <input type="number" placeholder="From" value={sd.delayMin} onChange={(e) => setSd({ ...sd, delayMin: e.target.value })} aria-label="Delay from" />
+            <input type="number" placeholder="To" value={sd.delayMax} onChange={(e) => setSd({ ...sd, delayMax: e.target.value })} aria-label="Delay to" />
           </div>
         </div>
       )}
@@ -186,5 +208,8 @@ export function describeFilter(value, { field, step, labels }: { field?: any; st
   if (value.text) parts.push(`contains "${value.text}"`);
   if (value.min !== undefined || value.max !== undefined) parts.push(`${value.min ?? "…"} – ${value.max ?? "…"}`);
   if (value.from || value.to) parts.push(`${value.from || "…"} – ${value.to || "…"}`);
+  if (value.plannedFrom || value.plannedTo) parts.push(`planned ${value.plannedFrom || "…"} – ${value.plannedTo || "…"}`);
+  if (value.actualFrom || value.actualTo) parts.push(`actual ${value.actualFrom || "…"} – ${value.actualTo || "…"}`);
+  if (value.delayMin !== undefined || value.delayMax !== undefined) parts.push(`delay ${value.delayMin ?? "…"} – ${value.delayMax ?? "…"} days`);
   return `${field?.label || step?.name}: ${parts.join(", ")}`;
 }

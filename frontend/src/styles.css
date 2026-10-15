@@ -689,7 +689,7 @@ table.grid.compact input { min-height: 32px; padding: 4px 8px; }
 table.sheet-grid { font-size: 12.5px; }
 table.sheet-grid th, table.sheet-grid td { padding: 7px 9px; }
 table.sheet-grid thead th { z-index: 2; }
-table.sheet-grid thead tr:nth-child(2) th { top: 52px; }
+table.sheet-grid thead tr:nth-child(2) th { top: var(--head1, 52px); }
 .sticky-col { position: sticky; left: 0; z-index: 1; background: #ffffff; }
 thead .sticky-col { z-index: 3; }
 th.num, td.num { text-align: right; }
