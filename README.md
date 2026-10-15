@@ -22,6 +22,7 @@ A Flow Management System with MIS scoring for Bhaskar Silk Mills. It replaces th
 | Working Calendar | Admin | Week-offs, working hours and holidays used for TAT |
 | Sheet Links | Admin | Read-only link to existing Google Sheet FMS (replaces DataJobs + Feeder) |
 | Reminders | Admin | Daily email; click-to-send WhatsApp |
+| KRA / KPI | Admin, HR (policies); HOD, PC, Team Leader (scorecards); everyone (own) | KRA policies for departments, roles or named people: KRAs with weights, KPIs with targets (done %, on time %, MIS score, pending, average delay, audit OK %; of all work, a kind or one FMS). The monthly scorecard counts itself from the tasks like the MIS (achievement 0–120 %). A change counts from next month (or this month with a reason); a passed month keeps its version |
 | Users & Org | Admin, HOD | Users, bulk upload, branches, departments, roles and page permissions, audit log |
 
 **Score:** `-(50 × Late + 100 × Pending) / Planned`, where 0 is perfect. A task is late when its actual day is after its planned day and pending when it has no actual. Not Required, skipped and stopped steps are not counted, and a pending task counts only once its due time has passed (a task due at 6 pm is not pending at 10 am). An auto-closed checklist counts as pending.

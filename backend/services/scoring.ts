@@ -120,4 +120,4 @@ async function dailyReport({ from, to, doerId, label }: any) {
   };
 }
 
-export = { misReport, dailyReport, score, classify };
+export = { misReport, dailyReport, score, classify, baseMatch, effectiveRange };

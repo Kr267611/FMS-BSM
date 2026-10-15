@@ -49,6 +49,8 @@ import Reminders from "./pages/Reminders";
 import Users from "./pages/Users";
 import BulkUsers from "./pages/BulkUsers";
 import UsersQuickEdit from "./pages/UsersQuickEdit";
+import KraPolicies from "./pages/KraPolicies";
+import KraScorecards from "./pages/KraScorecards";
 import Org from "./pages/Org";
 import Audit from "./pages/Audit";
 import Account from "./pages/Account";
@@ -118,6 +120,14 @@ function menuFor(user) {
         { to: "/fms/auto-complete", label: "FMS Auto Complete", show: can(user, "autoComplete") },
         { to: "/fms/bulk", label: "Bulk Delete/Download", show: can(user, "fmsBulk") || can(user, "fmsBulk", "delete") },
         { to: "/jobs", label: "FMS Entries", show: can(user, "fmsEntries") },
+      ],
+    },
+    {
+      title: "KRA / KPI",
+      items: [
+        { to: "/kra/me", label: "My Scorecard" },
+        { to: "/kra/scorecards", label: "KRA Scorecards", show: can(user, "scorecards") },
+        { to: "/kra/policies", label: "KRA Policies", show: can(user, "kraPolicies") },
       ],
     },
     { title: "Audit", items: [{ to: "/audits", label: "Audit List", show: can(user, "auditList") || Boolean(user.isAuditor) }, { to: "/audits/settings", label: "Auditor Settings", show: can(user, "auditorSettings", "edit") }] },
@@ -323,6 +333,9 @@ function Shell() {
             <Route path="/users" element={guard(can(user, "users"), <Users />)} />
             <Route path="/users/bulk" element={guard(can(user, "users", "add"), <BulkUsers />)} />
             <Route path="/users/quick" element={guard(can(user, "users", "edit"), <UsersQuickEdit />)} />
+            <Route path="/kra/me" element={<KraScorecards mine />} />
+            <Route path="/kra/scorecards" element={guard(can(user, "scorecards"), <KraScorecards />)} />
+            <Route path="/kra/policies" element={guard(can(user, "kraPolicies"), <KraPolicies />)} />
             <Route path="/org" element={guard(can(user, "org"), <Org />)} />
             <Route path="/tickets/new" element={guard(can(user, "myTickets"), <RaiseTicket />)} />
             <Route path="/tickets/mine" element={guard(can(user, "myTickets"), <TicketList mode="mine" />)} />

@@ -1344,3 +1344,28 @@ tr.row-warn td { background: #fffaf0; }
 .filter-chips { gap: 6px; margin: 6px 0 10px; align-items: center; }
 .chip-filter { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px; border-radius: 999px; background: var(--gold-tint); border: 1px solid var(--gold-line); color: var(--navy); font-size: 12px; }
 .chip-filter button { border: 0; background: none; cursor: pointer; font-size: 14px; line-height: 1; color: var(--gold-deep); }
+
+/* KRA / KPI */
+.kra-policy h3 { margin: 0; }
+.kra-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.kra-upcoming { color: var(--gold-deep); }
+.kra-form .stack-sm { display: grid; gap: 6px; }
+.kra-box { border: 1px solid var(--gold-line); border-radius: 12px; padding: 14px; display: grid; gap: 10px; background: #fffdf8; }
+.kra-name { flex: 1; min-width: 260px; font-weight: 600; }
+.kra-weight { width: 90px; }
+.kra-kpis td { vertical-align: top; padding: 6px; }
+.kra-kpis select, .kra-kpis input { min-width: 0; }
+.kra-when { display: grid; gap: 6px; padding: 12px; border-radius: 10px; background: var(--gold-tint); border: 1px solid var(--gold-line); }
+.kra-head h3 { margin: 0; }
+.kra-overall { display: grid; justify-items: center; padding: 10px 22px; border-radius: 14px; background: var(--navy); color: var(--gold-soft); min-width: 140px; }
+.kra-overall span { font-size: 34px; font-weight: 700; line-height: 1.1; }
+.kra-overall small { color: #d9dee7; }
+.kra-overall.bad span { color: #fca5a5; }
+.kra-bar { position: relative; height: 22px; border-radius: 6px; background: #eef1f6; min-width: 160px; overflow: hidden; }
+.kra-bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; background: #94a3b8; }
+.kra-bar i.good { background: #16a34a; }
+.kra-bar i.mid { background: var(--gold); }
+.kra-bar i.bad { background: #dc2626; }
+.kra-bar span { position: relative; padding-left: 8px; font-size: 12px; line-height: 22px; font-weight: 600; color: var(--navy); }
+.good-text { color: #15803d; }
+.bad-text { color: #b45309; }
