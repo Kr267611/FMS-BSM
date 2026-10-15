@@ -152,10 +152,15 @@ test("the entry panel says who may mark a step done, and why not", async () => {
   assert.strictEqual((await step("admin")).canAct, true);
   await login("ss");
   assert.strictEqual((await step("ss")).canAct, true); // their own step
-  const dd = await step("dd"); // a doer (whole company) without FMS Entries (edit)
-  assert.deepStrictEqual([dd.canAct, /FMS Entries \(edit\)/.test(dd.notAllowed)], [false, true]);
-  // given FMS Entries (edit) but only their own people: the Store doer is not among them
-  await call("admin", `/users/${ids.dd}`, { method: "PUT", body: { reach: "self", permissions: { fmsEntries: ["view", "add", "edit"] } } });
+  const dd = await step("dd"); // a doer (whole company) without the Done for others tick
+  assert.deepStrictEqual([dd.canAct, /Done for others/.test(dd.notAllowed)], [false, true]);
+  // FMS Entries (edit) alone does not mark someone else's step (it still reopens one)
+  await call("admin", `/users/${ids.dd}`, { method: "PUT", body: { permissions: { fmsEntries: ["view", "add", "edit"] } } });
+  await login("dd");
+  const editor = await step("dd");
+  assert.deepStrictEqual([editor.canAct, editor.canReopen, /Done for others/.test(editor.notAllowed)], [false, true, true]);
+  // given Done for others but only their own people: the Store doer is not among them
+  await call("admin", `/users/${ids.dd}`, { method: "PUT", body: { reach: "self", permissions: { fmsEntries: ["view", "add", "edit"], doneForOthers: ["edit"] } } });
   await login("dd");
   const narrow = await step("dd");
   assert.deepStrictEqual([narrow.canAct, /Data kiska dikhe/.test(narrow.notAllowed)], [false, true]);

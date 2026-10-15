@@ -180,16 +180,21 @@ router.get("/:id", permit("fmsEntries", "view"), async (req, res) => {
     .limit(60)
     .select("at actorName action summary")
     .lean<any>();
-  // Who may mark each step done / not required here (the same rule the server checks): its doer, or someone with
-  // FMS Entries (edit) whose people include that doer. notAllowed says why not, for the entry panel.
+  // The same rules the server checks, for the entry panel. canAct – may mark the step done / not required: its doer,
+  // or someone with "Done for others" whose people include that doer (notAllowed says why not). canReopen – the
+  // doer or someone whose people include the doer, with FMS Entries (edit).
+  const mayMark = can(req.user, "doneForOthers", "edit");
   const mayEdit = can(req.user, "fmsEntries", "edit");
-  const visible = mayEdit ? await visibleUserIds(req.user) : [];
+  const visible = mayMark || mayEdit ? await visibleUserIds(req.user) : [];
+  const reaches = (doer) => Boolean(doer) && (visible === null || visible.includes(doer));
   const tasks = withT.tasks.map((t) => {
     const doer = String(t.doer?._id || t.doer || "");
-    if (doer && doer === String(req.user._id)) return { ...t, canAct: true };
-    if (!mayEdit) return { ...t, canAct: false, notAllowed: "Only the doer can mark this step. Marking it for others needs FMS Entries (edit)." };
-    if (!doer || (visible !== null && !visible.includes(doer))) return { ...t, canAct: false, notAllowed: "The doer of this step is not among the people you can reach (Data kiska dikhe)." };
-    return { ...t, canAct: true };
+    const own = Boolean(doer) && doer === String(req.user._id);
+    const canReopen = mayEdit && (own || reaches(doer));
+    if (own) return { ...t, canAct: true, canReopen };
+    if (!mayMark) return { ...t, canAct: false, canReopen, notAllowed: "Only the doer marks this step. Marking it for someone else needs the \"Done for others\" tick." };
+    if (!reaches(doer)) return { ...t, canAct: false, canReopen, notAllowed: "The doer of this step is not among the people you can reach (Data kiska dikhe)." };
+    return { ...t, canAct: true, canReopen };
   });
   res.json({ ...withT, tasks, today: todayKey(), history });
 });

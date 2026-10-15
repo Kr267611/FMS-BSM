@@ -30,14 +30,12 @@ async function load(taskId) {
   return task;
 }
 
-// The doer, or someone who oversees the doer (checklists) / manages the delegation
+// Done / Not Required: the doer marks their own task. Someone else only with the "Done for others" tick, for
+// the people they reach – changing checklists or managing a delegation does not give it.
 async function checkCanAct(task, user) {
   if (String(task.doer) === String(user._id)) return;
-  const ok =
-    task.kind === "delegation"
-      ? await delegations.canManage(task, user)
-      : can(user, "checklist", "edit") && (await canSeeUser(user, task.doer));
-  if (!ok) throw fail("This task is assigned to someone else", 403);
+  if (can(user, "doneForOthers", "edit") && (await canSeeUser(user, task.doer))) return;
+  throw fail("This task is assigned to someone else. Only its doer marks it, or someone given the \"Done for others\" tick.", 403);
 }
 
 // What the doer fills when marking it done

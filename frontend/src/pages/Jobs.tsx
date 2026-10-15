@@ -683,8 +683,10 @@ function EntryPanel({ id, process, nameOf, onClose, onChanged }) {
                 const t = tasks.get(s.key);
                 const st = taskState(t, job.today);
                 const mine = t && String(t.doer?._id || t.doer) === String(user._id);
-                // the server says who may mark this step (its doer, or FMS Entries edit + the doer among their people)
+                // the server says who may mark this step (its doer, or "Done for others" + the doer among their people)
+                // and who may reopen it (FMS Entries edit + the doer among their people)
                 const mayAct = t?.canAct ?? (mine || canEdit);
+                const mayReopen = t?.canReopen ?? (canEdit && mayAct);
                 return (
                   <li key={s.key} className={`tl-${t?.status || "waiting"}`}>
                     <div className="row between">
@@ -729,7 +731,7 @@ function EntryPanel({ id, process, nameOf, onClose, onChanged }) {
                         )}
                       </>
                     )}
-                    {canEdit && mayAct && ["done", "na"].includes(t?.status) && !job.closeStatus && reopenable(s.key) && (
+                    {mayReopen && ["done", "na"].includes(t?.status) && !job.closeStatus && reopenable(s.key) && (
                       <button className="btn ghost small" disabled={busy} onClick={() => act(`/tasks/${t._id}/reopen`)}>
                         Reopen step
                       </button>

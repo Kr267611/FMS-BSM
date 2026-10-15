@@ -165,18 +165,20 @@ async function createJob({ processId, data = {}, startDate, user, now = new Date
   });
 }
 
-// The doer, or someone allowed to edit entries for that doer (admin, or HOD / PC of their department)
-async function checkCanAct(task, user) {
+// Done / Not Required: the doer, or someone with the "Done for others" tick whose people include the doer.
+// Reopen: the doer, or someone allowed to edit entries (FMS Entries edit) whose people include the doer.
+async function checkCanAct(task, user, purpose = "done") {
   if (!task || task.kind !== "app") throw new WorkflowError("Task not found", 404);
-  const isOwner = String(task.doer) === String(user._id);
-  if (!isOwner && !(can(user, "fmsEntries", "edit") && task.doer && (await canSeeUser(user, task.doer)))) {
-    throw new WorkflowError("This task is assigned to someone else", 403);
+  if (String(task.doer) === String(user._id)) return;
+  const tick = purpose === "reopen" ? "fmsEntries" : "doneForOthers";
+  if (!(can(user, tick, "edit") && task.doer && (await canSeeUser(user, task.doer)))) {
+    throw new WorkflowError(purpose === "reopen" ? "This task is assigned to someone else" : "This step is assigned to someone else. Only its doer marks it, or someone given the \"Done for others\" tick.", 403);
   }
 }
 
-async function onTask(taskId, user, fn, opts?) {
+async function onTask(taskId, user, fn, opts?, purpose = "done") {
   const pre = await Task.findById(taskId).lean<any>();
-  await checkCanAct(pre, user);
+  await checkCanAct(pre, user, purpose);
   return withJob(
     pre.job,
     async (ctx) => {
@@ -279,7 +281,7 @@ async function applyFromSheet(jobId, updates, { now = new Date() }: any = {}) {
 // so this is refused once one of them has been completed.
 async function reopen(taskId, user) {
   if (!can(user, "fmsEntries", "edit")) throw new WorkflowError("You don't have permission to reopen tasks", 403);
-  return onTask(taskId, user, reopenStep);
+  return onTask(taskId, user, reopenStep, undefined, "reopen");
 }
 
 // The auditor said Not OK: the step goes back to its doer (same rule as reopen, without the editor check)

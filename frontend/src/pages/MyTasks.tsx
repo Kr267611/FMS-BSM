@@ -38,6 +38,8 @@ export default function MyTasks() {
   // Admin / HOD / PC can look at the tasks of the people they oversee
   const isAdmin = can(user, "users");
   const canReopen = can(user, "fmsEntries", "edit") || can(user, "checklist", "edit");
+  // marking someone else's task Done / Not Required needs the "Done for others" tick (the server checks it too)
+  const canMark = can(user, "doneForOthers", "edit");
   const [tab, setTab] = useState("pending");
   const [kind, setKind] = useState("");
   const [doer, setDoer] = useState("");
@@ -214,7 +216,7 @@ export default function MyTasks() {
       )}
       {groups.map(
         ([title, list, tone, folded]) =>
-          list.length > 0 && <TaskGroup key={title + (filtered ? ":f" : "")} title={title} list={list} tone={tone} folded={folded && !filtered} today={today} me={user._id} canReopen={canReopen} onChange={load} />
+          list.length > 0 && <TaskGroup key={title + (filtered ? ":f" : "")} title={title} list={list} tone={tone} folded={folded && !filtered} today={today} me={user._id} canReopen={canReopen} canMark={canMark} onChange={load} />
       )}
     </>
   );
@@ -229,7 +231,7 @@ const longDate = new Intl.DateTimeFormat("en-IN", {
 }).format(new Date());
 
 // One section (Overdue / Due today / …): PAGE tasks at a time; a folded section opens on click
-function TaskGroup({ title, list, tone, folded, today, me, canReopen, onChange }) {
+function TaskGroup({ title, list, tone, folded, today, me, canReopen, canMark, onChange }) {
   const [open, setOpen] = useState(!folded);
   const [shown, setShown] = useState(PAGE);
   return (
@@ -249,7 +251,7 @@ function TaskGroup({ title, list, tone, folded, today, me, canReopen, onChange }
       {open && (
         <div className="task-list">
           {list.slice(0, shown).map((t) => (
-            <TaskCard key={t._id} task={t} today={today} me={me} canReopen={canReopen} onChange={onChange} />
+            <TaskCard key={t._id} task={t} today={today} me={me} canReopen={canReopen} canMark={canMark} onChange={onChange} />
           ))}
           {list.length > shown && (
             <button type="button" className="btn ghost show-more" onClick={() => setShown(shown + PAGE)}>
@@ -362,7 +364,7 @@ function Details({ task }) {
   );
 }
 
-function TaskCard({ task, today, me, canReopen, onChange }) {
+function TaskCard({ task, today, me, canReopen, canMark, onChange }) {
   const [mode, setMode] = useState(null); // "done" | "na" | "ask"
   const [remarks, setRemarks] = useState("");
   const [ask, setAsk] = useState({ date: "", time: "18:00", reason: "" });
@@ -391,6 +393,8 @@ function TaskCard({ task, today, me, canReopen, onChange }) {
   const shownValues = formFields.filter((f) => task.values?.[f.key] !== undefined);
   const request = isDelegation ? pendingRevision(task) : null;
   const mine = String(task.doer) === String(me);
+  // the doer marks their own task; someone else needs "Done for others" (a help ticket follows the ticket's own rules)
+  const mayMark = mine || canMark || task.kind === "ticket";
   const canAsk =
     isDelegation && mine && task.status === "pending" && new Date(task.planned) > new Date() && !request && approvedRevisions(task) < MAX_REVISIONS;
   const tone = priorityTone(task.priority);
@@ -450,7 +454,8 @@ function TaskCard({ task, today, me, canReopen, onChange }) {
       </div>
 
       <div className="task-actions">
-        {task.status === "pending" && !isSheet && !mode && (
+        {task.status === "pending" && !isSheet && !mode && !mayMark && <span className="small muted">🔒 Only the doer marks this task (or someone given the “Done for others” tick)</span>}
+        {task.status === "pending" && !isSheet && !mode && mayMark && (
           <>
             <button className="btn primary" onClick={() => (setMode("done"), setOpen(true))}>
               Done
