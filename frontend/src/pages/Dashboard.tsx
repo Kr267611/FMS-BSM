@@ -94,7 +94,7 @@ export default function Dashboard() {
           </div>
 
           <div className="mid-row second">
-            <PendingCard kinds={d.kinds} />
+            <PendingCard kinds={d.kinds} links={pendingLinks(user, scope)} />
             <Workflows workflows={d.workflows} canSee={can(user, "fms")} />
             <FollowUp list={d.overdueList} showLink={can(user, "doerTasks")} />
           </div>
@@ -213,20 +213,45 @@ const BUCKETS = [
   ["audit", "Auditor"],
   ["app", "FMS"],
 ];
-function PendingCard({ kinds }) {
+// Where each pill goes: my own tasks of that kind (Me), or List Doer Tasks for the people I see (My team /
+// Company, when allowed); help tickets to the Ticket List, the auditor's count to the Audit List
+function pendingLinks(user, scope) {
+  const team = scope !== "me" && can(user, "doerTasks");
+  const list = (k, fms = k) => (team ? `/reports/tasks?kind=${fms}&status=pending` : `/?kind=${k}`);
+  return {
+    checklist: list("checklist"),
+    delegation: list("delegation"),
+    app: list("app", "fms"),
+    ticket: scope !== "me" && (can(user, "tickets") || can(user, "myTickets")) ? "/tickets" : "/?kind=ticket",
+    audit: can(user, "auditList") || user.isAuditor ? "/audits" : null,
+  };
+}
+function PendingCard({ kinds, links }) {
   return (
     <div className="card pending-card">
       <h3>Pending Task</h3>
       <div className="pills">
-        {BUCKETS.map(([k, label]) => (
-          <span key={k} className="pill" title={`${kinds[k]?.overdue || 0} overdue`}>
-            <span className="pill-dot">•••</span>
-            {label}
-            <b>
-              <CountUp value={kinds[k]?.pending || 0} />
-            </b>
-          </span>
-        ))}
+        {BUCKETS.map(([k, label]) => {
+          const inner = (
+            <>
+              <span className="pill-dot">•••</span>
+              {label}
+              <b>
+                <CountUp value={kinds[k]?.pending || 0} />
+              </b>
+            </>
+          );
+          const title = `${kinds[k]?.overdue || 0} overdue`;
+          return links[k] ? (
+            <Link key={k} className="pill" to={links[k]} title={`${title} · open the list`}>
+              {inner}
+            </Link>
+          ) : (
+            <span key={k} className="pill" title={title}>
+              {inner}
+            </span>
+          );
+        })}
       </div>
     </div>
   );

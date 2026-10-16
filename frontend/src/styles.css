@@ -1512,3 +1512,7 @@ tr.row-warn td { background: #fffaf0; }
 
 /* One-column boxes stay as wide as their space: a long select option or word does not push them past the screen */
 .doer-rule, .override, .cond, .map-box, .paste-box, .kra-box, .kra-when, .kra-form .stack-sm, .ticket-form, .ticket-detail, .att-daybox, .att-mark, .sync-switches, .sheet-find, .danger-zone, .decide-box, .leave-preview, .reach-pick, .own-weekoff, .share-with, .timeline, .col-filter-part, .perm-grid { grid-template-columns: minmax(0, 1fr); }
+
+/* Dashboard: the Pending Task pills open their lists */
+a.pill { text-decoration: none; cursor: pointer; }
+a.pill:hover { box-shadow: 0 0 0 2px var(--gold), 0 2px 8px rgba(0, 0, 0, 0.22); }

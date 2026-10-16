@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { api, can, showDateTime } from "../api";
 import { useAuth } from "../App";
 import DoerSelect from "../components/DoerSelect";
@@ -21,7 +22,8 @@ const todayIst = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkat
 export default function DoerTasks() {
   const { user } = useAuth();
   const canSwitch = can(user, "doerTasks", "edit");
-  const [f, setF] = useState({ kind: "", doer: "", status: "pending", delay: "", from: "", to: "", q: "", mode: "", priority: "", department: "", branch: "", group: "", assignedBy: "", pc: "", auditor: "" });
+  const [params] = useSearchParams(); // ?kind= &status= from the Dashboard
+  const [f, setF] = useState({ kind: KINDS.some(([k]) => k && k === params.get("kind")) ? params.get("kind") : "", doer: "", status: params.get("status") || "pending", delay: "", from: "", to: "", q: "", mode: "", priority: "", department: "", branch: "", group: "", assignedBy: "", pc: "", auditor: "" });
   const [more, setMore] = useState(false);
   const [page, setPage] = useState(1);
   const [data, setData] = useState(null);

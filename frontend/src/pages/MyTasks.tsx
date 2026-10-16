@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { addDays, api, can, showDay, showDateTime, todayKey } from "../api";
 import { useAuth } from "../App";
 import DoerSelect from "../components/DoerSelect";
@@ -41,7 +42,8 @@ export default function MyTasks() {
   // marking someone else's task Done / Not Required needs the "Done for others" tick (the server checks it too)
   const canMark = can(user, "doneForOthers", "edit");
   const [tab, setTab] = useState("pending");
-  const [kind, setKind] = useState("");
+  const [params] = useSearchParams();
+  const [kind, setKind] = useState(() => (KINDS.some(([k]) => k && k === params.get("kind")) ? params.get("kind") : "")); // ?kind= from the Dashboard
   const [doer, setDoer] = useState("");
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
