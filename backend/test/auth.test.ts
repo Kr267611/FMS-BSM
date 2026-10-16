@@ -187,7 +187,7 @@ test("audit log records sign-ins and user changes", async () => {
   }
 });
 
-test("FMS flow with roles: the doer, or an own-department PC given Done for others, completes a step; other PCs cannot", async () => {
+test("FMS flow with roles: the doer, or an own-department PC given the FMS Entries Done tick, completes a step; other PCs cannot", async () => {
   const admin = (await login("admin", "Recover123")).session;
   const doerqc = await findUser(admin, "doerqc");
   const dye = (await call("/org/departments", { session: admin })).data.find((d) => d.name === "Dyeing");
@@ -209,10 +209,10 @@ test("FMS flow with roles: the doer, or an own-department PC given Done for othe
   const pcqc = (await login("pcqc", "Pass12345")).session;
   // the PC's FMS Entries (edit) alone does not mark someone else's step
   assert.strictEqual((await call(`/tasks/${step1._id}/done`, { session: pcqc, method: "POST", body: {} })).status, 403);
-  // with Done for others: the QC PC may (the QC doer is theirs), the Dyeing PC still may not
+  // with the Done tick of FMS Entries: the QC PC may (the QC doer is theirs), the Dyeing PC still may not
   for (const name of ["pcqc", "pcdye"]) {
     const u = await findUser(admin, name);
-    assert.strictEqual((await call(`/users/${u._id}`, { session: admin, method: "PUT", body: { permissions: { doneForOthers: ["edit"] } } })).status, 200);
+    assert.strictEqual((await call(`/users/${u._id}`, { session: admin, method: "PUT", body: { permissions: { fmsEntries: ["view", "add", "edit", "done"] } } })).status, 200);
   }
   assert.strictEqual((await call(`/tasks/${step1._id}/done`, { session: pcdye, method: "POST", body: {} })).status, 403);
   assert.strictEqual((await call(`/tasks/${step1._id}/done`, { session: pcqc, method: "POST", body: {} })).status, 200);

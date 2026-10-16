@@ -39,8 +39,8 @@ export default function MyTasks() {
   // Admin / HOD / PC can look at the tasks of the people they oversee
   const isAdmin = can(user, "users");
   const canReopen = can(user, "fmsEntries", "edit") || can(user, "checklist", "edit");
-  // marking someone else's task Done / Not Required needs the "Done for others" tick (the server checks it too)
-  const canMark = can(user, "doneForOthers", "edit");
+  // marking someone else's task Done / Not Required needs the Done tick of its page (the server checks it too)
+  const canMark = { checklist: can(user, "checklist", "done"), delegation: can(user, "delegation", "done"), app: can(user, "fmsEntries", "done") };
   const [tab, setTab] = useState("pending");
   const [params] = useSearchParams();
   const [kind, setKind] = useState(() => (KINDS.some(([k]) => k && k === params.get("kind")) ? params.get("kind") : "")); // ?kind= from the Dashboard
@@ -395,8 +395,8 @@ function TaskCard({ task, today, me, canReopen, canMark, onChange }) {
   const shownValues = formFields.filter((f) => task.values?.[f.key] !== undefined);
   const request = isDelegation ? pendingRevision(task) : null;
   const mine = String(task.doer) === String(me);
-  // the doer marks their own task; someone else needs "Done for others" (a help ticket follows the ticket's own rules)
-  const mayMark = mine || canMark || task.kind === "ticket";
+  // the doer marks their own task; someone else needs the Done tick of its page (a help ticket follows the ticket's own rules)
+  const mayMark = mine || Boolean(canMark?.[task.kind]) || task.kind === "ticket";
   const canAsk =
     isDelegation && mine && task.status === "pending" && new Date(task.planned) > new Date() && !request && approvedRevisions(task) < MAX_REVISIONS;
   const tone = priorityTone(task.priority);
@@ -456,7 +456,7 @@ function TaskCard({ task, today, me, canReopen, canMark, onChange }) {
       </div>
 
       <div className="task-actions">
-        {task.status === "pending" && !isSheet && !mode && !mayMark && <span className="small muted">🔒 Only the doer marks this task (or someone given the “Done for others” tick)</span>}
+        {task.status === "pending" && !isSheet && !mode && !mayMark && <span className="small muted">🔒 Only the doer marks this task (or someone given the “Done” tick)</span>}
         {task.status === "pending" && !isSheet && !mode && mayMark && (
           <>
             <button className="btn primary" onClick={() => (setMode("done"), setOpen(true))}>

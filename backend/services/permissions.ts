@@ -3,7 +3,8 @@
 // Which people an action reaches is the scope (services/scope.ts): their own people, or everyone for
 // admins, auditors, HR and anyone given "Sees everyone".
 
-const ACTIONS = ["view", "add", "edit", "delete"];
+// done: mark the tasks of their people Done / Not Required (Checklists, Delegations, FMS Entries); a doer always marks their own
+const ACTIONS = ["view", "add", "edit", "delete", "done"];
 
 // One entry per menu page (or per area where one page has it all). Each tick is exactly one page.
 const MODULES = {
@@ -12,7 +13,6 @@ const MODULES = {
   myTickets: "My Tickets (raise)",
   checklist: "Checklists",
   delegation: "Delegations",
-  doneForOthers: "Done for others",
   fms: "List / Add Master FMS",
   fmsImport: "Import FMS from Sheet",
   doerConditions: "Doer Conditions",
@@ -60,10 +60,9 @@ const MODULE_ACTIONS = {
   myAttendance: { view: "Punch in / out, see their own attendance, ask for corrections" },
   myLeave: { view: "Apply for leave, see their own balance" },
   myTickets: { view: "Raise help tickets and follow their own" },
-  checklist: { view: "See checklists", add: "Create checklists", edit: "Change checklists", delete: "Delete checklists" },
-  delegation: { view: "See all delegations of their people", add: "Assign delegations", edit: "Change / approve new deadlines", delete: "Delete delegations" },
-  // Without it a task is marked Done / Not Required only by its doer (and an admin)
-  doneForOthers: { edit: "Mark Done / Not Required in the tasks of their people (checklists, delegations, FMS steps)" },
+  // done: without it a task is marked Done / Not Required only by its own doer (and an admin)
+  checklist: { view: "See checklists", add: "Create checklists", edit: "Change checklists", delete: "Delete checklists", done: "Mark their people's checklist tasks Done / Not Required" },
+  delegation: { view: "See all delegations of their people", add: "Assign delegations", edit: "Change / approve new deadlines", delete: "Delete delegations", done: "Mark their people's delegations Done" },
   fms: { view: "See the Master FMS list", add: "Create an FMS (Add Master FMS)", edit: "Change an FMS and its rules", delete: "Delete an FMS" },
   fmsImport: { add: "Make an FMS from a Google Sheet tab" },
   doerConditions: { view: "See who does each step of every FMS" },
@@ -71,7 +70,7 @@ const MODULE_ACTIONS = {
   autoCalc: { view: "See the auto-calculated fields of every FMS" },
   autoComplete: { view: "See the rules", add: "Add rules", edit: "Change rules", delete: "Delete rules" },
   fmsBulk: { view: "Download entries in bulk", delete: "Delete entries in bulk" },
-  fmsEntries: { view: "See FMS entries", add: "Add an entry", edit: "Change entries, close / reopen entries and steps", delete: "Delete entries" },
+  fmsEntries: { view: "See FMS entries", add: "Add an entry", edit: "Change entries, close / reopen entries and steps", delete: "Delete entries", done: "Mark their people's FMS steps Done / Not Required" },
   doerTasks: { view: "See every checklist, delegation and FMS task of their people", edit: "Switch the doer of pending tasks", delete: "Delete checklist / delegation tasks" },
   fmsTasks: { view: "See every FMS step of their people", edit: "Switch the doer of pending steps" },
   misScore: { view: "Planned / actual / late / pending / score by doer" },
@@ -109,7 +108,7 @@ const MODULE_ACTIONS = {
 // Areas, as in the menu, for showing the grid in groups
 const MODULE_GROUPS = [
   ["Self service", ["myAttendance", "myLeave", "myTickets"]],
-  ["Master Tasks", ["checklist", "delegation", "doneForOthers"]],
+  ["Master Tasks", ["checklist", "delegation"]],
   ["FMS Manager", ["fms", "fmsImport", "doerConditions", "overrideTat", "autoCalc", "autoComplete", "fmsBulk", "fmsEntries"]],
   ["PC Reports", ["doerTasks", "fmsTasks", "misScore", "weeklyMis", "misMeeting", "performance", "auditorReport", "effortReport"]],
   ["KRA / KPI", ["kraPolicies", "scorecards"]],

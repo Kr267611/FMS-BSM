@@ -6,8 +6,8 @@ import { csvCell, download } from "../csv";
 // Whose data each person's pages show
 const REACH = { all: "Company", department: "Department", team: "Team", self: "Own" };
 
-const LETTER = { view: "V", add: "A", edit: "E", delete: "D" };
-const ORDER = ["view", "add", "edit", "delete"];
+const LETTER = { view: "V", add: "A", edit: "E", delete: "D", done: "✓" };
+const ORDER = ["view", "add", "edit", "delete", "done"];
 
 // Who can do what: every active person × every module, with where the access comes from
 export default function AccessOverview() {

@@ -7,8 +7,9 @@ export interface AccessMeta {
   moduleActions: Record<string, Record<string, string>>;
   groups: [string, string[]][];
 }
-const ACTIONS = ["view", "add", "edit", "delete"];
-const ACTION_LABEL = { view: "View", add: "Add", edit: "Edit", delete: "Delete" };
+// done: mark the tasks of their people Done (Checklists, Delegations, FMS Entries); a doer always marks their own
+const ACTIONS = ["view", "add", "edit", "delete", "done"];
+const ACTION_LABEL = { view: "View", add: "Add", edit: "Edit", delete: "Delete", done: "Done" };
 
 export default function PermissionGrid({ meta, value, base, baseLabel, onChange, disabled }: { meta: AccessMeta; value: Record<string, string[]> | null; base: Record<string, string[]> | null; baseLabel: string; onChange: (v: Record<string, string[]>) => void; disabled?: boolean }) {
   const own = value || {};

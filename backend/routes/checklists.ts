@@ -94,6 +94,13 @@ router.get("/", permit("checklist", "view"), async (req, res) => {
   const list = await withNames(Checklist.find(filter).select("-fields.options").sort({ active: -1, name: 1 }).limit(2000)).lean();
   const cal = await loadCalendar();
   const today = todayKey();
+  // each checklist's oldest open task (what its Done button marks) and how many are open
+  const open = await Task.aggregate([
+    { $match: { checklist: { $in: list.map((c) => c._id) }, status: "pending" } },
+    { $sort: { plannedDay: 1, planned: 1 } },
+    { $group: { _id: "$checklist", task: { $first: "$_id" }, plannedDay: { $first: "$plannedDay" }, planned: { $first: "$planned" }, doer: { $first: "$doer" }, count: { $sum: 1 } } },
+  ]);
+  const openOf = new Map<string, any>(open.map((o) => [String(o._id), { _id: o.task, plannedDay: o.plannedDay, planned: o.planned, doer: o.doer, count: o.count }]));
   res.json(
     list.map((c) => ({
       ...c,
@@ -101,6 +108,7 @@ router.get("/", permit("checklist", "view"), async (req, res) => {
       nextDue: c.active ? nextDueDays(c, today, 1, cal)[0] || null : null,
       formCount: c.fields?.length || 0,
       fields: undefined,
+      openTask: openOf.get(String(c._id)) || null,
     }))
   );
 });

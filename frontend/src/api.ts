@@ -73,7 +73,7 @@ export async function api<T = any>(path: string, { method = "GET", body, query }
 
 // Permission check for showing menu items and buttons (the server enforces the same rules)
 export type Role = "admin" | "developer" | "hod" | "pc" | "tl" | "hr" | "auditor" | "doer";
-export type Action = "view" | "add" | "edit" | "delete";
+export type Action = "view" | "add" | "edit" | "delete" | "done";
 export interface SessionUser {
   _id: string;
   name: string;
@@ -109,6 +109,8 @@ export function can(user: SessionUser | null | undefined, module: string, action
     if (module === "biometric") return old.includes("add");
     return old.includes(action);
   }
+  // a server before the Done ticks had one "Done for others" row for all three pages
+  if (action === "done" && ["checklist", "delegation", "fmsEntries"].includes(module) && (p.doneForOthers as string[] | undefined)?.includes("edit")) return true;
   return Boolean((p[module] as string[] | undefined)?.includes(action));
 }
 

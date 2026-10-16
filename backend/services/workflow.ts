@@ -165,14 +165,14 @@ async function createJob({ processId, data = {}, startDate, user, now = new Date
   });
 }
 
-// Done / Not Required: the doer, or someone with the "Done for others" tick whose people include the doer.
+// Done / Not Required: the doer, or someone with the Done tick of FMS Entries whose people include the doer.
 // Reopen: the doer, or someone allowed to edit entries (FMS Entries edit) whose people include the doer.
 async function checkCanAct(task, user, purpose = "done") {
   if (!task || task.kind !== "app") throw new WorkflowError("Task not found", 404);
   if (String(task.doer) === String(user._id)) return;
-  const tick = purpose === "reopen" ? "fmsEntries" : "doneForOthers";
-  if (!(can(user, tick, "edit") && task.doer && (await canSeeUser(user, task.doer)))) {
-    throw new WorkflowError(purpose === "reopen" ? "This task is assigned to someone else" : "This step is assigned to someone else. Only its doer marks it, or someone given the \"Done for others\" tick.", 403);
+  const action = purpose === "reopen" ? "edit" : "done";
+  if (!(can(user, "fmsEntries", action) && task.doer && (await canSeeUser(user, task.doer)))) {
+    throw new WorkflowError(purpose === "reopen" ? "This task is assigned to someone else" : "This step is assigned to someone else. Only its doer marks it, or someone given the \"Done\" tick of FMS Entries.", 403);
   }
 }
 

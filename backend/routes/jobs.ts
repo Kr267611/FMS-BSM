@@ -181,9 +181,9 @@ router.get("/:id", permit("fmsEntries", "view"), async (req, res) => {
     .select("at actorName action summary")
     .lean<any>();
   // The same rules the server checks, for the entry panel. canAct – may mark the step done / not required: its doer,
-  // or someone with "Done for others" whose people include that doer (notAllowed says why not). canReopen – the
-  // doer or someone whose people include the doer, with FMS Entries (edit).
-  const mayMark = can(req.user, "doneForOthers", "edit");
+  // or someone with the Done tick of FMS Entries whose people include that doer (notAllowed says why not).
+  // canReopen – the doer or someone whose people include the doer, with FMS Entries (edit).
+  const mayMark = can(req.user, "fmsEntries", "done");
   const mayEdit = can(req.user, "fmsEntries", "edit");
   const visible = mayMark || mayEdit ? await visibleUserIds(req.user) : [];
   const reaches = (doer) => Boolean(doer) && (visible === null || visible.includes(doer));
@@ -192,7 +192,7 @@ router.get("/:id", permit("fmsEntries", "view"), async (req, res) => {
     const own = Boolean(doer) && doer === String(req.user._id);
     const canReopen = mayEdit && (own || reaches(doer));
     if (own) return { ...t, canAct: true, canReopen };
-    if (!mayMark) return { ...t, canAct: false, canReopen, notAllowed: "Only the doer marks this step. Marking it for someone else needs the \"Done for others\" tick." };
+    if (!mayMark) return { ...t, canAct: false, canReopen, notAllowed: "Only the doer marks this step. Marking it for someone else needs the \"Done\" tick of FMS Entries." };
     if (!reaches(doer)) return { ...t, canAct: false, canReopen, notAllowed: "The doer of this step is not among the people you can reach (Data kiska dikhe)." };
     return { ...t, canAct: true, canReopen };
   });

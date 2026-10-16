@@ -13,6 +13,44 @@ async function runMigrations() {
   await migratePageAccess();
   await migratePageAccess2();
   await migratePageAccess3();
+  await migrateDoneTicks();
+}
+
+// ---- "Done for others" becomes the Done tick of Checklists, Delegations and FMS Entries (Oct 2026) ----
+// The separate "Done for others" row lived for a day. Whoever had it (on the user, or through their department when
+// the user had not set it) gets the Done tick of all three pages on the user, next to the access they already had
+// there; the old row is removed from users and departments.
+const DONE_PAGES = ["checklist", "delegation", "fmsEntries"];
+async function migrateDoneTicks() {
+  const KEY = "migration.doneTicks";
+  if (await Setting.exists({ key: KEY })) return;
+  const gave = (layer) => Array.isArray(layer?.doneForOthers) && layer.doneForOthers.includes("edit");
+  const depts = await Department.collection.find({}).project({ permissions: 1 }).toArray();
+  const deptPerms = new Map<string, any>(depts.map((d) => [String(d._id), d.permissions]));
+  const users = await User.collection.find({}).project({ role: 1, department: 1, permissions: 1 }).toArray();
+  let moved = 0;
+  for (const u of users) {
+    const dept = deptPerms.get(String(u.department || ""));
+    const ownSet = Boolean(u.permissions) && "doneForOthers" in u.permissions;
+    const had = ownSet ? gave(u.permissions) : gave(dept);
+    if (!ownSet && !had) continue;
+    const own = { ...(u.permissions || {}) };
+    delete own.doneForOthers;
+    if (had && !isAdmin(u)) {
+      const now = permissionsFor({ ...u, permissions: own, deptPermissions: dept || undefined });
+      for (const m of DONE_PAGES) own[m] = [...new Set<any>([...(now[m] || []), "done"])];
+      moved++;
+    }
+    await User.collection.updateOne({ _id: u._id }, Object.keys(own).length ? { $set: { permissions: own } } : { $unset: { permissions: "" } });
+  }
+  for (const d of depts) {
+    if (!d.permissions || !("doneForOthers" in d.permissions)) continue;
+    const rest = { ...d.permissions };
+    delete rest.doneForOthers;
+    await Department.collection.updateOne({ _id: d._id }, Object.keys(rest).length ? { $set: { permissions: rest } } : { $unset: { permissions: "" } });
+  }
+  await Setting.create({ key: KEY, value: { at: new Date(), users: moved } });
+  if (moved) console.log(`Done ticks (${KEY}): ${moved} user(s) keep "Done for others" as the Done tick of Checklists, Delegations and FMS Entries`);
 }
 
 // ---- One tick per page (Oct 2026) ----
@@ -277,4 +315,4 @@ async function migrateProcessesToV2() {
   }
 }
 
-export = { runMigrations, migratePageAccess, migratePageAccess2, migratePageAccess3, oldPages, oldPages2, oldPages3, splitLayer, splitLayer3 };
+export = { runMigrations, migratePageAccess, migratePageAccess2, migratePageAccess3, migrateDoneTicks, oldPages, oldPages2, oldPages3, splitLayer, splitLayer3 };

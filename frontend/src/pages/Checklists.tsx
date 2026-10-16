@@ -1,16 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
 import { MoreFilters } from "../components/ListFilters";
 import { Link } from "react-router-dom";
-import { api, can, showDay } from "../api";
+import { api, can, showDay, todayKey } from "../api";
 import { useAuth } from "../App";
 import DoerSelect from "../components/DoerSelect";
 import ChecklistForm from "../components/ChecklistForm";
+import StepForm from "../components/StepForm";
 import { priorityLabel, priorityTone } from "../tasks";
 
 export default function Checklists() {
   const { user } = useAuth();
   const canAdd = can(user, "checklist", "add");
   const canEdit = can(user, "checklist", "edit");
+  // Done on a checklist's open task: its doer, or someone with the Done tick of Checklists (the server checks it too)
+  const canMarkOthers = can(user, "checklist", "done");
+  const [marking, setMarking] = useState(null); // the checklist whose open task is being marked done
   const [list, setList] = useState(null);
   const [groups, setGroups] = useState([]);
   const [q, setQ] = useState("");
@@ -123,6 +127,7 @@ export default function Checklists() {
                   <th>Next due</th>
                   <th>Group</th>
                   <th>Form</th>
+                  <th>Open task</th>
                 </tr>
               </thead>
               <tbody>
@@ -140,6 +145,9 @@ export default function Checklists() {
                     <td className="nowrap">{c.nextDue ? showDay(c.nextDue) : "—"}</td>
                     <td>{c.group?.name || <span className="muted">—</span>}</td>
                     <td className="muted small nowrap">{c.formCount ? `${c.formCount} field${c.formCount > 1 ? "s" : ""}` : "Done only"}</td>
+                    <td className="nowrap" onClick={(e) => e.stopPropagation()}>
+                      <OpenTask c={c} mayMark={Boolean(c.openTask) && (String(c.openTask.doer) === String(user._id) || canMarkOthers)} onMark={() => setMarking(c)} />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -161,7 +169,72 @@ export default function Checklists() {
         />
       )}
       {showGroups && <Groups groups={groups} canAdd={canAdd} canDelete={can(user, "checklist", "delete")} onClose={() => setShowGroups(false)} onChanged={loadGroups} />}
+      {marking && (
+        <MarkDone
+          c={marking}
+          onClose={() => setMarking(null)}
+          onDone={() => {
+            setMarking(null);
+            load();
+          }}
+        />
+      )}
     </>
+  );
+}
+
+// The checklist's oldest open task: its day (late or not), how many are open, and Done for whoever may mark it
+function OpenTask({ c, mayMark, onMark }) {
+  const t = c.openTask;
+  if (!t) return <span className="muted small">Nothing open</span>;
+  const late = t.plannedDay < todayKey();
+  return (
+    <div className="row">
+      <span className="small">
+        {showDay(t.plannedDay)}
+        {late && <span className="tag red">late</span>}
+        {t.count > 1 && <span className="muted"> +{t.count - 1} more</span>}
+      </span>
+      {mayMark ? (
+        <button type="button" className="btn primary small" onClick={onMark}>
+          Done
+        </button>
+      ) : (
+        <span className="muted small" title="Only the doer marks it, or someone given the Done tick of Checklists">
+          🔒
+        </span>
+      )}
+    </div>
+  );
+}
+
+// Mark the open task done with the checklist's form (reading, photo…) and a remark
+function MarkDone({ c, onClose, onDone }) {
+  const [fields, setFields] = useState(c.formCount ? null : []);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (!c.formCount) return;
+    api(`/checklists/${c._id}`)
+      .then((full) => setFields(full.fields || []))
+      .catch((e) => setError(e.message));
+  }, [c]);
+  return (
+    <div className="modal-bg" onClick={onClose}>
+      <div className="modal card narrow-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <div className="row between">
+          <h3>Done: {c.name}</h3>
+          <button type="button" className="btn ghost small" onClick={onClose}>
+            Close ✕
+          </button>
+        </div>
+        <p className="muted small">
+          Planned {showDay(c.openTask.plannedDay)} · {c.doer?.name}
+          {c.openTask.count > 1 ? ` · the oldest of ${c.openTask.count} open days` : ""}
+        </p>
+        {error && <div className="error">{error}</div>}
+        {fields ? <StepForm task={c.openTask} fields={fields} onDone={onDone} onCancel={onClose} /> : !error && <p className="muted">Loading…</p>}
+      </div>
+    </div>
   );
 }
 

@@ -683,7 +683,7 @@ function EntryPanel({ id, process, nameOf, onClose, onChanged }) {
                 const t = tasks.get(s.key);
                 const st = taskState(t, job.today);
                 const mine = t && String(t.doer?._id || t.doer) === String(user._id);
-                // the server says who may mark this step (its doer, or "Done for others" + the doer among their people)
+                // the server says who may mark this step (its doer, or the FMS Entries Done tick + the doer among their people)
                 // and who may reopen it (FMS Entries edit + the doer among their people)
                 const mayAct = t?.canAct ?? (mine || canEdit);
                 const mayReopen = t?.canReopen ?? (canEdit && mayAct);
