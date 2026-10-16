@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, isAdmin } from "../api";
+import { searchSort } from "../search";
 
 let cache = null;
 let loading = null; // one request for the whole page, however many selects ask at once
@@ -68,8 +69,8 @@ function PeopleSearch({ users, value, onChange, placeholder, required }: DoerSel
   const box = useRef(null);
   const current = users.find((u) => u._id === value);
   const matches = useMemo(() => {
-    const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
-    const list = words.length ? users.filter((u) => words.every((w) => labelOf(u).toLowerCase().includes(w))) : users;
+    // any spelling of the name or a typo finds the person, the closest matches first
+    const list = searchSort(users, q, (u) => [labelOf(u)]);
     return list.slice(0, SHOWN);
   }, [q, users]);
 

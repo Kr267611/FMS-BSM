@@ -6,6 +6,7 @@ import { WEEKDAYS } from "../tasks";
 import DoerSelect, { clearUsersCache } from "../components/DoerSelect";
 import { compress } from "../components/PhotoInput";
 import PermissionGrid from "../components/PermissionGrid";
+import { matchRank } from "../search";
 
 const blank = {
   name: "",
@@ -82,8 +83,10 @@ export default function Users() {
     Promise.all([api("/org/branches"), api("/org/departments")]).then(([branches, departments]) => setOrg({ branches, departments }));
   }, []);
 
-  const shown = useMemo(() => {
-    const needle = f.q.trim().toLowerCase();
+  // the search finds a person by any spelling of the name, a typo, the phone, code, username, email or department
+  const { shown, similar } = useMemo(() => {
+    const q = f.q.trim();
+    const rank = (u) => matchRank(q, [u.name, u.username, u.email, u.phone, u.employeeCode, u.department?.name]);
     const now = Date.now();
     const rows = (list || []).filter(
       (u) =>
@@ -93,10 +96,14 @@ export default function Users() {
         (f.status === "" || (f.status === "active" ? u.active : !u.active)) &&
         (f.login === "" ||
           (f.login === "never" ? !u.lastLoginAt : f.login === "7" ? u.lastLoginAt && now - Date.parse(u.lastLoginAt) <= 7 * DAY : u.lastLoginAt && now - Date.parse(u.lastLoginAt) > 30 * DAY)) &&
-        (!needle || [u.name, u.username, u.email, u.phone].some((x) => String(x || "").toLowerCase().includes(needle)))
+        (!q || rank(u) > 0)
     );
     const col = COLUMNS.find(([k]) => k === sort.key);
-    return col ? [...rows].sort((a, b) => (col[2](a) < col[2](b) ? -1 : col[2](a) > col[2](b) ? 1 : 0) * sort.dir) : rows;
+    const sorted = col ? [...rows].sort((a, b) => (col[2](a) < col[2](b) ? -1 : col[2](a) > col[2](b) ? 1 : 0) * sort.dir) : rows;
+    if (!q) return { shown: sorted, similar: 0 };
+    // the closest matches first: the typed spelling, then a similar spelling or a typo
+    const ranked = sorted.map((u, i) => ({ u, i, r: rank(u) })).sort((a, b) => b.r - a.r || a.i - b.i);
+    return { shown: ranked.map((x) => x.u), similar: ranked.filter((x) => x.r <= 2).length };
   }, [list, f, sort]);
   const pages = Math.max(1, Math.ceil(shown.length / PAGE));
   const pageRows = shown.slice((page - 1) * PAGE, page * PAGE);
@@ -238,7 +245,7 @@ export default function Users() {
       <div className="card table-card">
         <div className="row between pad">
           <b className="caps">List users</b>
-          <span className="muted small">{list ? `${shown.length} user(s)` : "Loading…"}</span>
+          <span className="muted small">{list ? `${shown.length} user(s)${similar ? ` · ${similar} with a similar spelling` : ""}` : "Loading…"}</span>
         </div>
         <div className="table-scroll">
           <table className="grid users-table">

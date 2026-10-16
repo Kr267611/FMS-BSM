@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { ROLE_LABELS, api, can, isAdmin } from "../api";
 import { useAuth } from "../App";
 import { clearUsersCache } from "../components/DoerSelect";
+import { searchSort } from "../search";
 
 // User List (quick edit): everyone in one sheet-like table, after a bulk upload or any time. Change cells, or tick
 // many people and give them one value (e.g. 15 people → Team Leader Vishal); changed cells turn yellow; one Save
@@ -54,15 +55,15 @@ export default function UsersQuickEdit() {
   const leaders = useMemo(() => (list || []).filter((u) => u.active).sort((a, b) => a.name.localeCompare(b.name)), [list]);
 
   const shown = useMemo(() => {
-    const needle = f.q.trim().toLowerCase();
-    return (list || []).filter(
+    const rows = (list || []).filter(
       (u) =>
         (f.status === "" || (f.status === "active" ? u.active : !u.active)) &&
         (!f.dept || idOf(u.department) === f.dept) &&
         (!f.role || u.role === f.role) &&
-        (!f.missing || !valueOf(u, f.missing)) &&
-        (!needle || [u.name, u.username, u.phone, u.employeeCode].some((x) => String(x || "").toLowerCase().includes(needle)))
+        (!f.missing || !valueOf(u, f.missing))
     );
+    // any spelling of the name, a typo, the phone, code or username; the closest matches first
+    return searchSort<any>(rows, f.q, (u) => [u.name, u.username, u.phone, u.employeeCode]);
   }, [list, f]);
 
   const cur = (u, k) => (edits[u._id] && k in edits[u._id] ? edits[u._id][k] : valueOf(u, k));
