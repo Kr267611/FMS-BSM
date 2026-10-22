@@ -28,6 +28,19 @@ export default function Login() {
 
   return (
     <div className="login-wrap">
+      {/* Bhaskar = the sun: night sky, the sun rises to where it sits in the logo (behind the B), the logo opens out of it, then the day */}
+      <div className="login-sky" aria-hidden="true">
+        <div className="sky-dawn" />
+        <svg className="sky-hills" viewBox="0 0 1440 220" preserveAspectRatio="none">
+          <path d="M0 150 C 240 100 430 190 720 145 C 1010 100 1210 180 1440 130 L1440 220 L0 220 Z" />
+        </svg>
+      </div>
+      <div className="login-logo" aria-hidden="true">
+        <span className="logo-sun" />
+        <div className="logo-plate">
+          <img src="/bhaskar-logo.png" alt="" />
+        </div>
+      </div>
       <form className="card login" onSubmit={submit}>
         <h1>FMS BSM</h1>
         <p className="muted">Flow Management System — sign in to continue</p>

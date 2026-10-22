@@ -1516,3 +1516,68 @@ tr.row-warn td { background: #fffaf0; }
 /* Dashboard: the Pending Task pills open their lists */
 a.pill { text-decoration: none; cursor: pointer; }
 a.pill:hover { box-shadow: 0 0 0 2px var(--gold), 0 2px 8px rgba(0, 0, 0, 0.22); }
+
+/* ---------- Theme B: Deep Aubergine + Marigold on Ice Silver (on: <html data-theme="aubergine"> in index.html; remove it for the old Navy + Gold) ----------
+   Only the brand colours change. Meaning colours stay: late / bad = red, on time / good = green, today = amber. */
+:root[data-theme="aubergine"] {
+  --bg-deep: #eef0f4; /* ice silver */
+  --primary: #4a2552; /* aubergine for buttons, links, focus */
+  --teal: #5e3166;
+  --tint-primary: rgba(74, 37, 82, 0.08);
+  --glow: 0 4px 12px rgba(74, 37, 82, 0.22);
+  --navy: #3b1f3f; /* deep aubergine: side menu, top title, tab bar */
+  --navy-2: #563058;
+  --gold: #e9a21b; /* marigold */
+  --gold-deep: #8a5a06; /* marigold text on white (readable) */
+  --gold-soft: #ffd88a; /* marigold text on aubergine */
+  --gold-tint: #fff6e3;
+  --gold-line: #f2dcae;
+}
+html[data-theme="aubergine"],
+[data-theme="aubergine"] body { background: #eef0f4; }
+[data-theme="aubergine"] .sidebar,
+[data-theme="aubergine"] .menu-open .sidebar { background: var(--navy); border-right-color: var(--navy); }
+[data-theme="aubergine"] .btn.primary:hover:not(:disabled) { background: #5e3166; box-shadow: 0 6px 16px rgba(74, 37, 82, 0.28); }
+[data-theme="aubergine"] input:focus,
+[data-theme="aubergine"] select:focus,
+[data-theme="aubergine"] textarea:focus { box-shadow: 0 0 0 3px rgba(74, 37, 82, 0.18); }
+[data-theme="aubergine"] .tag:not(.red):not(.green):not(.amber):not(.gray):not(.blue) { border-color: rgba(74, 37, 82, 0.3); }
+[data-theme="aubergine"] .notice { border-color: rgba(74, 37, 82, 0.3); }
+[data-theme="aubergine"] .step-card.open { border-color: rgba(74, 37, 82, 0.5); }
+[data-theme="aubergine"] .login h1::before { background: linear-gradient(135deg, #f4c04e, var(--gold)); }
+[data-theme="aubergine"] .tile-icon.green,
+[data-theme="aubergine"] .act-avatar,
+[data-theme="aubergine"] .rank.top { background: var(--gold-tint); color: var(--gold-deep); }
+[data-theme="aubergine"] .act-avatar.late { background: #fde8e8; color: #dc2626; }
+[data-theme="aubergine"] .sum-card.on,
+[data-theme="aubergine"] button.fms-bucket.on { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
+[data-theme="aubergine"] .delay-row.on { border-color: var(--primary); background: var(--tint-primary); }
+[data-theme="aubergine"] .sum-card b,
+[data-theme="aubergine"] .icon-btn,
+[data-theme="aubergine"] .sort-arrows { color: var(--primary); }
+[data-theme="aubergine"] .filter-bar { background: linear-gradient(90deg, var(--navy), var(--navy-2)); }
+[data-theme="aubergine"] .help-i { background: var(--navy-2); }
+[data-theme="aubergine"] .avatar-lg { background: var(--gold-tint); color: var(--gold-deep); }
+
+/* ---------- Login: the sun rises and the Bhaskar logo opens out of it (Bhaskar = the sun) ----------
+   The real logo image is used, so its colours stay exactly as they are. The end state is the plain style; the animations
+   only play "from" it, so with reduced motion the logo simply shows. The sun stops where it sits in the logo: 12.8 % in
+   from the left and 44.7 % down the image (bhaskar-logo.png is 701 × 235). */
+.login-wrap { position: relative; overflow: hidden; isolation: isolate; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; min-height: 100vh; min-height: 100dvh; background: #2a1530; }
+.login-sky { position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, #1e0f24 0%, #3b1f3f 55%, #563058 100%); }
+.sky-dawn { position: absolute; inset: 0; background: linear-gradient(180deg, #fbe7c4 0%, #f6c873 35%, #eda43a 62%, #c9652d 100%); animation: sky-dawn 2.8s ease-out 0.4s backwards; }
+@keyframes sky-dawn { from { opacity: 0; } }
+.sky-hills { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 24vh; fill: #3b1f3f; opacity: 0.92; }
+.login-logo { --w: 320px; --pad-x: 18px; --pad-y: 14px; --sx: calc(var(--pad-x) + var(--w) * 0.128); --sy: calc(var(--pad-y) + var(--w) * 0.3352 * 0.447); --sun: calc(var(--w) * 0.17); position: relative; flex: none; }
+.logo-plate { padding: var(--pad-y) var(--pad-x); background: #fff; border-radius: 18px; box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.35), 0 16px 44px rgba(30, 15, 36, 0.3); animation: logo-open 4s ease backwards; }
+.logo-plate img { display: block; width: var(--w); height: auto; }
+@keyframes logo-open { 0%, 58% { clip-path: circle(0px at var(--sx) var(--sy)); } 100% { clip-path: circle(var(--w) at var(--sx) var(--sy)); } }
+/* the rising sun: logo-like red-orange disc with a glow; it fades into the logo's own sun */
+.logo-sun { position: absolute; z-index: 1; left: calc(var(--sx) - var(--sun) / 2); top: calc(var(--sy) - var(--sun) / 2); width: var(--sun); height: var(--sun); border-radius: 50%; background: radial-gradient(circle, #ffe27a 0%, #ffb52e 40%, #f26b1d 75%, #d9361b 100%); box-shadow: 0 0 30px 12px rgba(255, 180, 60, 0.7), 0 0 90px 40px rgba(255, 150, 40, 0.35); opacity: 0; animation: logo-sun 3.9s cubic-bezier(0.22, 1, 0.36, 1) 0.2s backwards; }
+@keyframes logo-sun { 0% { transform: translateY(70vh) scale(0.8); opacity: 1; } 58% { transform: none; opacity: 1; } 88% { opacity: 1; } 100% { transform: none; opacity: 0; } }
+.login-wrap .login { position: relative; animation: login-card 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.6s backwards; box-shadow: 0 18px 50px rgba(30, 15, 36, 0.35); }
+@keyframes login-card { from { opacity: 0; transform: translateY(14px); } }
+@media (max-width: 640px) {
+  .login-logo { --w: 230px; --pad-x: 14px; --pad-y: 10px; }
+  .login-wrap { gap: 14px; justify-content: flex-start; padding-top: 36px; }
+}
