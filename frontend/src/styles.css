@@ -1610,6 +1610,7 @@ html[data-theme="aubergine"],
 .ai-input .btn { min-height: 44px; }
 .ai-foot { margin: 8px 0 0; }
 .ai-off { border: 1px solid var(--stroke-30); }
+.ai-problems { margin: 8px 0 0; padding-left: 18px; color: var(--bad, #b91c1c); font-weight: 600; }
 @media (max-width: 760px) {
   .ai-layout { grid-template-columns: minmax(0, 1fr); }
   .ai-list-toggle { display: inline-flex; }

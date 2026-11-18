@@ -25,7 +25,7 @@ function countToday(userId: string) {
 const isId = (s) => /^[0-9a-f]{24}$/i.test(String(s || ""));
 
 router.get("/status", (req, res) => {
-  res.json({ enabled: agent.enabled(), provider: agent.providerName(), model: agent.model(), chain: agent.chainStatus(), dailyLimit: DAILY_LIMIT(), usedToday: countToday(String(req.user._id)).n });
+  res.json({ enabled: agent.enabled(), provider: agent.providerName(), model: agent.model(), chain: agent.chainStatus(), problems: agent.setupProblems(), dailyLimit: DAILY_LIMIT(), usedToday: countToday(String(req.user._id)).n });
 });
 
 router.get("/conversations", async (req, res) => {

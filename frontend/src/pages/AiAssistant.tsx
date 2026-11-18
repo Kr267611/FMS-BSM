@@ -112,6 +112,13 @@ export default function AiAssistant() {
       {status && !status.enabled && (
         <div className="card ai-off">
           <b>AI abhi band hai.</b> Server pe (Render → Environment) Claude ke liye <code>ANTHROPIC_API_KEY</code>, ya free model ke liye <code>AI_PROVIDER</code> + <code>AI_API_KEY</code> + <code>AI_MODEL</code> lagana hai. Uske baad yahan sawaal pooch sakte ho.
+          {!!status.problems?.length && (
+            <ul className="ai-problems">
+              {status.problems.map((p) => (
+                <li key={p}>{p}</li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 

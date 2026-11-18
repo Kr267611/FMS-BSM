@@ -25,28 +25,48 @@ interface Link {
 }
 
 // The OpenAI-compatible models in order: main, then backups. One without a key, model or address is left out.
+// Settings pasted into a hosting dashboard often carry spaces or quotes around them
+const env = (name: string) =>
+  String(process.env[name] || "")
+    .trim()
+    .replace(/^["']|["']$/g, "")
+    .trim();
+
+function readLink(prefix: string): Link {
+  const name = env(`${prefix}PROVIDER`).toLowerCase();
+  const baseUrl = (env(`${prefix}BASE_URL`) || BASE_URLS[name] || "").replace(/\/+$/, "");
+  return { name, baseUrl, apiKey: env(`${prefix}API_KEY`), model: env(`${prefix}MODEL`) };
+}
+
 function chain(): Link[] {
-  const env = process.env;
-  const read = (prefix: string): Link => {
-    const name = String(env[`${prefix}PROVIDER`] || "").toLowerCase();
-    const baseUrl = String(env[`${prefix}BASE_URL`] || BASE_URLS[name] || "").replace(/\/+$/, "");
-    return { name, baseUrl, apiKey: String(env[`${prefix}API_KEY`] || ""), model: String(env[`${prefix}MODEL`] || "") };
-  };
-  const links = [read("AI_"), read("AI_FALLBACK_1_"), read("AI_FALLBACK_2_"), read("AI_FALLBACK_3_")];
+  const links = ["AI_", "AI_FALLBACK_1_", "AI_FALLBACK_2_", "AI_FALLBACK_3_"].map(readLink);
   return links.filter((l) => l.name && l.name !== "anthropic" && l.baseUrl && l.model && (l.apiKey || fetchOverride));
 }
 
 // Which kind of model runs: AI_PROVIDER wins; otherwise Claude when its key is there
 function provider(): "anthropic" | "openai" | null {
-  const p = String(process.env.AI_PROVIDER || "").toLowerCase();
-  if (p === "anthropic" || !p) return clientOverride || process.env.ANTHROPIC_API_KEY ? "anthropic" : null;
+  const p = env("AI_PROVIDER").toLowerCase();
+  if (p === "anthropic" || !p) return clientOverride || env("ANTHROPIC_API_KEY") ? "anthropic" : null;
   return chain().length && chain()[0].name === p ? "openai" : null;
+}
+
+// When the AI is off: what is missing, in words for the admin (names of settings only, never their values)
+function setupProblems(): string[] {
+  if (provider()) return [];
+  const p = env("AI_PROVIDER").toLowerCase();
+  if (!p || p === "anthropic") return [p ? "AI_PROVIDER is anthropic but ANTHROPIC_API_KEY is empty" : "No AI is set: add AI_PROVIDER (e.g. gemini), AI_API_KEY and AI_MODEL – or ANTHROPIC_API_KEY for Claude"];
+  const main = readLink("AI_");
+  const out = [];
+  if (!main.baseUrl) out.push(`AI_PROVIDER "${p}" is not known – use gemini, groq, openrouter, or openai-compatible with AI_BASE_URL`);
+  if (!main.apiKey) out.push("AI_API_KEY is empty or missing");
+  if (!main.model) out.push("AI_MODEL is empty or missing");
+  return out.length ? out : ["The main AI setting is incomplete"];
 }
 // What a chat is stored as: Claude's message format, or the OpenAI-compatible one shared by the whole chain
 const family = () => provider();
 const providerName = () => (provider() === "anthropic" ? "anthropic" : provider() === "openai" ? chain()[0].name : null);
-const MODEL = () => (provider() === "anthropic" ? process.env.AI_MODEL || "claude-opus-5-5" : provider() === "openai" ? chain()[0].model : "");
-const EFFORT = () => (["low", "medium", "high", "xhigh", "max"].includes(process.env.AI_EFFORT) ? process.env.AI_EFFORT : "medium") as any;
+const MODEL = () => (provider() === "anthropic" ? env("AI_MODEL") || "claude-opus-5-5" : provider() === "openai" ? chain()[0].model : "");
+const EFFORT = () => (["low", "medium", "high", "xhigh", "max"].includes(env("AI_EFFORT")) ? env("AI_EFFORT") : "medium") as any;
 
 // Stable text first so the prompt cache holds across turns; today's date goes into each question instead.
 const SYSTEM = `You are the AI assistant inside FMS BSM, the work-management app of a textile company. It replaces the
@@ -233,6 +253,7 @@ export = {
   providerName,
   family,
   chainStatus,
+  setupProblems,
   setClientForTests: (c) => (clientOverride = c),
   setFetchForTests: (f) => {
     fetchOverride = f;

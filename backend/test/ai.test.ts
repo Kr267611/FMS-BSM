@@ -358,6 +358,32 @@ test("free model: tool calls go through the OpenAI-compatible API; changing the 
   }
 });
 
+test("setup: settings with spaces or quotes still work; a missing setting is named on the page", async () => {
+  agent().setClientForTests(null);
+  agent().setFetchForTests(null);
+  try {
+    Object.assign(process.env, { AI_PROVIDER: " Gemini ", AI_API_KEY: ' "k-123" ', AI_MODEL: "gemini-3.8-flash " });
+    let s = (await call("admin", "/ai/status")).data;
+    assert.deepStrictEqual([s.enabled, s.provider, s.model, s.problems], [true, "gemini", "gemini-3.8-flash", []]);
+
+    delete process.env.AI_MODEL;
+    s = (await call("admin", "/ai/status")).data;
+    assert.strictEqual(s.enabled, false);
+    assert.deepStrictEqual(s.problems, ["AI_MODEL is empty or missing"]);
+
+    Object.assign(process.env, { AI_PROVIDER: "gemnii", AI_MODEL: "m" });
+    s = (await call("admin", "/ai/status")).data;
+    assert.match(s.problems[0], /AI_PROVIDER "gemnii" is not known/);
+    assert.ok(!JSON.stringify(s).includes("k-123"), "the key never appears in the status");
+
+    for (const k of ["AI_PROVIDER", "AI_API_KEY", "AI_MODEL"]) delete process.env[k];
+    s = (await call("admin", "/ai/status")).data;
+    assert.match(s.problems[0], /No AI is set/);
+  } finally {
+    for (const k of ["AI_PROVIDER", "AI_API_KEY", "AI_MODEL"]) delete process.env[k];
+  }
+});
+
 test("backup chain: Gemini fails -> Groq answers; a failed model rests; all failing gives a clear error", async () => {
   agent().setClientForTests(null);
   const CHAIN = {
