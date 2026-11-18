@@ -37,6 +37,7 @@ import AuditList from "./pages/AuditList";
 import AuditorReport from "./pages/AuditorReport";
 import EffortReport from "./pages/EffortReport";
 import Checklists from "./pages/Checklists";
+import AiAssistant from "./pages/AiAssistant";
 import ChecklistBulk from "./pages/ChecklistBulk";
 import Delegations from "./pages/Delegations";
 import Jobs from "./pages/Jobs";
@@ -100,7 +101,10 @@ type MenuItem = { to: string; label: string; end?: boolean; show?: boolean; soon
 // Menu grouped the way MIDAP users know it. `soon` items are planned milestones, shown to admins only.
 function menuFor(user) {
   const groups: { title: string; items: MenuItem[] }[] = [
-    { title: "My Work", items: [{ to: "/dashboard", label: "Dashboard" }, { to: "/", label: "My Tasks", end: true }] },
+    {
+      title: "My Work",
+      items: [{ to: "/dashboard", label: "Dashboard" }, { to: "/", label: "My Tasks", end: true }, { to: "/ai", label: "AI Assistant", show: isAdmin(user) }],
+    },
     {
       title: "Master Tasks",
       items: [
@@ -378,6 +382,7 @@ function Shell() {
             <Route path="/" element={<MyTasks />} />
             <Route path="/account" element={<Account />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/ai" element={guard(isAdmin(user), <AiAssistant />)} />
             <Route path="/mis/performance" element={guard(can(user, "performance"), <Performance />)} />
             <Route path="/reports/meeting" element={guard(can(user, "misMeeting"), <MeetingReport />)} />
             <Route path="/mis/weekly" element={guard(can(user, "weeklyMis"), <WeeklyMis />)} />

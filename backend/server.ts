@@ -81,6 +81,7 @@ app.use("/api/hr", require("./routes/hr"));
 app.use("/api/attendance", require("./routes/attendance"));
 app.use("/api/tickets", require("./routes/tickets"));
 app.use("/api/kra", require("./routes/kra"));
+app.use("/api/ai", require("./routes/ai"));
 app.get("/api/health", (req, res) => res.json({ ok: true }));
 app.use("/api", (req, res) => res.status(404).json({ message: "API route not found" }));
 

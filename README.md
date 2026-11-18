@@ -24,6 +24,7 @@ A Flow Management System with MIS scoring for Bhaskar Silk Mills. It replaces th
 | Reminders | Admin | Daily email; click-to-send WhatsApp |
 | KRA / KPI | Admin, HR (policies); HOD, PC, Team Leader (scorecards); everyone (own) | KRA policies for departments, roles or named people: KRAs with weights, KPIs with targets (done %, on time %, MIS score, pending, average delay, audit OK %; of all work, a kind or one FMS). The monthly scorecard counts itself from the tasks like the MIS (achievement 0–120 %). A change counts from next month (or this month with a reason); a passed month keeps its version |
 | Users & Org | Admin, HOD | Users, bulk upload, branches, departments, roles and page permissions, audit log |
+| AI Assistant | Admin (for now) | Ask in Hinglish ("aaj kya overdue hai?", "is mahine sabse kharab score kiska?"). Claude answers from the app's own data through read-only tools – people, MIS score, tasks by status, FMS overview, entries and one entry's steps – seeing only what the signed-in person may see. It cannot change anything. Off until `ANTHROPIC_API_KEY` is set |
 
 **On a phone** (up to 640 px wide) the app works like a phone app: a tab bar at the bottom (Tasks, Dashboard, then the first two of Attendance / FMS Entries / Raise Ticket / My Scorecard the person may open, and Menu for everything else), the page name in the top bar, Logout at the bottom of the menu. My Tasks shows the four counts in one row with search and filters folded under one button, and a wide Done button; pop-ups (an entry, a column filter) open from the bottom; MIS tables keep the doer's name in view with the score under it. Tablets get the page name and the menu button. The app does not zoom on a phone (no pinch, double-tap or zoom into a text box; a photo opens in its own tab and can be zoomed there), the page never slides sideways (wide tables scroll inside their own box) and the text keeps its size when the phone turns. Cards fade in without zooming, and hover effects are off on touch screens. Checked from 320 px wide.
 
@@ -113,6 +114,21 @@ REMINDER_TIME=09:00
 ```
 
 To create an app password: Google Account → Security → turn on 2-Step Verification → App passwords. Add each doer's email address on the Users page.
+
+## AI Assistant
+
+Set on the server (Render → Environment) – never in git or chat:
+
+```
+ANTHROPIC_API_KEY=<key from console.anthropic.com>
+AI_MODEL=claude-opus-5-5     # optional; the default
+AI_EFFORT=medium             # optional: low | medium | high
+AI_DAILY_LIMIT=200           # optional: questions per person per day
+```
+
+The assistant (menu **My Work → AI Assistant**, admins only) runs a tool loop on the backend (`backend/services/ai/`): Claude asks for data, the server runs the tool as the signed-in user, and Claude answers. Tools only read. Chats are saved per person (append-only); if the model declines a question, the API retries it on a fallback model. Each question is billed by Anthropic – see the usage page in the Anthropic Console.
+
+The Google Sheets MCP server for Claude Desktop / Claude Code is separate: `tools/sheets-mcp/README.md`.
 
 ## Deploying (Vercel frontend + Render backend)
 
