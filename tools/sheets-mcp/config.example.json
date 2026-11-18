@@ -1,0 +1,14 @@
+{
+  "write": [
+    {
+      "spreadsheetId": "https://docs.google.com/spreadsheets/d/PUT-THE-SHEET-ID-HERE/edit",
+      "tab": "SPARE PART",
+      "columns": ["AI", "AK", "AL"],
+      "firstRow": 8,
+      "note": "Store step: Actual, Status, Remarks – only empty cells, only after approval"
+    }
+  ],
+  "dataDir": ".data",
+  "maxCellsPerProposal": 50,
+  "proposalMinutes": 15
+}
