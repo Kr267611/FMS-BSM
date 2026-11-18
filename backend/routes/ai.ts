@@ -25,7 +25,7 @@ function countToday(userId: string) {
 const isId = (s) => /^[0-9a-f]{24}$/i.test(String(s || ""));
 
 router.get("/status", (req, res) => {
-  res.json({ enabled: agent.enabled(), provider: agent.providerName(), model: agent.model(), dailyLimit: DAILY_LIMIT(), usedToday: countToday(String(req.user._id)).n });
+  res.json({ enabled: agent.enabled(), provider: agent.providerName(), model: agent.model(), chain: agent.chainStatus(), dailyLimit: DAILY_LIMIT(), usedToday: countToday(String(req.user._id)).n });
 });
 
 router.get("/conversations", async (req, res) => {
@@ -62,9 +62,11 @@ router.post("/chat", async (req, res) => {
     convo = await AiConversation.findOne({ _id: req.body.conversationId, user: req.user._id });
     if (!convo) return res.status(404).json({ message: "Conversation not found" });
     if (convo.turns.filter((t) => t.role === "user").length >= MAX_TURNS) return res.status(400).json({ message: "This chat is long – start a new chat" });
-    if ((convo.provider || "anthropic") !== agent.providerName()) return res.status(400).json({ message: "The AI model was changed – start a new chat" });
+    // a chat keeps the message format of its kind of model: Claude, or the OpenAI-compatible chain (any of its models)
+    const familyOf = (p) => (!p || p === "anthropic" ? "anthropic" : "openai");
+    if (familyOf(convo.provider) !== agent.family()) return res.status(400).json({ message: "The AI model was changed – start a new chat" });
   } else {
-    convo = new AiConversation({ user: req.user._id, provider: agent.providerName(), title: question.slice(0, 80), messages: [], turns: [] });
+    convo = new AiConversation({ user: req.user._id, provider: agent.family(), title: question.slice(0, 80), messages: [], turns: [] });
   }
 
   const key = String(convo._id);
@@ -75,7 +77,7 @@ router.post("/chat", async (req, res) => {
     const out = await agent.ask({ user: req.user, messages, question });
     asked.set(userId, { day: today.day, n: today.n + 1 });
     convo.messages = messages;
-    convo.turns.push({ role: "user", text: question, at: new Date() }, { role: "assistant", text: out.text, steps: out.steps, at: new Date() });
+    convo.turns.push({ role: "user", text: question, at: new Date() }, { role: "assistant", text: out.text, steps: out.steps, servedBy: out.servedBy, at: new Date() });
     convo.usage = {
       input: (convo.usage?.input || 0) + out.usage.input,
       output: (convo.usage?.output || 0) + out.usage.output,
@@ -83,8 +85,8 @@ router.post("/chat", async (req, res) => {
     };
     convo.markModified("messages");
     await convo.save();
-    audit(req, "ai.ask", { entity: "AiConversation", entityId: key, summary: `${out.steps.length} tool calls · ${out.stop}` });
-    res.json({ conversationId: key, reply: out.text, steps: out.steps });
+    audit(req, "ai.ask", { entity: "AiConversation", entityId: key, summary: `${out.steps.length} tool calls · ${out.stop} · ${out.servedBy.join(", ")}` });
+    res.json({ conversationId: key, reply: out.text, steps: out.steps, servedBy: out.servedBy });
   } catch (err) {
     const status = err?.status;
     const message =

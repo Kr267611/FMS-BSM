@@ -133,6 +133,13 @@ AI_API_KEY=<key from that provider>
 AI_MODEL=<a model of that provider that supports tool / function calling>
 ```
 
+**Backup models (optional):** up to three, tried in order when the main one fails (daily limit used up, error, outage); a failed model rests for a minute (10 minutes for a wrong key or model name) and the page shows which model answered:
+
+```
+AI_FALLBACK_1_PROVIDER=groq        AI_FALLBACK_1_API_KEY=...   AI_FALLBACK_1_MODEL=...
+AI_FALLBACK_2_PROVIDER=openrouter  AI_FALLBACK_2_API_KEY=...   AI_FALLBACK_2_MODEL=...
+```
+
 `AI_PROVIDER` decides which one runs; without it, Claude runs when `ANTHROPIC_API_KEY` is set. `AI_DAILY_LIMIT` (default 200) caps questions per person per day. Changing the model starts new chats (old chats stay readable).
 
 **Google Sheets:** the sheet tools use the same read-only service account as Sheet Links – share a sheet with its email (Sheet Links page) as Viewer, then give the AI the sheet's link.

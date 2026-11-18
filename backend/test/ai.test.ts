@@ -357,3 +357,83 @@ test("free model: tool calls go through the OpenAI-compatible API; changing the 
     agent().setFetchForTests(null);
   }
 });
+
+test("backup chain: Gemini fails -> Groq answers; a failed model rests; all failing gives a clear error", async () => {
+  agent().setClientForTests(null);
+  const CHAIN = {
+    AI_PROVIDER: "gemini", AI_API_KEY: "g-key", AI_MODEL: "g-model",
+    AI_FALLBACK_1_PROVIDER: "groq", AI_FALLBACK_1_API_KEY: "q-key", AI_FALLBACK_1_MODEL: "q-model",
+    AI_FALLBACK_2_PROVIDER: "openrouter", AI_FALLBACK_2_API_KEY: "o-key", AI_FALLBACK_2_MODEL: "o-model",
+  };
+  const json = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { "Content-Type": "application/json" } });
+  const answer = (text) => json({ choices: [{ finish_reason: "stop", message: { role: "assistant", content: text } }], usage: { prompt_tokens: 10, completion_tokens: 2 } });
+  const who = (url) => (url.includes("generativelanguage") ? "gemini" : url.includes("groq") ? "groq" : "openrouter");
+  let hits = [];
+  let plan: Record<string, (body) => Response> = {};
+  Object.assign(process.env, CHAIN);
+  agent().setFetchForTests(async (url, opts) => {
+    const body = JSON.parse(opts.body);
+    hits.push([who(url), body.model, opts.headers.Authorization]);
+    return plan[who(url)](body);
+  });
+  try {
+    const status = (await call("admin", "/ai/status")).data;
+    assert.deepStrictEqual(status.chain.map((c) => [c.provider, c.model, c.role, c.resting]), [["gemini", "g-model", "main", false], ["groq", "q-model", "backup 1", false], ["openrouter", "o-model", "backup 2", false]]);
+
+    // 1. Gemini's limit is used up -> the same question goes to Groq, with Groq's own key and model
+    plan = { gemini: () => json({ error: { message: "Quota exceeded" } }, 429), groq: () => answer("Groq se jawab"), openrouter: () => answer("x") };
+    const r = await post("admin", "/ai/chat", { message: "Overdue?" });
+    assert.strictEqual(r.status, 200, r.data.message);
+    assert.strictEqual(r.data.reply, "Groq se jawab");
+    assert.deepStrictEqual(r.data.servedBy, ["groq/q-model"]);
+    assert.deepStrictEqual(hits, [["gemini", "g-model", "Bearer g-key"], ["groq", "q-model", "Bearer q-key"]]);
+
+    // 2. Gemini now rests: the next question goes straight to Groq, in the same chat
+    hits = [];
+    const r2 = await post("admin", "/ai/chat", { conversationId: r.data.conversationId, message: "Aur?" });
+    assert.strictEqual(r2.status, 200, r2.data.message);
+    assert.deepStrictEqual(hits.map((h) => h[0]), ["groq"]);
+    assert.strictEqual((await call("admin", "/ai/status")).data.chain[0].resting, true);
+    const saved = (await call("admin", `/ai/conversations/${r.data.conversationId}`)).data.turns;
+    assert.deepStrictEqual(saved.filter((t) => t.role === "assistant").map((t) => t.servedBy), [["groq/q-model"], ["groq/q-model"]]);
+
+    // 3. A model can drop out between rounds: Gemini asks for a tool, then fails; Groq finishes with the tool result
+    agent().setFetchForTests(async (url, opts) => {
+      const body = JSON.parse(opts.body);
+      hits.push([who(url), body.model]);
+      return plan[who(url)](body);
+    });
+    hits = [];
+    let geminiCalls = 0;
+    plan = {
+      gemini: () =>
+        ++geminiCalls === 1
+          ? json({ choices: [{ finish_reason: "tool_calls", message: { role: "assistant", content: null, tool_calls: [{ id: "g1", type: "function", function: { name: "fms_overview", arguments: "{}" } }] } }] })
+          : json({ error: { message: "Server error" } }, 500),
+      groq: (body) => {
+        assert.strictEqual(body.messages.at(-1).role, "tool", "Groq gets the tool result Gemini asked for");
+        return answer("FMS ka haal ye hai");
+      },
+      openrouter: () => answer("x"),
+    };
+    const r3 = await post("admin", "/ai/chat", { message: "FMS?" });
+    assert.strictEqual(r3.data.reply, "FMS ka haal ye hai");
+    assert.deepStrictEqual(r3.data.servedBy, ["gemini/g-model", "groq/q-model"]);
+    assert.deepStrictEqual(hits.map((h) => h[0]), ["gemini", "gemini", "groq"]);
+
+    // 4. Everyone fails -> one clear error, nothing saved as an answer
+    agent().setFetchForTests(async () => json({ error: { message: "down" } }, 503));
+    const dead = await post("admin", "/ai/chat", { message: "x" });
+    assert.strictEqual(dead.status, 502);
+    assert.match(dead.data.message, /AI service had a problem/);
+
+    // 5. A chat with any model of the chain can go on with the chain (same message format); a Claude chat cannot
+    agent().setFetchForTests(async () => answer("ok"));
+    const chats = (await call("admin", "/ai/conversations")).data;
+    const groqChat = chats.find((c) => c.title === "Overdue?" && c._id !== r.data.conversationId);
+    assert.strictEqual((await post("admin", "/ai/chat", { conversationId: groqChat._id, message: "aur?" })).status, 200, "the earlier Groq-only chat continues");
+  } finally {
+    for (const k of Object.keys(CHAIN)) delete process.env[k];
+    agent().setFetchForTests(null);
+  }
+});

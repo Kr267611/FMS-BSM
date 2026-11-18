@@ -6,7 +6,8 @@ const aiConversationSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
     title: { type: String, default: "" },
-    // which kind of model the chat was with ("anthropic", "groq", "gemini"…): its messages are in that format
+    // which kind of model the chat is with: "anthropic" (Claude) or "openai" (the OpenAI-compatible chain:
+    // Gemini, Groq, OpenRouter…) – its messages are in that format
     provider: { type: String, default: "anthropic" },
     messages: { type: [mongoose.Schema.Types.Mixed], default: [] },
     turns: {
@@ -16,6 +17,7 @@ const aiConversationSchema = new mongoose.Schema(
           role: { type: String, enum: ["user", "assistant"] },
           text: String,
           steps: [{ _id: false, tool: String, input: mongoose.Schema.Types.Mixed, ok: Boolean }],
+          servedBy: [String], // which model(s) answered, e.g. "gemini/<model>"
           at: Date,
         },
       ],

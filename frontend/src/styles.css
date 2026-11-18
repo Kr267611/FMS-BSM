@@ -1601,6 +1601,7 @@ html[data-theme="aubergine"],
 .ai-bubble { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; padding: 10px 14px; border-radius: 14px; background: var(--glass-10); border: 1px solid var(--stroke-30); }
 .ai-msg.user .ai-bubble { background: var(--primary); color: var(--on-accent); border-color: transparent; }
 .ai-thinking { color: var(--muted); font-style: italic; }
+.ai-served { font-size: 11px; color: var(--muted); margin-top: 4px; padding-left: 4px; }
 .ai-steps { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
 .ai-step { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--tint-good, rgba(22, 163, 74, 0.12)); }
 .ai-step.bad { background: var(--tint-bad); }

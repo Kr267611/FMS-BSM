@@ -2,8 +2,10 @@
 // until it answers. The conversation is append-only (earlier turns are never edited).
 // Two kinds of model:
 //  - "anthropic": Claude through the Anthropic SDK (ANTHROPIC_API_KEY; AI_MODEL default claude-opus-5-5)
-//  - an OpenAI-compatible chat API – free tiers of Groq, Google Gemini or OpenRouter, or any compatible server
-//    (AI_PROVIDER=groq | gemini | openrouter | openai-compatible, AI_API_KEY, AI_MODEL, AI_BASE_URL for the last)
+//  - an OpenAI-compatible chat API – free tiers of Groq, Google Gemini or OpenRouter, or any compatible server –
+//    as a chain: the main one (AI_PROVIDER, AI_API_KEY, AI_MODEL, AI_BASE_URL) and up to three backups
+//    (AI_FALLBACK_1_PROVIDER, _API_KEY, _MODEL, _BASE_URL … _3_). When one fails (limit used up, error, no answer)
+//    the same request goes to the next, and the failed one rests for a while.
 import Anthropic from "@anthropic-ai/sdk";
 import toolsLib = require("./tools");
 
@@ -15,16 +17,35 @@ const BASE_URLS = {
   openrouter: "https://openrouter.ai/api/v1",
 };
 
-// Which model is set up: AI_PROVIDER wins; otherwise Claude when its key is there
+interface Link {
+  name: string;
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+}
+
+// The OpenAI-compatible models in order: main, then backups. One without a key, model or address is left out.
+function chain(): Link[] {
+  const env = process.env;
+  const read = (prefix: string): Link => {
+    const name = String(env[`${prefix}PROVIDER`] || "").toLowerCase();
+    const baseUrl = String(env[`${prefix}BASE_URL`] || BASE_URLS[name] || "").replace(/\/+$/, "");
+    return { name, baseUrl, apiKey: String(env[`${prefix}API_KEY`] || ""), model: String(env[`${prefix}MODEL`] || "") };
+  };
+  const links = [read("AI_"), read("AI_FALLBACK_1_"), read("AI_FALLBACK_2_"), read("AI_FALLBACK_3_")];
+  return links.filter((l) => l.name && l.name !== "anthropic" && l.baseUrl && l.model && (l.apiKey || fetchOverride));
+}
+
+// Which kind of model runs: AI_PROVIDER wins; otherwise Claude when its key is there
 function provider(): "anthropic" | "openai" | null {
   const p = String(process.env.AI_PROVIDER || "").toLowerCase();
-  if (p === "anthropic") return clientOverride || process.env.ANTHROPIC_API_KEY ? "anthropic" : null;
-  if (p) return fetchOverride || (process.env.AI_API_KEY && process.env.AI_MODEL && baseUrl()) ? "openai" : null;
-  return clientOverride || process.env.ANTHROPIC_API_KEY ? "anthropic" : null;
+  if (p === "anthropic" || !p) return clientOverride || process.env.ANTHROPIC_API_KEY ? "anthropic" : null;
+  return chain().length && chain()[0].name === p ? "openai" : null;
 }
-const baseUrl = () => (process.env.AI_BASE_URL || BASE_URLS[String(process.env.AI_PROVIDER || "").toLowerCase()] || "").replace(/\/+$/, "");
-const providerName = () => (provider() === "anthropic" ? "anthropic" : String(process.env.AI_PROVIDER || "").toLowerCase() || null);
-const MODEL = () => process.env.AI_MODEL || (provider() === "anthropic" ? "claude-opus-5-5" : "");
+// What a chat is stored as: Claude's message format, or the OpenAI-compatible one shared by the whole chain
+const family = () => provider();
+const providerName = () => (provider() === "anthropic" ? "anthropic" : provider() === "openai" ? chain()[0].name : null);
+const MODEL = () => (provider() === "anthropic" ? process.env.AI_MODEL || "claude-opus-5-5" : provider() === "openai" ? chain()[0].model : "");
 const EFFORT = () => (["low", "medium", "high", "xhigh", "max"].includes(process.env.AI_EFFORT) ? process.env.AI_EFFORT : "medium") as any;
 
 // Stable text first so the prompt cache holds across turns; today's date goes into each question instead.
@@ -113,12 +134,13 @@ async function askClaude({ user, messages, steps, usage }) {
 // ---------- OpenAI-compatible chat API (Groq, Gemini, OpenRouter…) ----------
 const OPENAI_TOOLS = () => toolsLib.DEFS.map((d) => ({ type: "function", function: { name: d.name, description: d.description, parameters: d.input_schema } }));
 
-async function chatCompletion(body) {
+async function chatCompletion(link: Link, body) {
   const f = fetchOverride || fetch;
-  const res = await f(`${baseUrl()}/chat/completions`, {
+  const res = await f(`${link.baseUrl}/chat/completions`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.AI_API_KEY || ""}` },
-    body: JSON.stringify(body),
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${link.apiKey}` },
+    body: JSON.stringify({ ...body, model: link.model }),
+    signal: AbortSignal.timeout(90000),
   });
   const data: any = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -126,17 +148,45 @@ async function chatCompletion(body) {
     err.status = res.status;
     throw err;
   }
+  if (!data.choices?.[0]?.message) throw Object.assign(new Error("The AI service sent an empty answer"), { status: 502 });
   return data;
 }
 
-async function askOpenAI({ user, messages, steps, usage }) {
+// A model that just failed rests: a wrong key or setting for 10 minutes, a used-up limit or an outage for 1 minute
+const resting = new Map<string, number>();
+const keyOf = (l: Link) => `${l.name}|${l.model}`;
+const restFor = (err) => (err?.status === 401 || err?.status === 403 || err?.status === 404 ? 10 * 60000 : 60000);
+
+// Tries the chain in order (skipping resting models; if all rest, tries them anyway); returns the answer and who gave it
+async function completeWithChain(body) {
+  const links = chain();
+  const now = Date.now();
+  const awake = links.filter((l) => (resting.get(keyOf(l)) || 0) <= now);
+  let last = null;
+  for (const link of awake.length ? awake : links) {
+    try {
+      const data = await chatCompletion(link, body);
+      resting.delete(keyOf(link));
+      return { data, link };
+    } catch (err) {
+      last = err;
+      resting.set(keyOf(link), Date.now() + restFor(err));
+      console.error(`AI ${link.name}/${link.model} failed (${err?.status || "network"}): ${err?.message || err}`);
+    }
+  }
+  const err: any = new Error(links.length > 1 ? `All ${links.length} AI models failed – last: ${last?.message || last}` : last?.message || "AI failed");
+  err.status = last?.status || 503;
+  throw err;
+}
+
+async function askOpenAI({ user, messages, steps, usage, servedBy }) {
   for (let round = 0; round < MAX_ROUNDS; round++) {
-    const data = await chatCompletion({ model: MODEL(), messages: [{ role: "system", content: SYSTEM }, ...messages], tools: OPENAI_TOOLS(), tool_choice: "auto" });
+    const { data, link } = await completeWithChain({ messages: [{ role: "system", content: SYSTEM }, ...messages], tools: OPENAI_TOOLS(), tool_choice: "auto" });
+    servedBy.add(`${link.name}/${link.model}`);
     usage.input += data.usage?.prompt_tokens || 0;
     usage.output += data.usage?.completion_tokens || 0;
-    const choice = data.choices?.[0];
-    const msg = choice?.message;
-    if (!msg) throw new Error("The AI service sent an empty answer");
+    const choice = data.choices[0];
+    const msg = choice.message;
     const calls = Array.isArray(msg.tool_calls) ? msg.tool_calls : [];
     // keep only what the API understands back: role, content, tool_calls
     messages.push({ role: "assistant", content: msg.content ?? "", ...(calls.length ? { tool_calls: calls } : {}) });
@@ -163,9 +213,17 @@ async function askOpenAI({ user, messages, steps, usage }) {
 async function ask({ user, messages, question, now = new Date() }) {
   const steps = [];
   const usage = { input: 0, output: 0, cacheRead: 0 };
+  const servedBy = new Set<string>();
   messages.push({ role: "user", content: `${todayLine(now)}\n${question}` });
-  const out = provider() === "anthropic" ? await askClaude({ user, messages, steps, usage }) : await askOpenAI({ user, messages, steps, usage });
-  return { ...out, steps, usage };
+  const out =
+    provider() === "anthropic" ? await askClaude({ user, messages, steps, usage }) : await askOpenAI({ user, messages, steps, usage, servedBy });
+  return { ...out, steps, usage, servedBy: provider() === "anthropic" ? [`anthropic/${MODEL()}`] : [...servedBy] };
+}
+
+// For the status line: every model in the chain and whether it is resting after a failure
+function chainStatus() {
+  if (provider() !== "openai") return [];
+  return chain().map((l, i) => ({ provider: l.name, model: l.model, role: i === 0 ? "main" : `backup ${i}`, resting: (resting.get(keyOf(l)) || 0) > Date.now() }));
 }
 
 export = {
@@ -173,6 +231,11 @@ export = {
   enabled,
   model: MODEL,
   providerName,
+  family,
+  chainStatus,
   setClientForTests: (c) => (clientOverride = c),
-  setFetchForTests: (f) => (fetchOverride = f),
+  setFetchForTests: (f) => {
+    fetchOverride = f;
+    resting.clear();
+  },
 };
