@@ -325,7 +325,8 @@ test("free model: tool calls go through the OpenAI-compatible API; changing the 
   Object.assign(process.env, { AI_PROVIDER: "groq", AI_API_KEY: "test-key", AI_MODEL: "test-model" });
   try {
     const status = (await call("admin", "/ai/status")).data;
-    assert.deepStrictEqual([status.enabled, status.provider, status.model], [true, "groq", "test-model"]);
+    assert.strictEqual(status.enabled, true);
+    assert.ok(!("model" in status) && !("provider" in status) && !JSON.stringify(status).includes("test-model"), "the page is not told which model runs");
     const r = await post("admin", "/ai/chat", { message: "Overdue?" });
     assert.strictEqual(r.status, 200, r.data.message);
     assert.strictEqual(r.data.reply, "1 kaam overdue hai.");
@@ -364,7 +365,8 @@ test("setup: settings with spaces or quotes still work; a missing setting is nam
   try {
     Object.assign(process.env, { AI_PROVIDER: " Gemini ", AI_API_KEY: ' "k-123" ', AI_MODEL: "gemini-3.8-flash " });
     let s = (await call("admin", "/ai/status")).data;
-    assert.deepStrictEqual([s.enabled, s.provider, s.model, s.problems], [true, "gemini", "gemini-3.8-flash", []]);
+    assert.deepStrictEqual([s.enabled, s.problems], [true, []]);
+    assert.deepStrictEqual([agent().providerName(), agent().model()], ["gemini", "gemini-3.8-flash"]);
 
     delete process.env.AI_MODEL;
     s = (await call("admin", "/ai/status")).data;
@@ -403,15 +405,16 @@ test("backup chain: Gemini fails -> Groq answers; a failed model rests; all fail
     return plan[who(url)](body);
   });
   try {
-    const status = (await call("admin", "/ai/status")).data;
-    assert.deepStrictEqual(status.chain.map((c) => [c.provider, c.model, c.role, c.resting]), [["gemini", "g-model", "main", false], ["groq", "q-model", "backup 1", false], ["openrouter", "o-model", "backup 2", false]]);
+    assert.deepStrictEqual(agent().chainStatus().map((c) => [c.provider, c.model, c.role, c.resting]), [["gemini", "g-model", "main", false], ["groq", "q-model", "backup 1", false], ["openrouter", "o-model", "backup 2", false]]);
+    const servedBy = async (id) => ((await require("../models/AiConversation").findById(id).lean()) as any).turns.filter((x) => x.role === "assistant").map((x) => x.servedBy);
 
     // 1. Gemini's limit is used up -> the same question goes to Groq, with Groq's own key and model
     plan = { gemini: () => json({ error: { message: "Quota exceeded" } }, 429), groq: () => answer("Groq se jawab"), openrouter: () => answer("x") };
     const r = await post("admin", "/ai/chat", { message: "Overdue?" });
     assert.strictEqual(r.status, 200, r.data.message);
     assert.strictEqual(r.data.reply, "Groq se jawab");
-    assert.deepStrictEqual(r.data.servedBy, ["groq/q-model"]);
+    assert.ok(!("servedBy" in r.data), "the answer does not name the model");
+    assert.deepStrictEqual(await servedBy(r.data.conversationId), [["groq/q-model"]], "but the saved chat keeps it");
     assert.deepStrictEqual(hits, [["gemini", "g-model", "Bearer g-key"], ["groq", "q-model", "Bearer q-key"]]);
 
     // 2. Gemini now rests: the next question goes straight to Groq, in the same chat
@@ -419,9 +422,10 @@ test("backup chain: Gemini fails -> Groq answers; a failed model rests; all fail
     const r2 = await post("admin", "/ai/chat", { conversationId: r.data.conversationId, message: "Aur?" });
     assert.strictEqual(r2.status, 200, r2.data.message);
     assert.deepStrictEqual(hits.map((h) => h[0]), ["groq"]);
-    assert.strictEqual((await call("admin", "/ai/status")).data.chain[0].resting, true);
-    const saved = (await call("admin", `/ai/conversations/${r.data.conversationId}`)).data.turns;
-    assert.deepStrictEqual(saved.filter((t) => t.role === "assistant").map((t) => t.servedBy), [["groq/q-model"], ["groq/q-model"]]);
+    assert.strictEqual(agent().chainStatus()[0].resting, true);
+    assert.deepStrictEqual(await servedBy(r.data.conversationId), [["groq/q-model"], ["groq/q-model"]]);
+    const shown = (await call("admin", `/ai/conversations/${r.data.conversationId}`)).data.turns;
+    assert.ok(shown.every((x) => !("servedBy" in x)), "the chat page does not get model names");
 
     // 3. A model can drop out between rounds: Gemini asks for a tool, then fails; Groq finishes with the tool result
     agent().setFetchForTests(async (url, opts) => {
@@ -444,7 +448,7 @@ test("backup chain: Gemini fails -> Groq answers; a failed model rests; all fail
     };
     const r3 = await post("admin", "/ai/chat", { message: "FMS?" });
     assert.strictEqual(r3.data.reply, "FMS ka haal ye hai");
-    assert.deepStrictEqual(r3.data.servedBy, ["gemini/g-model", "groq/q-model"]);
+    assert.deepStrictEqual(await servedBy(r3.data.conversationId), [["gemini/g-model", "groq/q-model"]]);
     assert.deepStrictEqual(hits.map((h) => h[0]), ["gemini", "gemini", "groq"]);
 
     // 4. Everyone fails -> one clear error, nothing saved as an answer

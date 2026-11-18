@@ -25,7 +25,8 @@ function countToday(userId: string) {
 const isId = (s) => /^[0-9a-f]{24}$/i.test(String(s || ""));
 
 router.get("/status", (req, res) => {
-  res.json({ enabled: agent.enabled(), provider: agent.providerName(), model: agent.model(), chain: agent.chainStatus(), problems: agent.setupProblems(), dailyLimit: DAILY_LIMIT(), usedToday: countToday(String(req.user._id)).n });
+  // which model runs is not shown to users; it is kept in each saved answer and in the audit log
+  res.json({ enabled: agent.enabled(), problems: agent.setupProblems(), dailyLimit: DAILY_LIMIT(), usedToday: countToday(String(req.user._id)).n });
 });
 
 router.get("/conversations", async (req, res) => {
@@ -35,9 +36,9 @@ router.get("/conversations", async (req, res) => {
 
 router.get("/conversations/:id", async (req, res) => {
   if (!isId(req.params.id)) return res.status(404).json({ message: "Conversation not found" });
-  const c = await AiConversation.findOne({ _id: req.params.id, user: req.user._id }).select("title turns updatedAt").lean();
+  const c: any = await AiConversation.findOne({ _id: req.params.id, user: req.user._id }).select("title turns updatedAt").lean();
   if (!c) return res.status(404).json({ message: "Conversation not found" });
-  res.json(c);
+  res.json({ ...c, turns: c.turns.map(({ servedBy, ...t }) => t) });
 });
 
 router.delete("/conversations/:id", async (req, res) => {
@@ -86,7 +87,7 @@ router.post("/chat", async (req, res) => {
     convo.markModified("messages");
     await convo.save();
     audit(req, "ai.ask", { entity: "AiConversation", entityId: key, summary: `${out.steps.length} tool calls · ${out.stop} · ${out.servedBy.join(", ")}` });
-    res.json({ conversationId: key, reply: out.text, steps: out.steps, servedBy: out.servedBy });
+    res.json({ conversationId: key, reply: out.text, steps: out.steps });
   } catch (err) {
     const status = err?.status;
     const message =

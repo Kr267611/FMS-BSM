@@ -24,7 +24,7 @@ const SUGGESTIONS = [
   "Is Google Sheet ke tabs dikhao: <link>",
 ];
 
-type Turn = { role: "user" | "assistant"; text: string; steps?: { tool: string; ok: boolean }[]; servedBy?: string[] };
+type Turn = { role: "user" | "assistant"; text: string; steps?: { tool: string; ok: boolean }[] };
 
 export default function AiAssistant() {
   const [status, setStatus] = useState<any>(null);
@@ -83,7 +83,7 @@ export default function AiAssistant() {
     try {
       const r = await api("/ai/chat", { method: "POST", body: { conversationId: chatId, message: q } });
       setChatId(r.conversationId);
-      setTurns((t) => [...t, { role: "assistant", text: r.reply, steps: r.steps, servedBy: r.servedBy }]);
+      setTurns((t) => [...t, { role: "assistant", text: r.reply, steps: r.steps }]);
       setStatus((s) => (s ? { ...s, usedToday: (s.usedToday || 0) + 1 } : s));
       if (!chatId) loadChats();
     } catch (e) {
@@ -165,7 +165,6 @@ export default function AiAssistant() {
                   </div>
                 )}
                 <div className="ai-bubble">{t.text}</div>
-                {!!t.servedBy?.length && <div className="ai-served">{t.servedBy.join(" → ")}</div>}
               </div>
             ))}
             {busy && (
@@ -204,10 +203,7 @@ export default function AiAssistant() {
           </form>
           {status?.enabled && (
             <p className="muted small ai-foot">
-              {status.chain?.length > 1
-                ? status.chain.map((c) => `${c.role === "main" ? "" : "backup: "}${c.provider}${c.resting ? " (aaram pe)" : ""}`).join(" · ")
-                : status.model}{" "}
-              · Aaj {status.usedToday || 0} / {status.dailyLimit} sawaal · AI galti kar sakta hai – zaroori number app me check kar lo.
+              Aaj {status.usedToday || 0} / {status.dailyLimit} sawaal · AI galti kar sakta hai – zaroori number app me check kar lo.
             </p>
           )}
         </section>
