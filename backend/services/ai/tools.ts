@@ -9,6 +9,7 @@ import Process = require("../../models/Process");
 import scoringLib = require("../scoring");
 import scopeLib = require("../scope");
 import datesLib = require("../dates");
+import sheetTools = require("./sheetTools");
 const { misReport } = scoringLib;
 const { visibleUserIds } = scopeLib;
 const { todayKey, addDaysKey } = datesLib;
@@ -290,6 +291,7 @@ const DEFS = [
 ];
 
 const RUN = {
+  ...sheetTools.RUN,
   find_people: findPeople,
   mis_scores: misScores,
   list_tasks: listTasks,
@@ -304,4 +306,4 @@ async function runTool(user, name: string, input: any) {
   return fn(user, input && typeof input === "object" ? input : {});
 }
 
-export = { DEFS, runTool, resolvePerson };
+export = { DEFS: [...DEFS, ...sheetTools.DEFS], runTool, resolvePerson };

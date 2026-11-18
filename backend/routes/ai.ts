@@ -25,7 +25,7 @@ function countToday(userId: string) {
 const isId = (s) => /^[0-9a-f]{24}$/i.test(String(s || ""));
 
 router.get("/status", (req, res) => {
-  res.json({ enabled: agent.enabled(), model: agent.model(), dailyLimit: DAILY_LIMIT(), usedToday: countToday(String(req.user._id)).n });
+  res.json({ enabled: agent.enabled(), provider: agent.providerName(), model: agent.model(), dailyLimit: DAILY_LIMIT(), usedToday: countToday(String(req.user._id)).n });
 });
 
 router.get("/conversations", async (req, res) => {
@@ -48,7 +48,7 @@ router.delete("/conversations/:id", async (req, res) => {
 });
 
 router.post("/chat", async (req, res) => {
-  if (!agent.enabled()) return res.status(503).json({ message: "AI is off: set ANTHROPIC_API_KEY on the server (Render → Environment)." });
+  if (!agent.enabled()) return res.status(503).json({ message: "AI is off: set ANTHROPIC_API_KEY, or AI_PROVIDER + AI_API_KEY + AI_MODEL for a free model, on the server (Render → Environment)." });
   const question = String(req.body?.message || "").trim();
   if (!question) return res.status(400).json({ message: "Type a question" });
   if (question.length > 4000) return res.status(400).json({ message: "Question is too long (max 4000 characters)" });
@@ -62,8 +62,9 @@ router.post("/chat", async (req, res) => {
     convo = await AiConversation.findOne({ _id: req.body.conversationId, user: req.user._id });
     if (!convo) return res.status(404).json({ message: "Conversation not found" });
     if (convo.turns.filter((t) => t.role === "user").length >= MAX_TURNS) return res.status(400).json({ message: "This chat is long – start a new chat" });
+    if ((convo.provider || "anthropic") !== agent.providerName()) return res.status(400).json({ message: "The AI model was changed – start a new chat" });
   } else {
-    convo = new AiConversation({ user: req.user._id, title: question.slice(0, 80), messages: [], turns: [] });
+    convo = new AiConversation({ user: req.user._id, provider: agent.providerName(), title: question.slice(0, 80), messages: [], turns: [] });
   }
 
   const key = String(convo._id);
@@ -87,8 +88,8 @@ router.post("/chat", async (req, res) => {
   } catch (err) {
     const status = err?.status;
     const message =
-      status === 401 ? "AI key is not valid – check ANTHROPIC_API_KEY" : status === 429 ? "AI is busy (rate limit) – try again in a minute" : status >= 500 ? "AI service had a problem – try again" : err?.message || "AI failed";
-    res.status(status === 401 || status === 429 || status >= 500 ? 502 : 500).json({ message });
+      status === 401 || status === 403 ? "AI key is not valid – check the key on the server" : status === 429 ? "AI is busy (rate limit) – try again in a minute" : status >= 500 ? "AI service had a problem – try again" : err?.message || "AI failed";
+    res.status(status === 401 || status === 403 || status === 429 || status >= 500 ? 502 : 500).json({ message });
   } finally {
     busy.delete(key);
   }

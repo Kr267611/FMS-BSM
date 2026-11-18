@@ -24,7 +24,7 @@ A Flow Management System with MIS scoring for Bhaskar Silk Mills. It replaces th
 | Reminders | Admin | Daily email; click-to-send WhatsApp |
 | KRA / KPI | Admin, HR (policies); HOD, PC, Team Leader (scorecards); everyone (own) | KRA policies for departments, roles or named people: KRAs with weights, KPIs with targets (done %, on time %, MIS score, pending, average delay, audit OK %; of all work, a kind or one FMS). The monthly scorecard counts itself from the tasks like the MIS (achievement 0–120 %). A change counts from next month (or this month with a reason); a passed month keeps its version |
 | Users & Org | Admin, HOD | Users, bulk upload, branches, departments, roles and page permissions, audit log |
-| AI Assistant | Admin (for now) | Ask in Hinglish ("aaj kya overdue hai?", "is mahine sabse kharab score kiska?"). Claude answers from the app's own data through read-only tools – people, MIS score, tasks by status, FMS overview, entries and one entry's steps – seeing only what the signed-in person may see. It cannot change anything. Off until `ANTHROPIC_API_KEY` is set |
+| AI Assistant | Admin (for now) | Ask in Hinglish ("aaj kya overdue hai?", "is mahine sabse kharab score kiska?", or give a Google Sheet link). The AI answers from the app's own data and from Google Sheets through read-only tools – people, MIS score, tasks by status, FMS overview, entries and one entry's steps; a sheet's tabs, its FMS steps, a range, its formulas and rows that match (e.g. overdue) – seeing only what the signed-in person may see. It cannot change anything. Claude, or a free model (Groq / Gemini / OpenRouter). Off until a model is set |
 
 **On a phone** (up to 640 px wide) the app works like a phone app: a tab bar at the bottom (Tasks, Dashboard, then the first two of Attendance / FMS Entries / Raise Ticket / My Scorecard the person may open, and Menu for everything else), the page name in the top bar, Logout at the bottom of the menu. My Tasks shows the four counts in one row with search and filters folded under one button, and a wide Done button; pop-ups (an entry, a column filter) open from the bottom; MIS tables keep the doer's name in view with the score under it. Tablets get the page name and the menu button. The app does not zoom on a phone (no pinch, double-tap or zoom into a text box; a photo opens in its own tab and can be zoomed there), the page never slides sideways (wide tables scroll inside their own box) and the text keeps its size when the phone turns. Cards fade in without zooming, and hover effects are off on touch screens. Checked from 320 px wide.
 
@@ -117,16 +117,27 @@ To create an app password: Google Account → Security → turn on 2-Step Verifi
 
 ## AI Assistant
 
-Set on the server (Render → Environment) – never in git or chat:
+Set on the server (Render → Environment) – never in git or chat. **Either Claude:**
 
 ```
 ANTHROPIC_API_KEY=<key from console.anthropic.com>
-AI_MODEL=claude-opus-5-5     # optional; the default
+AI_MODEL=claude-opus-5-5     # optional; the default (claude-haiku-5-5 is much cheaper)
 AI_EFFORT=medium             # optional: low | medium | high
-AI_DAILY_LIMIT=200           # optional: questions per person per day
 ```
 
-The assistant (menu **My Work → AI Assistant**, admins only) runs a tool loop on the backend (`backend/services/ai/`): Claude asks for data, the server runs the tool as the signed-in user, and Claude answers. Tools only read. Chats are saved per person (append-only); if the model declines a question, the API retries it on a fallback model. Each question is billed by Anthropic – see the usage page in the Anthropic Console.
+**Or a free model** through an OpenAI-compatible API (free tiers have daily limits, and some providers may use free-tier questions and data to improve their models – check the provider's terms before sending company data):
+
+```
+AI_PROVIDER=groq             # groq | gemini | openrouter | openai-compatible (then also AI_BASE_URL)
+AI_API_KEY=<key from that provider>
+AI_MODEL=<a model of that provider that supports tool / function calling>
+```
+
+`AI_PROVIDER` decides which one runs; without it, Claude runs when `ANTHROPIC_API_KEY` is set. `AI_DAILY_LIMIT` (default 200) caps questions per person per day. Changing the model starts new chats (old chats stay readable).
+
+**Google Sheets:** the sheet tools use the same read-only service account as Sheet Links – share a sheet with its email (Sheet Links page) as Viewer, then give the AI the sheet's link.
+
+The assistant (menu **My Work → AI Assistant**, admins only) runs a tool loop on the backend (`backend/services/ai/`): the model asks for data, the server runs the tool as the signed-in user, and the model answers. Tools only read. Chats are saved per person (append-only). With Claude, a question the model declines is retried on a fallback model, and each question is billed by Anthropic (usage page in the Anthropic Console); a free provider shows its own limits and usage.
 
 The Google Sheets MCP server for Claude Desktop / Claude Code is separate: `tools/sheets-mcp/README.md`.
 

@@ -1,11 +1,13 @@
 import mongoose = require("mongoose");
 
-// One chat with the AI assistant. `messages` is the exact conversation sent to the Claude API (append-only:
+// One chat with the AI assistant. `messages` is the exact conversation sent to the model's API (append-only:
 // earlier turns are never edited, so the model's own blocks stay valid); `turns` is what the chat page shows.
 const aiConversationSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
     title: { type: String, default: "" },
+    // which kind of model the chat was with ("anthropic", "groq", "gemini"…): its messages are in that format
+    provider: { type: String, default: "anthropic" },
     messages: { type: [mongoose.Schema.Types.Mixed], default: [] },
     turns: {
       type: [

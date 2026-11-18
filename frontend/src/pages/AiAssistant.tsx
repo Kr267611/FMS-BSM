@@ -10,12 +10,18 @@ const STEP_LABEL = {
   fms_overview: "FMS ka haal dekha",
   find_entries: "Entries khoji",
   entry_detail: "Entry kholi",
+  sheet_tabs: "Sheet ke tabs dekhe",
+  sheet_describe_fms: "Sheet ka FMS samjha",
+  sheet_read: "Sheet padhi",
+  sheet_formulas: "Formulas dekhe",
+  sheet_find_rows: "Sheet me rows khoji",
 };
 const SUGGESTIONS = [
   "Aaj kaun-kaun se kaam overdue hain?",
   "Is mahine sabse kharab MIS score kiska hai?",
   "Kaunse FMS me sabse zyada steps atke hain?",
   "Pichhle hafte late hue kaam dikhao",
+  "Is Google Sheet ke tabs dikhao: <link>",
 ];
 
 type Turn = { role: "user" | "assistant"; text: string; steps?: { tool: string; ok: boolean }[] };
@@ -105,7 +111,7 @@ export default function AiAssistant() {
 
       {status && !status.enabled && (
         <div className="card ai-off">
-          <b>AI abhi band hai.</b> Server pe <code>ANTHROPIC_API_KEY</code> lagani hai (Render → Environment). Uske baad yahan sawaal pooch sakte ho.
+          <b>AI abhi band hai.</b> Server pe (Render → Environment) Claude ke liye <code>ANTHROPIC_API_KEY</code>, ya free model ke liye <code>AI_PROVIDER</code> + <code>AI_API_KEY</code> + <code>AI_MODEL</code> lagana hai. Uske baad yahan sawaal pooch sakte ho.
         </div>
       )}
 
@@ -190,7 +196,7 @@ export default function AiAssistant() {
           </form>
           {status?.enabled && (
             <p className="muted small ai-foot">
-              Aaj {status.usedToday || 0} / {status.dailyLimit} sawaal · AI galti kar sakta hai – zaroori number app me check kar lo.
+              {status.model} · Aaj {status.usedToday || 0} / {status.dailyLimit} sawaal · AI galti kar sakta hai – zaroori number app me check kar lo.
             </p>
           )}
         </section>
