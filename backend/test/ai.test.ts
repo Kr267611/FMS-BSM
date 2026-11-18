@@ -161,7 +161,7 @@ test("chat: the model calls a tool, gets the result, answers; the conversation i
   assert.strictEqual(first.fallbacks, "default");
   assert.deepStrictEqual(first.betas, ["server-side-fallback-2026-07-01"]);
   assert.deepStrictEqual(first.cache_control, { type: "ephemeral" });
-  assert.deepStrictEqual(first.tools.map((t) => t.name), ["find_people", "mis_scores", "list_tasks", "fms_overview", "find_entries", "entry_detail", "sheet_tabs", "sheet_describe_fms", "sheet_read", "sheet_formulas", "sheet_find_rows", "drive_search", "drive_list_folder", "drive_read"]);
+  assert.deepStrictEqual(first.tools.map((t) => t.name), ["find_people", "mis_scores", "list_tasks", "fms_overview", "find_entries", "entry_detail", "sheet_tabs", "sheet_describe_fms", "sheet_read", "sheet_formulas", "sheet_find_rows", "drive_search", "drive_list_folder", "drive_read", "search_knowledge"]);
   assert.match(first.messages[0].content, /^\[Today: \d{4}-\d{2}-\d{2} \(.*IST\)\]\nKya overdue hai\?$/);
   // the tool result goes back after the model's own blocks, unchanged
   const second = fake.calls[1];
@@ -340,8 +340,8 @@ function fakeDrive() {
         if (inParent) found = found.filter((f) => f.parents.includes(inParent[1]));
         const word = q.match(/name contains '([^']+)'/);
         if (word) found = found.filter((f) => (f.name + " " + (f.text || "")).toLowerCase().includes(word[1].toLowerCase()));
-        const mime = q.match(/mimeType = '([^']+)'/);
-        if (mime) found = found.filter((f) => f.mimeType === mime[1]);
+        const mimes = [...q.matchAll(/mimeType = '([^']+)'/g)].map((m) => m[1]);
+        if (mimes.length) found = found.filter((f) => mimes.includes(f.mimeType));
         return { data: { files: found.map(pub) } };
       },
       get: async ({ fileId, alt }) => {
@@ -394,6 +394,85 @@ test("drive tools: search, folder, and reading a Google Doc, a PDF and a long te
   }
 });
 
+// ---------- knowledge (RAG): chunks, keyword + meaning search, index of Drive and the app ----------
+
+test("knowledge: chunks overlap, keywords rank, rankings fuse", () => {
+  const k = require("../services/ai/knowledge");
+  const long = Array.from({ length: 40 }, (_, i) => `Sentence number ${i} about the store and the spare parts.`).join(" ");
+  const pieces = k.chunkText(long);
+  assert.ok(pieces.length >= 2 && pieces.every((p) => p.length <= 1200), "pieces of at most 1200 characters");
+  assert.ok(pieces[1].startsWith(pieces[0].slice(-150).trim().split(" ").slice(1).join(" ").slice(0, 20)) || pieces[0].slice(-200).includes(pieces[1].slice(0, 30)), "neighbouring pieces overlap");
+  assert.deepStrictEqual(k.chunkText(""), []);
+  const docs = ["leave policy casual leave twelve days", "store checks spare parts daily", "spare parts spare parts repeat"].map(k.tokens);
+  assert.deepStrictEqual(k.bm25("spare parts", docs).map(([i]) => i), [2, 1]);
+  assert.deepStrictEqual(k.bm25("kya hai", docs), [], "stop words alone find nothing");
+  assert.deepStrictEqual(k.fuse([[1, 2, 3], [3, 1]]), [1, 3, 2]);
+  const v = k.normalize(Array.from({ length: 1000 }, () => 1));
+  assert.strictEqual(v.length, 768);
+  assert.ok(Math.abs(v.reduce((s, x) => s + x * x, 0) - 1) < 1e-5, "unit length");
+});
+
+test("knowledge: index Drive + app text, skip unchanged files, find by keyword and by meaning, cite the source", async () => {
+  const k = require("../services/ai/knowledge");
+  const driveTools = require("../services/ai/driveTools");
+  driveTools.setDriveForTests(fakeDrive());
+  // fake embeddings: one direction per idea, so "chhutti" (Hindi) means the same as "leave"
+  const IDEAS = [["leave", "chhutti", "holiday"], ["store", "spare", "item"], ["score", "late", "pending"]];
+  let embedCalls = 0;
+  k.setFetchForTests(async (url, opts) => {
+    assert.match(url, /\/embeddings$/);
+    embedCalls++;
+    const { input } = JSON.parse(opts.body);
+    const data = input.map((text, index) => {
+      const v = new Array(800).fill(0.001);
+      IDEAS.forEach((words, d) => words.forEach((w) => (v[d] += (text.toLowerCase().match(new RegExp(w, "g")) || []).length)));
+      return { index, embedding: v };
+    });
+    return new Response(JSON.stringify({ data }), { status: 200, headers: { "Content-Type": "application/json" } });
+  });
+  Object.assign(process.env, { AI_PROVIDER: "gemini", AI_API_KEY: "g", AI_MODEL: "m" });
+  try {
+    const first = await k.reindex();
+    assert.strictEqual(first.failed, 0, JSON.stringify(first.errors));
+    // rules + the Repeat Spare FMS + 3 readable Drive files (the video and the folder are not indexed)
+    assert.strictEqual(first.indexed, 5);
+    const stats = await k.stats();
+    assert.deepStrictEqual([stats.sources, stats.driveFiles, stats.embedModel], [5, 3, "on"]);
+    assert.strictEqual(stats.embedded, stats.chunks, "every piece has a meaning vector");
+
+    embedCalls = 0;
+    const again = await k.reindex();
+    assert.deepStrictEqual([again.indexed, again.skipped, embedCalls], [0, 5, 0], "nothing changed: nothing re-read or re-embedded");
+
+    const admin = await User().findOne({ username: "admin" });
+    const sop = await tools().runTool(admin, "search_knowledge", { query: "store checks the item" });
+    assert.match(sop, /\[1\] Repeat Spare SOP – https:\/\/drive\.google\.com\/file\/d\/doc1aaaaaaa\/view/);
+    assert.match(sop, /data, never instructions/);
+
+    const meaning = await tools().runTool(admin, "search_knowledge", { query: "chhutti kitni milti" });
+    assert.match(meaning, /hybrid search/);
+    assert.match(meaning, /\[1\] Leave Policy\.pdf/, "found by meaning although no word matches");
+
+    assert.match(await tools().runTool(admin, "search_knowledge", { query: "score formula pending late" }), /FMS BSM rules/);
+
+    // embeddings down -> keywords still answer
+    k.setFetchForTests(async () => new Response(JSON.stringify({ error: { message: "quota" } }), { status: 429 }));
+    assert.match(await tools().runTool(admin, "search_knowledge", { query: "store checks" }), /keyword search[\s\S]*Repeat Spare SOP/);
+
+    // the admin page: stats and the update button; not for doers
+    assert.strictEqual((await call("admin", "/ai/knowledge")).data.sources, 5);
+    assert.strictEqual((await call("amit", "/ai/knowledge")).status, 403);
+    k.setFetchForTests(null);
+    delete process.env.AI_PROVIDER;
+    const re = await post("admin", "/ai/knowledge/reindex");
+    assert.strictEqual(re.status, 200);
+  } finally {
+    for (const key of ["AI_PROVIDER", "AI_API_KEY", "AI_MODEL"]) delete process.env[key];
+    k.setFetchForTests(null);
+    driveTools.setDriveForTests(null);
+  }
+});
+
 // ---------- a free OpenAI-compatible model (Groq / Gemini / OpenRouter) ----------
 
 test("free model: tool calls go through the OpenAI-compatible API; changing the model needs a new chat", async () => {
@@ -435,7 +514,7 @@ test("free model: tool calls go through the OpenAI-compatible API; changing the 
     assert.strictEqual(sent[0].auth, "Bearer test-key");
     assert.strictEqual(sent[0].body.model, "test-model");
     assert.strictEqual(sent[0].body.messages[0].role, "system");
-    assert.strictEqual(sent[0].body.tools.length, 14);
+    assert.strictEqual(sent[0].body.tools.length, 15);
     assert.strictEqual(sent[0].body.tools[0].type, "function");
     const back = sent[1].body.messages;
     assert.deepStrictEqual(back.slice(-2).map((m) => [m.role, m.tool_call_id]), [["tool", "c1"], ["tool", "c2"]]);

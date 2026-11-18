@@ -3,6 +3,7 @@ import authLib = require("../middleware/auth");
 const { auth, adminOnly } = authLib;
 import AiConversation = require("../models/AiConversation");
 import agent = require("../services/ai/agent");
+import knowledge = require("../services/ai/knowledge");
 import auditLib = require("../services/audit");
 const { audit } = auditLib;
 
@@ -27,6 +28,14 @@ const isId = (s) => /^[0-9a-f]{24}$/i.test(String(s || ""));
 router.get("/status", (req, res) => {
   // which model runs is not shown to users; it is kept in each saved answer and in the audit log
   res.json({ enabled: agent.enabled(), problems: agent.setupProblems(), dailyLimit: DAILY_LIMIT(), usedToday: countToday(String(req.user._id)).n });
+});
+
+// Knowledge (RAG): what is indexed, and a button to bring it up to date (Drive + the app's own text)
+router.get("/knowledge", async (req, res) => res.json(await knowledge.stats()));
+router.post("/knowledge/reindex", async (req, res) => {
+  const result = await knowledge.reindex();
+  audit(req, "ai.knowledge_reindex", { entity: "Knowledge", summary: `${result.indexed} indexed, ${result.skipped} unchanged, ${result.removed} removed, ${result.failed} failed` });
+  res.json(result);
 });
 
 router.get("/conversations", async (req, res) => {

@@ -35,11 +35,15 @@ export default function AiAssistant() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [showList, setShowList] = useState(false);
+  const [kb, setKb] = useState<any>(null);
+  const [kbBusy, setKbBusy] = useState(false);
+  const [kbNote, setKbNote] = useState("");
   const end = useRef<HTMLDivElement>(null);
 
   const loadChats = () => api("/ai/conversations").then(setChats).catch(() => {});
   useEffect(() => {
     api("/ai/status").then(setStatus).catch((e) => setError(e.message));
+    api("/ai/knowledge").then(setKb).catch(() => {});
     loadChats();
   }, []);
   // braces: newer browsers return a Promise from scrollIntoView, and an effect must not return one
@@ -71,6 +75,22 @@ export default function AiAssistant() {
     await api(`/ai/conversations/${id}`, { method: "DELETE" }).catch((e) => setError(e.message));
     if (id === chatId) newChat();
     loadChats();
+  }
+
+  // Knowledge (RAG): re-read changed Drive files and the app's own text
+  async function updateKnowledge() {
+    setKbBusy(true);
+    setKbNote("");
+    try {
+      const r = await api("/ai/knowledge/reindex", { method: "POST" });
+      const problems = (r.errors || []).slice(0, 3).join(" · ");
+      setKbNote(`${r.indexed} naye/badle, ${r.skipped} same, ${r.removed} hataye${r.failed ? `, ${r.failed} nahi padh paye` : ""}${problems ? ` · Dikkat: ${problems}` : ""}`);
+      setKb(await api("/ai/knowledge"));
+    } catch (e) {
+      setKbNote(e.message);
+    } finally {
+      setKbBusy(false);
+    }
   }
 
   async function send(question = text) {
@@ -118,6 +138,34 @@ export default function AiAssistant() {
                 <li key={p}>{p}</li>
               ))}
             </ul>
+          )}
+        </div>
+      )}
+
+      {kb && (
+        <div className="card ai-kb">
+          <div className="row between wrap">
+            <div>
+              <b>Gyaan (Knowledge):</b> {kb.sources} documents · {kb.driveFiles} Google Drive files · {kb.chunks} tukde
+              {kb.lastIndexed && <span className="muted small"> · update {new Date(kb.lastIndexed).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" })}</span>}
+              {kb.embedModel === "off" && <span className="muted small"> · sirf keyword search</span>}
+            </div>
+            <button className="btn ghost small" onClick={updateKnowledge} disabled={kbBusy}>
+              {kbBusy ? "Padh raha hoon…" : "Update karo"}
+            </button>
+          </div>
+          {kbNote && <p className="small ai-kb-note">{kbNote}</p>}
+          {!!kb.errors?.length && (
+            <details className="small ai-kb-errors">
+              <summary>{kb.errors.length} file(s) me dikkat</summary>
+              <ul>
+                {kb.errors.map((e, i) => (
+                  <li key={i}>
+                    {e.title}: {e.error}
+                  </li>
+                ))}
+              </ul>
+            </details>
           )}
         </div>
       )}

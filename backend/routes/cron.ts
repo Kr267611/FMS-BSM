@@ -21,7 +21,9 @@ router.use((req, res, next) => {
 
 router.get("/sync", async (req, res) => {
   const swept = await sweepAll();
-  res.json({ ...swept, sheets: await syncAll(), sheetSync: await require("../services/fmsSheetSync").pullAll() });
+  // the AI assistant's knowledge: changed Drive files and app text are re-indexed (never fails the sync)
+  const knowledge = await require("../services/ai/knowledge").reindex().catch((err) => ({ error: err.message }));
+  res.json({ ...swept, sheets: await syncAll(), sheetSync: await require("../services/fmsSheetSync").pullAll(), knowledge });
 });
 
 router.get("/reminders", async (req, res) => {

@@ -156,4 +156,4 @@ const DEFS = [
 
 const RUN = { drive_search: driveSearch, drive_list_folder: driveListFolder, drive_read: driveRead };
 
-export = { DEFS, RUN, fileText, fileId, MIME, setDriveForTests: (d) => (driveOverride = d) };
+export = { DEFS, RUN, fileText, fileId, MIME, client: () => drive(), setDriveForTests: (d) => (driveOverride = d) };
