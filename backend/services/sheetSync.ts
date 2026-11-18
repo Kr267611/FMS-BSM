@@ -167,4 +167,4 @@ async function syncAll() {
   return results;
 }
 
-export = { syncLink, syncAll, buildRows, extractSpreadsheetId, isColumn, serviceAccountEmail, getSheets, getSheetsWriter, friendlyError };
+export = { syncLink, syncAll, buildRows, extractSpreadsheetId, isColumn, serviceAccountEmail, serviceAccountCredentials, getSheets, getSheetsWriter, friendlyError };

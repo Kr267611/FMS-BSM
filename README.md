@@ -144,6 +144,8 @@ AI_FALLBACK_2_PROVIDER=openrouter  AI_FALLBACK_2_API_KEY=...   AI_FALLBACK_2_MOD
 
 **Google Sheets:** the sheet tools use the same read-only service account as Sheet Links – share a sheet with its email (Sheet Links page) as Viewer, then give the AI the sheet's link.
 
+**Google Drive:** the AI can search Drive and read Docs, Slides, Sheets (first tab), PDF, Word and text files – only what is shared with the same service account. Turn on **Google Drive API** for the service account's Google Cloud project once, then share one main folder (or a Shared Drive) with the service account's email as Viewer; everything inside is visible to the AI. Desktop files reach it through Google Drive for Desktop.
+
 The assistant (menu **My Work → AI Assistant**, admins only) runs a tool loop on the backend (`backend/services/ai/`): the model asks for data, the server runs the tool as the signed-in user, and the model answers. Tools only read. Chats are saved per person (append-only). With Claude, a question the model declines is retried on a fallback model, and each question is billed by Anthropic (usage page in the Anthropic Console); a free provider shows its own limits and usage.
 
 The Google Sheets MCP server for Claude Desktop / Claude Code is separate: `tools/sheets-mcp/README.md`.
