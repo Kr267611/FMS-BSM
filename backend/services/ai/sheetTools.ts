@@ -1,8 +1,10 @@
-// The AI assistant's Google Sheets tools: read-only, through the app's read-only service account client
-// (sheetSync.getSheets). The same rules as tools/sheets-mcp: numbered rows, ranges cut to a row limit, sheet text
-// marked as data. Writing is not offered here.
+// The AI assistant's Google Sheets tools: read-only. They read with the person's own connected Google account, or, for an
+// admin who has not connected, the app's read-only service account client (sheetSync.getSheets) – see googleAccess.ts.
+// The same rules as tools/sheets-mcp: numbered rows, ranges cut to a row limit, sheet text marked as data. Writing is
+// not offered here. Spreadsheets and tabs whose name contains a blocked word (e.g. "inventory") are never read.
 import sheetSyncLib = require("../sheetSync");
 import sheetInspect = require("../sheetInspect");
+import googleAccess = require("./googleAccess");
 const { getSheets, extractSpreadsheetId, friendlyError } = sheetSyncLib;
 const { findSteps } = sheetInspect;
 
@@ -11,7 +13,10 @@ const MAX_ROWS = 500;
 const SCAN_ROWS = 5000;
 
 let sheetsOverride = null;
-const sheets = () => sheetsOverride || getSheets();
+const sheets = () => {
+  const access = googleAccess.current();
+  return access?.mode === "user" ? access.sheets : sheetsOverride || getSheets();
+};
 
 function fail(message: string): never {
   throw new Error(message);
@@ -47,7 +52,7 @@ async function call<T>(fn: () => Promise<T>, tab?: string): Promise<T> {
   try {
     return await fn();
   } catch (err) {
-    throw new Error(friendlyError(err, { tabName: tab }));
+    throw new Error(googleAccess.userError(err) || friendlyError(err, { tabName: tab }));
   }
 }
 
@@ -57,16 +62,27 @@ function sheetId(input: string) {
 
 async function tabsOf(id: string) {
   const r: any = await call(() => sheets().spreadsheets.get({ spreadsheetId: id, fields: "properties.title,sheets.properties(title,hidden,gridProperties(rowCount,columnCount))" }));
+  const title = r.data.properties?.title || "";
+  // every sheet tool starts here, so a blocked spreadsheet is never read
+  if (googleAccess.isBlocked(title)) fail("This spreadsheet is blocked for the AI by the admin");
   return {
-    title: r.data.properties?.title || "",
-    tabs: (r.data.sheets || []).map((s) => ({ name: s.properties.title, hidden: Boolean(s.properties.hidden), rows: s.properties.gridProperties?.rowCount || 0, cols: s.properties.gridProperties?.columnCount || 0 })),
+    title,
+    tabs: (r.data.sheets || []).map((s) => ({
+      name: s.properties.title,
+      hidden: Boolean(s.properties.hidden),
+      blocked: googleAccess.isBlocked(s.properties.title),
+      rows: s.properties.gridProperties?.rowCount || 0,
+      cols: s.properties.gridProperties?.columnCount || 0,
+    })),
   };
 }
 
 async function findTab(id: string, tab: string) {
   const meta = await tabsOf(id);
   const t = meta.tabs.find((x) => x.name === tab) || meta.tabs.find((x) => norm(x.name) === norm(tab));
-  return t || fail(`Tab "${tab}" not found. Tabs: ${meta.tabs.map((x) => `"${x.name}"`).join(", ")}`);
+  if (t?.blocked) fail("This tab is blocked for the AI by the admin");
+  const open = meta.tabs.filter((x) => !x.blocked);
+  return t || fail(`Tab "${tab}" not found. Tabs: ${open.map((x) => `"${x.name}"`).join(", ")}`);
 }
 
 async function values(id: string, range: string, render: string, tab: string) {
@@ -103,7 +119,9 @@ function table(rows: any[][], firstRow: number, firstCol: number) {
 
 async function sheetTabs(_user, input) {
   const meta = await tabsOf(sheetId(input.sheet));
-  return `Spreadsheet "${meta.title}" – ${meta.tabs.length} tabs:\n${meta.tabs.map((t) => `- "${t.name}" (${t.rows} rows × ${t.cols} columns${t.hidden ? ", hidden" : ""})`).join("\n")}`;
+  const open = meta.tabs.filter((t) => !t.blocked);
+  const hidden = meta.tabs.length - open.length;
+  return `Spreadsheet "${meta.title}" – ${open.length} tabs:\n${open.map((t) => `- "${t.name}" (${t.rows} rows × ${t.cols} columns${t.hidden ? ", hidden" : ""})`).join("\n")}${hidden ? `\n(${hidden} tabs blocked by the admin and not shown)` : ""}`;
 }
 
 async function sheetRead(_user, input) {
@@ -186,7 +204,7 @@ async function sheetFindRows(_user, input, now = new Date()) {
   return `${matched} rows match in "${tab.name}"${matched > hits.length ? ` (first ${hits.length})` : ""}.\n${UNTRUSTED}\n\n${lines.join("\n")}`;
 }
 
-const sheet = { type: "string", description: "Google Sheet link or id (the sheet must be shared with the app's service account)" };
+const sheet = { type: "string", description: "Google Sheet link or id (read with the person's connected Google account, or the app's service account)" };
 const tabProp = { type: "string", description: "Tab name exactly as in the sheet" };
 
 const DEFS = [

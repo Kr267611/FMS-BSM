@@ -7,6 +7,7 @@ import KnowledgeLib = require("../../models/Knowledge");
 import Process = require("../../models/Process");
 import Checklist = require("../../models/Checklist");
 import driveTools = require("./driveTools");
+import googleAccess = require("./googleAccess");
 const { KnowledgeChunk, KnowledgeSource } = KnowledgeLib;
 
 const CHUNK = 1200;
@@ -171,7 +172,7 @@ async function driveFiles() {
     files.push(...(r.data.files || []));
     pageToken = r.data.nextPageToken;
   } while (pageToken && files.length < MAX_DRIVE_FILES);
-  return files.slice(0, MAX_DRIVE_FILES);
+  return files.filter((f) => !googleAccess.isBlocked(f.name)).slice(0, MAX_DRIVE_FILES);
 }
 
 let cache: { chunks: any[]; tokens: string[][]; vectors: (Float32Array | null)[] } | null = null;

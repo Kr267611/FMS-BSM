@@ -646,3 +646,159 @@ test("backup chain: Gemini fails -> Groq answers; a failed model rests; all fail
     agent().setFetchForTests(null);
   }
 });
+
+// ---------- each person's own Google account (OAuth, read-only) + the block list ----------
+
+test("google: tokens are sealed; the sign-in state is signed, per person and expires", () => {
+  const g = require("../services/ai/googleAccess");
+  const sealed = g.seal("rt-secret");
+  assert.ok(!sealed.includes("rt-secret"));
+  assert.strictEqual(g.unseal(sealed), "rt-secret");
+  const parts = sealed.split(".");
+  parts[3] = Buffer.from("tampered").toString("base64url");
+  assert.throws(() => g.unseal(parts.join(".")));
+
+  const s = g.makeState("u1");
+  assert.ok(g.checkState(s, "u1"));
+  assert.ok(!g.checkState(s, "u2"), "another person's state");
+  assert.ok(!g.checkState(s, "u1", Date.now() + 11 * 60000), "expired");
+  assert.ok(!g.checkState(s.slice(0, -2) + (s.endsWith("AA") ? "BB" : "AA"), "u1"), "tampered");
+  assert.ok(!g.checkState("", "u1"));
+});
+
+test("google: a person connects their own account, the AI reads with it, blocked files stay hidden, then disconnect", async () => {
+  const g = require("../services/ai/googleAccess");
+  const GoogleConnection = require("../models/GoogleConnection");
+  const DRIVE = "https://www.googleapis.com/auth/drive.readonly";
+  const ENV = { GOOGLE_OAUTH_CLIENT_ID: "cid.apps.googleusercontent.com", GOOGLE_OAUTH_CLIENT_SECRET: "csecret", APP_URL: "https://fms.example.com" };
+  const seen: any = { urls: [], creds: [], revoked: [] };
+  let tokens: any = { refresh_token: "rt-amit", scope: `openid email ${DRIVE}`, id_token: "idt" };
+  g.setOAuthForTests(() => ({
+    generateAuthUrl: (o) => (seen.urls.push(o), `https://accounts.google.com/o/oauth2/v2/auth?state=${encodeURIComponent(o.state)}`),
+    getToken: async () => ({ tokens }),
+    verifyIdToken: async ({ audience }) => {
+      assert.strictEqual(audience, ENV.GOOGLE_OAUTH_CLIENT_ID);
+      return { getPayload: () => ({ email: "Amit@BhaskarSilkMills.in", email_verified: true }) };
+    },
+    setCredentials(c) {
+      seen.creds.push(c);
+    },
+    revokeToken: async (t) => seen.revoked.push(t),
+  }));
+  const userDrive = {
+    files: {
+      list: async () => ({
+        data: {
+          files: [
+            { id: "udoc1aaaaaa", name: "Payment Collection SOP", mimeType: "application/vnd.google-apps.document", modifiedTime: "2026-11-02T10:00:00Z" },
+            { id: "uinv1aaaaaa", name: "Inventory Stock 2026", mimeType: "application/vnd.google-apps.spreadsheet", modifiedTime: "2026-11-02T10:00:00Z" },
+          ],
+        },
+      }),
+      get: async ({ fileId }) => {
+        if (fileId === "denied12345") throw Object.assign(new Error("The caller does not have permission"), { code: 403 });
+        if (fileId === "expired1234") throw new Error("invalid_grant");
+        return { data: { id: fileId, name: fileId === "uinv1aaaaaa" ? "Inventory Stock 2026" : "Payment Collection SOP", mimeType: "application/vnd.google-apps.document" } };
+      },
+      export: async () => ({ data: "Collect payment within 30 days." }),
+    },
+  };
+  const userSheets = {
+    spreadsheets: {
+      get: async ({ spreadsheetId }) => ({
+        data: {
+          properties: { title: spreadsheetId === "1InvInvInvInvInvInvInvInv" ? "Inventory 2026" : "Payment Collection" },
+          sheets: [{ properties: { title: "Main", gridProperties: { rowCount: 50, columnCount: 5 } } }, { properties: { title: "INVENTORY", gridProperties: { rowCount: 9, columnCount: 3 } } }],
+        },
+      }),
+      values: { get: async () => ({ data: { values: [["Party", "Amount"], ["Shah Textiles", "12000"]] } }) },
+    },
+  };
+  g.setClientsForTests(() => ({ drive: userDrive, sheets: userSheets }));
+  const go = async (who, p) => {
+    const res = await fetch(base + p, { redirect: "manual", headers: { Cookie: cookies[who] || "" } });
+    return { status: res.status, location: res.headers.get("location") || "" };
+  };
+  const cb = (state) => `/ai/google/callback?code=c1&state=${encodeURIComponent(state)}`;
+  try {
+    // not set up: the admin sees which settings are missing, the link goes back with "off"
+    for (const k of Object.keys(ENV)) delete process.env[k];
+    const off = (await call("admin", "/ai/status")).data.google;
+    assert.strictEqual(off.configured, false);
+    assert.ok(off.problems.includes("GOOGLE_OAUTH_CLIENT_ID is empty or missing"));
+    assert.deepStrictEqual(off.blocked, ["inventory"]);
+    assert.strictEqual((await go("admin", "/ai/google/connect")).location, "/ai?google=off");
+    Object.assign(process.env, ENV);
+
+    // Amit (a doer) may use the AI only with the AI tick; without Google he cannot read Sheets / Drive
+    assert.strictEqual((await call("amit", "/ai/status")).status, 403);
+    await User().updateOne({ _id: ids.amit }, { $set: { permissions: { ai: ["view"] } } });
+    const st = (await call("amit", "/ai/status")).data;
+    assert.strictEqual(st.admin, false);
+    assert.deepStrictEqual([st.google.configured, st.google.connected, st.google.fallback, st.google.problems], [true, false, "none", undefined]);
+    assert.strictEqual((await post("amit", "/ai/knowledge/reindex")).status, 403, "only admins re-index");
+    const amit = await User().findById(ids.amit);
+    await assert.rejects(() => tools().runTool(amit, "drive_search", { query: "x" }), /Google is not connected for you/);
+
+    // connect: Google's page with read-only Drive, offline + consent, and a state for Amit
+    const start = await go("amit", "/ai/google/connect");
+    assert.strictEqual(start.status, 302);
+    assert.match(start.location, /^https:\/\/accounts\.google\.com\//);
+    assert.deepStrictEqual([seen.urls[0].access_type, seen.urls[0].prompt, seen.urls[0].scope.includes(DRIVE)], ["offline", "consent", true]);
+    const state = new URL(start.location).searchParams.get("state");
+
+    // the callback needs the same person's session and an untouched state
+    assert.match((await go("admin", cb(state))).location, /google=failed&why=The%20Google%20sign-in%20expired%20or%20was%20started%20by%20someone%20else/);
+    assert.match((await go("amit", cb("bad.state"))).location, /google=failed/);
+    assert.strictEqual((await go("amit", "/ai/google/callback?error=access_denied")).location, "/ai?google=denied");
+    tokens = { ...tokens, scope: "openid email" };
+    assert.match((await go("amit", cb(state))).location, /why=Drive%20permission%20was%20not%20given/);
+    tokens = { ...tokens, scope: `openid email ${DRIVE}` };
+    process.env.AI_GOOGLE_DOMAIN = "other.com";
+    assert.match((await go("amit", cb(state))).location, /why=Only%20%40other\.com/);
+    process.env.AI_GOOGLE_DOMAIN = "bhaskarsilkmills.in";
+    assert.strictEqual((await go("amit", cb(state))).location, "/ai?google=connected");
+
+    const conn = await GoogleConnection.findOne({ user: ids.amit }).lean();
+    assert.strictEqual(conn.email, "amit@bhaskarsilkmills.in");
+    assert.ok(!conn.refreshToken.includes("rt-amit"), "stored encrypted");
+    assert.strictEqual(g.unseal(conn.refreshToken), "rt-amit");
+    const st2 = (await call("amit", "/ai/status")).data.google;
+    assert.deepStrictEqual([st2.connected, st2.email], [true, "amit@bhaskarsilkmills.in"]);
+    assert.ok(!JSON.stringify(st2).includes(conn.refreshToken), "the token never goes to the browser");
+
+    // the AI now reads with Amit's own Google account; blocked names stay hidden
+    const found = await tools().runTool(amit, "drive_search", { query: "payment" });
+    assert.deepStrictEqual(seen.creds.at(-1), { refresh_token: "rt-amit" });
+    assert.match(found, /^1 files for "payment"/);
+    assert.match(found, /Payment Collection SOP/);
+    assert.match(found, /1 blocked by the admin and not shown/);
+    assert.ok(!found.includes("Inventory"));
+    assert.match(await tools().runTool(amit, "drive_read", { file: "udoc1aaaaaa" }), /Collect payment within 30 days/);
+    await assert.rejects(() => tools().runTool(amit, "drive_read", { file: "uinv1aaaaaa" }), /blocked for the AI by the admin/);
+    await assert.rejects(() => tools().runTool(amit, "drive_read", { file: "denied12345" }), /No access – your Google account \(amit@bhaskarsilkmills\.in\) cannot open this file/);
+    await assert.rejects(() => tools().runTool(amit, "drive_read", { file: "expired1234" }), /connection has expired or was removed – press Connect Google again/);
+
+    const tabs = await tools().runTool(amit, "sheet_tabs", { sheet: "1PayPayPayPayPayPayPayPay" });
+    assert.match(tabs, /"Payment Collection" – 1 tabs:\n- "Main"/);
+    assert.match(tabs, /1 tabs blocked by the admin/);
+    assert.match(await tools().runTool(amit, "sheet_read", { sheet: "1PayPayPayPayPayPayPayPay", tab: "Main", range: "A1:B2" }), /\| 2 \| Shah Textiles \| 12000 \|/);
+    await assert.rejects(() => tools().runTool(amit, "sheet_read", { sheet: "1PayPayPayPayPayPayPayPay", tab: "inventory", range: "A1" }), /tab is blocked/);
+    await assert.rejects(() => tools().runTool(amit, "sheet_tabs", { sheet: "1InvInvInvInvInvInvInvInv" }), /spreadsheet is blocked/);
+
+    // the admin without a connection still reads with the service account, not with Amit's account
+    const admin = await User().findOne({ username: "admin" });
+    assert.strictEqual((await g.accessFor(admin)).mode, "service");
+
+    // disconnect: the key is deleted and revoked at Google
+    assert.strictEqual((await call("amit", "/ai/google", { method: "DELETE" })).status, 200);
+    assert.deepStrictEqual(seen.revoked, ["rt-amit"]);
+    assert.strictEqual(await GoogleConnection.countDocuments({ user: ids.amit }), 0);
+    await assert.rejects(() => tools().runTool(amit, "sheet_tabs", { sheet: "1PayPayPayPayPayPayPayPay" }), /Google is not connected for you/);
+  } finally {
+    for (const k of [...Object.keys(ENV), "AI_GOOGLE_DOMAIN"]) delete process.env[k];
+    g.setOAuthForTests(null);
+    g.setClientsForTests(null);
+    await User().updateOne({ _id: ids.amit }, { $unset: { permissions: 1 } });
+  }
+});

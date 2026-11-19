@@ -1,15 +1,19 @@
 import express = require("express");
 import authLib = require("../middleware/auth");
-const { auth, adminOnly } = authLib;
+const { auth, adminOnly, permit } = authLib;
 import AiConversation = require("../models/AiConversation");
 import agent = require("../services/ai/agent");
 import knowledge = require("../services/ai/knowledge");
+import googleAccess = require("../services/ai/googleAccess");
+import permissionsLib = require("../services/permissions");
+const { isAdmin } = permissionsLib;
 import auditLib = require("../services/audit");
 const { audit } = auditLib;
 
-// AI assistant – admins only for now. It only reads (see services/ai/tools.ts).
+// AI assistant – for admins and the people an admin gives the "AI Assistant" tick (Users → Access).
+// It only reads (see services/ai/tools.ts): in the app what the person may see, in Google what their own account sees.
 const router = express.Router();
-router.use(auth, adminOnly);
+router.use(auth, permit("ai", "view"));
 
 const DAILY_LIMIT = () => Number(process.env.AI_DAILY_LIMIT) || 200;
 const MAX_TURNS = 40; // questions per conversation; then start a new one (keeps each request small)
@@ -25,14 +29,50 @@ function countToday(userId: string) {
 
 const isId = (s) => /^[0-9a-f]{24}$/i.test(String(s || ""));
 
-router.get("/status", (req, res) => {
+router.get("/status", async (req, res) => {
   // which model runs is not shown to users; it is kept in each saved answer and in the audit log
-  res.json({ enabled: agent.enabled(), problems: agent.setupProblems(), dailyLimit: DAILY_LIMIT(), usedToday: countToday(String(req.user._id)).n });
+  const admin = isAdmin(req.user);
+  res.json({
+    enabled: agent.enabled(),
+    problems: admin ? agent.setupProblems() : [],
+    admin,
+    dailyLimit: DAILY_LIMIT(),
+    usedToday: countToday(String(req.user._id)).n,
+    google: await googleAccess.status(req.user),
+  });
 });
 
-// Knowledge (RAG): what is indexed, and a button to bring it up to date (Drive + the app's own text)
+// ---------- the person's own Google account (read-only Drive + Sheets for the AI) ----------
+
+const back = (res, result: string, why = "") => res.redirect(302, `/ai?google=${result}${why ? `&why=${encodeURIComponent(why.slice(0, 200))}` : ""}`);
+
+// A normal link (not a fetch): the session cookie comes along, then Google's sign-in page
+router.get("/google/connect", (req, res) => {
+  if (!googleAccess.configured()) return back(res, "off");
+  res.redirect(302, googleAccess.authUrl(req.user));
+});
+
+// Google sends the person back here; the state must be the one this same person started
+router.get("/google/callback", async (req, res) => {
+  if (req.query.error) return back(res, "denied");
+  try {
+    const { email } = await googleAccess.finish(req.user, { code: req.query.code, state: req.query.state });
+    audit(req, "ai.google_connect", { entity: "GoogleConnection", summary: `Connected Google account ${email} (read-only)` });
+    back(res, "connected");
+  } catch (err) {
+    back(res, "failed", /^(The|Drive|Google|Only)\b/.test(err?.message || "") ? err.message : "Google sign-in failed – try again");
+  }
+});
+
+router.delete("/google", async (req, res) => {
+  const r = await googleAccess.disconnect(req.user);
+  if (r.removed) audit(req, "ai.google_disconnect", { entity: "GoogleConnection", summary: "Removed the Google connection" });
+  res.json({ ok: true });
+});
+
+// Knowledge (RAG): what is indexed, and a button (admins) to bring it up to date (Drive + the app's own text)
 router.get("/knowledge", async (req, res) => res.json(await knowledge.stats()));
-router.post("/knowledge/reindex", async (req, res) => {
+router.post("/knowledge/reindex", adminOnly, async (req, res) => {
   const result = await knowledge.reindex();
   audit(req, "ai.knowledge_reindex", { entity: "Knowledge", summary: `${result.indexed} indexed, ${result.skipped} unchanged, ${result.removed} removed, ${result.failed} failed` });
   res.json(result);

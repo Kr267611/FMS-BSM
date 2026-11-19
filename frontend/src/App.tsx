@@ -103,7 +103,7 @@ function menuFor(user) {
   const groups: { title: string; items: MenuItem[] }[] = [
     {
       title: "My Work",
-      items: [{ to: "/dashboard", label: "Dashboard" }, { to: "/", label: "My Tasks", end: true }, { to: "/ai", label: "AI Assistant", show: isAdmin(user) }],
+      items: [{ to: "/dashboard", label: "Dashboard" }, { to: "/", label: "My Tasks", end: true }, { to: "/ai", label: "AI Assistant", show: isAdmin(user) || can(user, "ai") }],
     },
     {
       title: "Master Tasks",
@@ -382,7 +382,7 @@ function Shell() {
             <Route path="/" element={<MyTasks />} />
             <Route path="/account" element={<Account />} />
             <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/ai" element={guard(isAdmin(user), <AiAssistant />)} />
+            <Route path="/ai" element={guard(isAdmin(user) || can(user, "ai"), <AiAssistant />)} />
             <Route path="/mis/performance" element={guard(can(user, "performance"), <Performance />)} />
             <Route path="/reports/meeting" element={guard(can(user, "misMeeting"), <MeetingReport />)} />
             <Route path="/mis/weekly" element={guard(can(user, "weeklyMis"), <WeeklyMis />)} />

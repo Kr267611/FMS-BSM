@@ -53,6 +53,7 @@ const MODULES = {
   reminders: "Reminders",
   settings: "Doer types & MIS meeting email",
   audit: "Audit Log",
+  ai: "AI Assistant",
 };
 
 // What each action means in each module (only these can be given; the rest do not apply)
@@ -103,6 +104,8 @@ const MODULE_ACTIONS = {
   reminders: { view: "See and send reminder emails / WhatsApp" },
   settings: { edit: "Change the doer types and the MIS meeting email" },
   audit: { view: "See the audit log" },
+  // the AI reads only what the person may see in the app, and in Google only what their own connected account sees
+  ai: { view: "Ask the AI Assistant (it only reads, and only what this person may see)" },
 };
 
 // Areas, as in the menu, for showing the grid in groups
@@ -117,6 +120,7 @@ const MODULE_GROUPS = [
   ["Help Ticket", ["tickets", "ticketReport", "ticketSetup"]],
   ["Users & Org", ["users", "org", "doerLeave", "accessOverview"]],
   ["Settings", ["calendar", "sheetLinks", "reminders", "settings", "audit"]],
+  ["AI", ["ai"]],
 ];
 // The PC Reports pages, and the FMS Manager lists that only show rules (they are changed in the FMS itself)
 const REPORT_PAGES = MODULE_GROUPS.find(([g]) => g === "PC Reports")[1] as string[];

@@ -15,6 +15,10 @@ const STEP_LABEL = {
   sheet_read: "Sheet padhi",
   sheet_formulas: "Formulas dekhe",
   sheet_find_rows: "Sheet me rows khoji",
+  drive_search: "Drive me khoja",
+  drive_list_folder: "Folder dekha",
+  drive_read: "File padhi",
+  search_knowledge: "Gyaan me khoja",
 };
 const SUGGESTIONS = [
   "Aaj kaun-kaun se kaam overdue hain?",
@@ -38,13 +42,25 @@ export default function AiAssistant() {
   const [kb, setKb] = useState<any>(null);
   const [kbBusy, setKbBusy] = useState(false);
   const [kbNote, setKbNote] = useState("");
+  const [googleNote, setGoogleNote] = useState("");
   const end = useRef<HTMLDivElement>(null);
 
   const loadChats = () => api("/ai/conversations").then(setChats).catch(() => {});
+  const loadStatus = () => api("/ai/status").then(setStatus).catch((e) => setError(e.message));
   useEffect(() => {
-    api("/ai/status").then(setStatus).catch((e) => setError(e.message));
+    loadStatus();
     api("/ai/knowledge").then(setKb).catch(() => {});
     loadChats();
+    // back from Google's sign-in page: say how it went, then clean the address bar
+    const q = new URLSearchParams(window.location.search);
+    const g = q.get("google");
+    if (g) {
+      const why = q.get("why");
+      setGoogleNote(
+        g === "connected" ? "Google jud gaya ✓ Ab AI tumhari Drive aur Sheets padh sakta hai (sirf padhna)." : g === "denied" ? "Google pe Allow nahi kiya gaya – jab chaho dobara jodo." : g === "off" ? "Google login abhi server pe set nahi hai." : `Google nahi juda: ${why || "dobara try karo"}`
+      );
+      window.history.replaceState(null, "", window.location.pathname);
+    }
   }, []);
   // braces: newer browsers return a Promise from scrollIntoView, and an effect must not return one
   useEffect(() => {
@@ -75,6 +91,17 @@ export default function AiAssistant() {
     await api(`/ai/conversations/${id}`, { method: "DELETE" }).catch((e) => setError(e.message));
     if (id === chatId) newChat();
     loadChats();
+  }
+
+  async function disconnectGoogle() {
+    if (!window.confirm("Google ka connection hatayein? AI tumhari Drive / Sheets padhna band kar dega.")) return;
+    try {
+      await api("/ai/google", { method: "DELETE" });
+      setGoogleNote("Google hata diya. AI ab tumhari Drive nahi padhega.");
+      loadStatus();
+    } catch (e) {
+      setGoogleNote(e.message);
+    }
   }
 
   // Knowledge (RAG): re-read changed Drive files and the app's own text
@@ -131,7 +158,14 @@ export default function AiAssistant() {
 
       {status && !status.enabled && (
         <div className="card ai-off">
-          <b>AI abhi band hai.</b> Server pe (Render → Environment) Claude ke liye <code>ANTHROPIC_API_KEY</code>, ya free model ke liye <code>AI_PROVIDER</code> + <code>AI_API_KEY</code> + <code>AI_MODEL</code> lagana hai. Uske baad yahan sawaal pooch sakte ho.
+          <b>AI abhi band hai.</b>{" "}
+          {status.admin ? (
+            <>
+              Server pe (Render → Environment) Claude ke liye <code>ANTHROPIC_API_KEY</code>, ya free model ke liye <code>AI_PROVIDER</code> + <code>AI_API_KEY</code> + <code>AI_MODEL</code> lagana hai. Uske baad yahan sawaal pooch sakte ho.
+            </>
+          ) : (
+            "Admin se bolo – server pe AI ki setting baaki hai."
+          )}
           {!!status.problems?.length && (
             <ul className="ai-problems">
               {status.problems.map((p) => (
@@ -139,6 +173,49 @@ export default function AiAssistant() {
               ))}
             </ul>
           )}
+        </div>
+      )}
+
+      {status?.google && (status.google.configured || status.admin) && (
+        <div className="card ai-kb">
+          <div className="row between wrap">
+            <div>
+              <b>Google Drive / Sheets:</b>{" "}
+              {status.google.connected ? (
+                <>
+                  <span className="ai-ok">✓ {status.google.email}</span> se juda – AI wahi padhta hai jo is account ko dikhta hai (sirf padhna).
+                </>
+              ) : status.google.configured ? (
+                status.google.fallback === "service" ? (
+                  "Juda nahi – abhi AI sirf app ke saath share ki gayi files padhta hai. Apna Google jodo to poori Drive padh sakega."
+                ) : (
+                  "Juda nahi – apna Google account jodo, tab AI tumhari Drive aur Sheets padh sakega."
+                )
+              ) : (
+                <span className="muted">Google login abhi server pe set nahi hai.</span>
+              )}
+            </div>
+            {status.google.configured &&
+              (status.google.connected ? (
+                <button className="btn ghost small" onClick={disconnectGoogle}>
+                  Hatao
+                </button>
+              ) : (
+                // a normal link: the browser goes to Google's sign-in page and comes back here
+                <a className="btn small" href="/api/ai/google/connect">
+                  Google jodo
+                </a>
+              ))}
+          </div>
+          {googleNote && <p className="small ai-kb-note">{googleNote}</p>}
+          {status.admin && !!status.google.problems?.length && (
+            <ul className="ai-problems">
+              {status.google.problems.map((p) => (
+                <li key={p}>{p}</li>
+              ))}
+            </ul>
+          )}
+          {status.admin && !!status.google.blocked?.length && <p className="muted small ai-kb-note">AI ko kabhi nahi dikhega: naam me "{status.google.blocked.join('", "')}" wali files / tabs.</p>}
         </div>
       )}
 
@@ -150,9 +227,11 @@ export default function AiAssistant() {
               {kb.lastIndexed && <span className="muted small"> · update {new Date(kb.lastIndexed).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" })}</span>}
               {kb.embedModel === "off" && <span className="muted small"> · sirf keyword search</span>}
             </div>
-            <button className="btn ghost small" onClick={updateKnowledge} disabled={kbBusy}>
-              {kbBusy ? "Padh raha hoon…" : "Update karo"}
-            </button>
+            {status?.admin && (
+              <button className="btn ghost small" onClick={updateKnowledge} disabled={kbBusy}>
+                {kbBusy ? "Padh raha hoon…" : "Update karo"}
+              </button>
+            )}
           </div>
           {kbNote && <p className="small ai-kb-note">{kbNote}</p>}
           {!!kb.errors?.length && (

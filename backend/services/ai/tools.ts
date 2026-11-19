@@ -12,6 +12,7 @@ import datesLib = require("../dates");
 import sheetTools = require("./sheetTools");
 import driveTools = require("./driveTools");
 import knowledge = require("./knowledge");
+import googleAccess = require("./googleAccess");
 const { misReport } = scoringLib;
 const { visibleUserIds } = scopeLib;
 const { todayKey, addDaysKey } = datesLib;
@@ -307,7 +308,10 @@ const RUN = {
 async function runTool(user, name: string, input: any) {
   const fn = RUN[name];
   if (!fn) fail(`Unknown tool ${name}`);
-  return fn(user, input && typeof input === "object" ? input : {});
+  const args = input && typeof input === "object" ? input : {};
+  // Google tools read with the person's own Google account (or, for an admin, the app's service account)
+  if (name.startsWith("sheet_") || name.startsWith("drive_")) return googleAccess.withAccess(user, () => fn(user, args));
+  return fn(user, args);
 }
 
 export = { DEFS: [...DEFS, ...sheetTools.DEFS, ...driveTools.DEFS, ...knowledge.DEFS], runTool, resolvePerson };
