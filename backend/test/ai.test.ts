@@ -98,7 +98,10 @@ test("tools: overdue tasks and FMS entries", async () => {
   const admin = await User().findOne({ username: "admin" });
   const overdue = await tools().runTool(admin, "list_tasks", { status: "overdue" });
   assert.match(overdue, /^1 overdue tasks/);
-  assert.match(overdue, /\[DEL\] Send quote · Ramesh Kumar · planned .* · 3 days late/);
+  // planned 3 days ago at 06:00 UTC; counted in India days, so just after midnight IST it is already 4
+  const planned = new Date(new Date(Date.now() - 3 * DAY).setUTCHours(6, 0, 0, 0));
+  const late = Math.round((Date.parse(key(new Date())) - Date.parse(key(planned))) / DAY);
+  assert.match(overdue, new RegExp(`\\[DEL\\] Send quote · Ramesh Kumar · planned .* · ${late} days late`));
   assert.match(await tools().runTool(admin, "list_tasks", { status: "done_late", person: ids.ramesh }), /\[CHK\] Oiling · Ramesh Kumar/);
   await assert.rejects(() => tools().runTool(admin, "list_tasks", { status: "lost" }), /status must be one of/);
 

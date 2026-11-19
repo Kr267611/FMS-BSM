@@ -1,32 +1,35 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
+import Markdown from "../components/Markdown";
 
-// AI Assistant (admins only for now): asks the app's data in plain Hinglish. It only reads – the server's tools
-// see what the signed-in user may see, and nothing is changed.
+// AI Assistant: questions about the app's data, Google Sheets and company documents, in any language. It only reads –
+// the server's tools see what the signed-in user may see, and in Google what their own connected account sees.
 const STEP_LABEL = {
-  find_people: "Log khoje",
-  mis_scores: "MIS dekha",
-  list_tasks: "Tasks dekhe",
-  fms_overview: "FMS ka haal dekha",
-  find_entries: "Entries khoji",
-  entry_detail: "Entry kholi",
-  sheet_tabs: "Sheet ke tabs dekhe",
-  sheet_describe_fms: "Sheet ka FMS samjha",
-  sheet_read: "Sheet padhi",
-  sheet_formulas: "Formulas dekhe",
-  sheet_find_rows: "Sheet me rows khoji",
-  drive_search: "Drive me khoja",
-  drive_list_folder: "Folder dekha",
-  drive_read: "File padhi",
-  search_knowledge: "Gyaan me khoja",
+  find_people: "People",
+  mis_scores: "MIS scores",
+  list_tasks: "Tasks",
+  fms_overview: "FMS overview",
+  find_entries: "FMS entries",
+  entry_detail: "Entry details",
+  sheet_tabs: "Sheet tabs",
+  sheet_describe_fms: "Sheet structure",
+  sheet_read: "Sheet data",
+  sheet_formulas: "Sheet formulas",
+  sheet_find_rows: "Sheet search",
+  drive_search: "Drive search",
+  drive_list_folder: "Drive folder",
+  drive_read: "Drive document",
+  search_knowledge: "Knowledge base",
 };
+// "<link>" suggestions go into the box to be completed; the others are asked straight away
 const SUGGESTIONS = [
-  "Aaj kaun-kaun se kaam overdue hain?",
-  "Is mahine sabse kharab MIS score kiska hai?",
-  "Kaunse FMS me sabse zyada steps atke hain?",
-  "Pichhle hafte late hue kaam dikhao",
-  "Is Google Sheet ke tabs dikhao: <link>",
+  "Which tasks are overdue today?",
+  "Who has the lowest MIS score this month?",
+  "Which FMS has the most pending steps?",
+  "Show the tasks completed late last week",
+  "Summarise this Google Sheet: <link>",
 ];
+const istDate = (d) => new Date(d).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" });
 
 type Turn = { role: "user" | "assistant"; text: string; steps?: { tool: string; ok: boolean }[] };
 
@@ -44,6 +47,7 @@ export default function AiAssistant() {
   const [kbNote, setKbNote] = useState("");
   const [googleNote, setGoogleNote] = useState("");
   const end = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLTextAreaElement>(null);
 
   const loadChats = () => api("/ai/conversations").then(setChats).catch(() => {});
   const loadStatus = () => api("/ai/status").then(setStatus).catch((e) => setError(e.message));
@@ -57,7 +61,13 @@ export default function AiAssistant() {
     if (g) {
       const why = q.get("why");
       setGoogleNote(
-        g === "connected" ? "Google jud gaya ✓ Ab AI tumhari Drive aur Sheets padh sakta hai (sirf padhna)." : g === "denied" ? "Google pe Allow nahi kiya gaya – jab chaho dobara jodo." : g === "off" ? "Google login abhi server pe set nahi hai." : `Google nahi juda: ${why || "dobara try karo"}`
+        g === "connected"
+          ? "Google account connected. The assistant can now read your Drive and Sheets (read-only)."
+          : g === "denied"
+            ? "Google access was not granted. You can connect at any time."
+            : g === "off"
+              ? "Google sign-in is not set up on the server yet."
+              : `Could not connect Google: ${why || "please try again."}`
       );
       window.history.replaceState(null, "", window.location.pathname);
     }
@@ -87,17 +97,17 @@ export default function AiAssistant() {
   }
 
   async function remove(id: string) {
-    if (!window.confirm("Ye chat delete karein?")) return;
+    if (!window.confirm("Delete this conversation?")) return;
     await api(`/ai/conversations/${id}`, { method: "DELETE" }).catch((e) => setError(e.message));
     if (id === chatId) newChat();
     loadChats();
   }
 
   async function disconnectGoogle() {
-    if (!window.confirm("Google ka connection hatayein? AI tumhari Drive / Sheets padhna band kar dega.")) return;
+    if (!window.confirm("Disconnect your Google account? The assistant will no longer be able to read your Drive and Sheets.")) return;
     try {
       await api("/ai/google", { method: "DELETE" });
-      setGoogleNote("Google hata diya. AI ab tumhari Drive nahi padhega.");
+      setGoogleNote("Google account disconnected.");
       loadStatus();
     } catch (e) {
       setGoogleNote(e.message);
@@ -111,13 +121,19 @@ export default function AiAssistant() {
     try {
       const r = await api("/ai/knowledge/reindex", { method: "POST" });
       const problems = (r.errors || []).slice(0, 3).join(" · ");
-      setKbNote(`${r.indexed} naye/badle, ${r.skipped} same, ${r.removed} hataye${r.failed ? `, ${r.failed} nahi padh paye` : ""}${problems ? ` · Dikkat: ${problems}` : ""}`);
+      setKbNote(`${r.indexed} new or changed · ${r.skipped} unchanged · ${r.removed} removed${r.failed ? ` · ${r.failed} could not be read` : ""}${problems ? ` · Issues: ${problems}` : ""}`);
       setKb(await api("/ai/knowledge"));
     } catch (e) {
       setKbNote(e.message);
     } finally {
       setKbBusy(false);
     }
+  }
+
+  function suggest(s: string) {
+    if (!s.includes("<link>")) return send(s);
+    setText(s.replace("<link>", ""));
+    box.current?.focus();
   }
 
   async function send(question = text) {
@@ -142,29 +158,31 @@ export default function AiAssistant() {
     }
   }
 
+  const sources = (steps: Turn["steps"]) => [...new Set(steps.filter((s) => s.ok).map((s) => STEP_LABEL[s.tool] || s.tool))];
+
   return (
     <div className="ai-page">
       <div className="page-head">
         <h2>AI Assistant</h2>
         <div className="row">
           <button className="btn ghost small ai-list-toggle" onClick={() => setShowList(!showList)}>
-            Purani chats ({chats.length})
+            History ({chats.length})
           </button>
           <button className="btn small" onClick={newChat}>
-            + Nayi chat
+            + New chat
           </button>
         </div>
       </div>
 
       {status && !status.enabled && (
         <div className="card ai-off">
-          <b>AI abhi band hai.</b>{" "}
+          <b>The AI Assistant is not configured.</b>{" "}
           {status.admin ? (
             <>
-              Server pe (Render → Environment) Claude ke liye <code>ANTHROPIC_API_KEY</code>, ya free model ke liye <code>AI_PROVIDER</code> + <code>AI_API_KEY</code> + <code>AI_MODEL</code> lagana hai. Uske baad yahan sawaal pooch sakte ho.
+              In Render → Environment, set <code>ANTHROPIC_API_KEY</code> for Claude, or <code>AI_PROVIDER</code> + <code>AI_API_KEY</code> + <code>AI_MODEL</code> for a free model.
             </>
           ) : (
-            "Admin se bolo – server pe AI ki setting baaki hai."
+            "Please contact your administrator."
           )}
           {!!status.problems?.length && (
             <ul className="ai-problems">
@@ -180,30 +198,30 @@ export default function AiAssistant() {
         <div className="card ai-kb">
           <div className="row between wrap">
             <div>
-              <b>Google Drive / Sheets:</b>{" "}
+              <b>Google Drive &amp; Sheets:</b>{" "}
               {status.google.connected ? (
                 <>
-                  <span className="ai-ok">✓ {status.google.email}</span> se juda – AI wahi padhta hai jo is account ko dikhta hai (sirf padhna).
+                  Connected as <span className="ai-ok">{status.google.email}</span> – the assistant reads only what this account can see (read-only).
                 </>
               ) : status.google.configured ? (
                 status.google.fallback === "service" ? (
-                  "Juda nahi – abhi AI sirf app ke saath share ki gayi files padhta hai. Apna Google jodo to poori Drive padh sakega."
+                  "Not connected. The assistant can read only files shared with the app. Connect your Google account to give it read-only access to your Drive and Sheets."
                 ) : (
-                  "Juda nahi – apna Google account jodo, tab AI tumhari Drive aur Sheets padh sakega."
+                  "Not connected. Connect your Google account to let the assistant read your Drive and Sheets (read-only)."
                 )
               ) : (
-                <span className="muted">Google login abhi server pe set nahi hai.</span>
+                <span className="muted">Google sign-in is not set up on the server yet.</span>
               )}
             </div>
             {status.google.configured &&
               (status.google.connected ? (
                 <button className="btn ghost small" onClick={disconnectGoogle}>
-                  Hatao
+                  Disconnect
                 </button>
               ) : (
                 // a normal link: the browser goes to Google's sign-in page and comes back here
                 <a className="btn small" href="/api/ai/google/connect">
-                  Google jodo
+                  Connect Google
                 </a>
               ))}
           </div>
@@ -215,7 +233,9 @@ export default function AiAssistant() {
               ))}
             </ul>
           )}
-          {status.admin && !!status.google.blocked?.length && <p className="muted small ai-kb-note">AI ko kabhi nahi dikhega: naam me "{status.google.blocked.join('", "')}" wali files / tabs.</p>}
+          {status.admin && !!status.google.blocked?.length && (
+            <p className="muted small ai-kb-note">Never visible to the assistant: files and tabs whose name contains "{status.google.blocked.join('", "')}".</p>
+          )}
         </div>
       )}
 
@@ -223,20 +243,20 @@ export default function AiAssistant() {
         <div className="card ai-kb">
           <div className="row between wrap">
             <div>
-              <b>Gyaan (Knowledge):</b> {kb.sources} documents · {kb.driveFiles} Google Drive files · {kb.chunks} tukde
-              {kb.lastIndexed && <span className="muted small"> · update {new Date(kb.lastIndexed).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" })}</span>}
-              {kb.embedModel === "off" && <span className="muted small"> · sirf keyword search</span>}
+              <b>Knowledge base:</b> {kb.sources} documents · {kb.driveFiles} Google Drive files · {kb.chunks} sections
+              {kb.lastIndexed && <span className="muted small"> · updated {istDate(kb.lastIndexed)}</span>}
+              {kb.embedModel === "off" && <span className="muted small"> · keyword search only</span>}
             </div>
             {status?.admin && (
               <button className="btn ghost small" onClick={updateKnowledge} disabled={kbBusy}>
-                {kbBusy ? "Padh raha hoon…" : "Update karo"}
+                {kbBusy ? "Refreshing…" : "Refresh"}
               </button>
             )}
           </div>
           {kbNote && <p className="small ai-kb-note">{kbNote}</p>}
           {!!kb.errors?.length && (
             <details className="small ai-kb-errors">
-              <summary>{kb.errors.length} file(s) me dikkat</summary>
+              <summary>{kb.errors.length} file(s) could not be read</summary>
               <ul>
                 {kb.errors.map((e, i) => (
                   <li key={i}>
@@ -251,13 +271,13 @@ export default function AiAssistant() {
 
       <div className="ai-layout">
         <aside className={`card ai-chats${showList ? " open" : ""}`}>
-          {!chats.length && <p className="muted small">Abhi koi chat nahi.</p>}
+          {!chats.length && <p className="muted small">No conversations yet.</p>}
           {chats.map((c) => (
             <div key={c._id} className={`ai-chat-item${c._id === chatId ? " active" : ""}`}>
               <button className="ai-chat-title" onClick={() => open(c._id)} title={c.title}>
-                {c.title || "Chat"}
+                {c.title || "Conversation"}
               </button>
-              <button className="ai-chat-del" onClick={() => remove(c._id)} aria-label="Delete chat">
+              <button className="ai-chat-del" onClick={() => remove(c._id)} aria-label="Delete conversation">
                 ×
               </button>
             </div>
@@ -268,13 +288,11 @@ export default function AiAssistant() {
           <div className="ai-messages">
             {!turns.length && (
               <div className="ai-empty">
-                <p>
-                  Company ke kaam ke baare me Hinglish me poochho. AI sirf <b>padhta</b> hai – kuch badalta nahi.
-                </p>
+                <p>Ask about tasks, MIS scores, FMS entries, Google Sheets or company documents – in any language. The assistant only reads data; it never changes anything.</p>
                 <div className="ai-suggestions">
                   {SUGGESTIONS.map((s) => (
-                    <button key={s} className="btn ghost small" disabled={!status?.enabled || busy} onClick={() => send(s)}>
-                      {s}
+                    <button key={s} className="btn ghost small" disabled={!status?.enabled || busy} onClick={() => suggest(s)}>
+                      {s.replace(": <link>", "…")}
                     </button>
                   ))}
                 </div>
@@ -282,21 +300,30 @@ export default function AiAssistant() {
             )}
             {turns.map((t, i) => (
               <div key={i} className={`ai-msg ${t.role}`}>
-                {!!t.steps?.length && (
-                  <div className="ai-steps">
-                    {t.steps.map((s, j) => (
-                      <span key={j} className={`ai-step${s.ok ? "" : " bad"}`}>
-                        {s.ok ? "✓" : "!"} {STEP_LABEL[s.tool] || s.tool}
-                      </span>
-                    ))}
+                {t.role === "assistant" ? (
+                  <div className="ai-bubble ai-answer">
+                    <Markdown text={t.text} />
+                  </div>
+                ) : (
+                  <div className="ai-bubble">{t.text}</div>
+                )}
+                {t.role === "assistant" && !!t.steps?.length && (
+                  <div className="ai-sources">
+                    {!!sources(t.steps).length && <>Based on: {sources(t.steps).join(" · ")}</>}
+                    {t.steps.some((s) => !s.ok) && <span className="ai-source-bad"> · some data could not be read</span>}
                   </div>
                 )}
-                <div className="ai-bubble">{t.text}</div>
               </div>
             ))}
             {busy && (
               <div className="ai-msg assistant">
-                <div className="ai-bubble ai-thinking">Soch raha hoon, data dekh raha hoon…</div>
+                <div className="ai-bubble ai-thinking" role="status" aria-label="Working on your request">
+                  <span className="ai-dots" aria-hidden="true">
+                    <i />
+                    <i />
+                    <i />
+                  </span>
+                </div>
               </div>
             )}
             <div ref={end} />
@@ -311,6 +338,7 @@ export default function AiAssistant() {
             }}
           >
             <textarea
+              ref={box}
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
@@ -319,18 +347,18 @@ export default function AiAssistant() {
                   send();
                 }
               }}
-              placeholder={status?.enabled ? "Sawaal likho… (Enter = bhejo)" : "AI band hai"}
+              placeholder={status?.enabled ? "Ask a question… (Enter to send, Shift+Enter for a new line)" : "The assistant is not available"}
               rows={2}
               maxLength={4000}
               disabled={!status?.enabled || busy}
             />
             <button className="btn primary" disabled={!status?.enabled || busy || !text.trim()}>
-              Bhejo
+              Send
             </button>
           </form>
           {status?.enabled && (
             <p className="muted small ai-foot">
-              Aaj {status.usedToday || 0} / {status.dailyLimit} sawaal · AI galti kar sakta hai – zaroori number app me check kar lo.
+              {status.usedToday || 0} of {status.dailyLimit} questions used today · The assistant can make mistakes – verify important figures in the app.
             </p>
           )}
         </section>
