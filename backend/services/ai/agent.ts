@@ -179,7 +179,8 @@ async function chatCompletion(link: Link, body) {
   });
   const data: any = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err: any = new Error(data?.error?.message || data?.message || `AI service error ${res.status}`);
+    const body = Array.isArray(data) ? data[0] : data; // Gemini sends its error inside a list: [{ error: { message } }]
+    const err: any = new Error(body?.error?.message || body?.message || `AI service error ${res.status}`);
     err.status = res.status;
     throw err;
   }

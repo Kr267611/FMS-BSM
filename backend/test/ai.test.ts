@@ -536,6 +536,9 @@ test("free model: tool calls go through the OpenAI-compatible API; changing the 
     // never 502/503/504: the page would take those for a server that is still waking up and hide the message
     assert.strictEqual(busy.status, 429);
     assert.match(busy.data.message, /busy \(rate limit\) – try again in a minute \(Rate limit reached\)$/); // admin sees the detail
+    // Gemini wraps its error in a list
+    agent().setFetchForTests(async () => new Response(JSON.stringify([{ error: { code: 429, message: "Quota exceeded for requests per day" } }]), { status: 429 }));
+    assert.match((await post("admin", "/ai/chat", { message: "x" })).data.message, /\(Quota exceeded for requests per day\)$/);
   } finally {
     for (const k of ["AI_PROVIDER", "AI_API_KEY", "AI_MODEL"]) delete process.env[k];
     agent().setFetchForTests(null);
