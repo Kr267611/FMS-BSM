@@ -5,6 +5,7 @@
 import sheetSyncLib = require("../sheetSync");
 import sheetInspect = require("../sheetInspect");
 import googleAccess = require("./googleAccess");
+import check = require("./fmsSheetCheck");
 const { getSheets, extractSpreadsheetId, friendlyError } = sheetSyncLib;
 const { findSteps } = sheetInspect;
 
@@ -204,6 +205,170 @@ async function sheetFindRows(_user, input, now = new Date()) {
   return `${matched} rows match in "${tab.name}"${matched > hits.length ? ` (first ${hits.length})` : ""}.\n${UNTRUSTED}\n\n${lines.join("\n")}`;
 }
 
+// ---------- FMS score and health check on a Google Sheet tab (logic in fmsSheetCheck.ts) ----------
+
+const MAX_FMS_ROWS = 20000;
+
+// One request for many single-column ranges; returns each column's values by row
+async function columns(id: string, ranges: string[], render: string, tab: string) {
+  const r: any = await call(() => sheets().spreadsheets.values.batchGet({ spreadsheetId: id, ranges, valueRenderOption: render, dateTimeRenderOption: "SERIAL_NUMBER" }), tab);
+  return ranges.map((_, k) => ((r.data.valueRanges || [])[k]?.values || []).map((row) => (row || [])[0] ?? ""));
+}
+
+// The FMS layout of a tab: header row, step blocks, and the data rows (up to the last row with an entry on the left side)
+async function fmsTab(id: string, tabName: string) {
+  const tab = await findTab(id, tabName);
+  const q = quote(tab.name);
+  const top = await values(id, `${q}!A1:ZZ15`, "FORMATTED_VALUE", tab.name);
+  const found = findSteps(top);
+  if (!found.headerRow) fail(`No FMS header (no "Planned" columns) in the first 15 rows of "${tab.name}". Use sheet_read to look at it.`);
+  const header = top[found.headerRow - 1] || [];
+  const blocks = check.blocks(header, found.steps);
+  const first = found.headerRow + 1;
+  const end = first + Math.max(0, Math.min((tab.rows || first) - first + 1, MAX_FMS_ROWS) - 1);
+  const firstCol = Math.min(...blocks.map((b) => b.planned));
+  let data: boolean[] = null;
+  let last = end;
+  if (firstCol > 0) {
+    const left = await values(id, `${q}!A${first}:${colLetter(firstCol - 1)}${end}`, "FORMATTED_VALUE", tab.name);
+    data = check.entryRows(left, end - first + 1);
+    last = first + data.lastIndexOf(true); // first - 1 when there is no entry yet
+    data = data.slice(0, Math.max(0, last - first + 1));
+  }
+  // "only the first N rows" only when entries really run up to the limit (not for thousands of pre-made empty rows)
+  return { tab, q, header, blocks, first, last, data, cut: (tab.rows || 0) > end && last >= end };
+}
+type FmsTab = Awaited<ReturnType<typeof fmsTab>>;
+
+const RENDER_KEY = { UNFORMATTED_VALUE: "raw", FORMATTED_VALUE: "shown", FORMULA: "formula" };
+async function readColumns(id: string, t: FmsTab, cols: number[], renders: string[]) {
+  const list = [...new Set(cols.filter((c) => c >= 0))];
+  const out = new Map<number, { raw: any[]; shown: any[]; formula: any[] }>(list.map((c) => [c, { raw: [], shown: [], formula: [] }]));
+  if (!list.length || t.last < t.first) return out;
+  const ranges = list.map((c) => `${t.q}!${colLetter(c)}${t.first}:${colLetter(c)}${t.last}`);
+  await Promise.all(renders.map(async (r) => (await columns(id, ranges, r, t.tab.name)).forEach((v, k) => (out.get(list[k])[RENDER_KEY[r]] = v))));
+  return out;
+}
+
+// Which rows of each Status column carry a dropdown (data validation). Absent from the map when it cannot be checked.
+async function dropdowns(id: string, t: FmsTab, cols: number[]) {
+  const out = new Map<number, boolean[]>();
+  if (!cols.length || t.last < t.first) return out;
+  try {
+    const r: any = await sheets().spreadsheets.get({
+      spreadsheetId: id,
+      ranges: cols.map((c) => `${t.q}!${colLetter(c)}${t.first}:${colLetter(c)}${t.last}`),
+      includeGridData: true,
+      fields: "sheets(data(rowData(values(dataValidation(condition(type))))))",
+    });
+    const grids = r.data?.sheets?.[0]?.data;
+    if (Array.isArray(grids) && grids.length === cols.length)
+      grids.forEach((g, k) => out.set(cols[k], Array.from({ length: t.last - t.first + 1 }, (_, i) => Boolean(g?.rowData?.[i]?.values?.[0]?.dataValidation))));
+  } catch {
+    // the dropdown check is left out; the rest of the report still stands
+  }
+  return out;
+}
+
+function pickSteps(t: FmsTab, step?: string) {
+  if (!step || !String(step).trim()) return t.blocks;
+  const s = String(step).trim();
+  const byCol = /^[A-Za-z]{1,3}$/.test(s) ? t.blocks.filter((b) => colLetter(b.planned) === s.toUpperCase()) : [];
+  const hits = byCol.length ? byCol : t.blocks.filter((b) => norm(b.name).includes(norm(s)));
+  return hits.length ? hits : fail(`No step "${s}" in "${t.tab.name}". Steps: ${t.blocks.map((b) => `${b.name} (Planned ${colLetter(b.planned)})`).join("; ")}`);
+}
+
+const stepCols = (b) => `Planned ${colLetter(b.planned)} · Actual ${colLetter(b.actual)}${b.delay >= 0 ? ` · Time Delay ${colLetter(b.delay)}` : ""}${b.status >= 0 ? ` · Status ${colLetter(b.status)}` : ""}`;
+const cell = (v) => show(v, 40).replace(/\|/g, "/");
+
+async function sheetFmsScore(_user, input, now = new Date()) {
+  const id = sheetId(input.sheet);
+  const today = todaySerial(now);
+  const date = (v, name) => check.serialOf(v) ?? fail(`${name} must be a date like 2026-11-01`);
+  const from = input.from ? date(input.from, "from") : check.serialOf(check.isoOf(today).slice(0, 8) + "01");
+  const to = input.to ? date(input.to, "to") : today;
+  if (from > to) fail("from is after to");
+  if (to - from > 400) fail("Ask for at most one year at a time");
+  const t = await fmsTab(id, input.tab);
+  const chosen = pickSteps(t, input.step);
+  if (t.last < t.first) return `No entries in "${t.tab.name}" yet.`;
+
+  let keep = (_i: number) => true;
+  let filterNote = "";
+  if (input.filterColumn) {
+    const f = String(input.filterColumn).trim();
+    const c = /^[A-Za-z]{1,3}$/.test(f) ? colIndex(f.toUpperCase()) : t.header.findIndex((h) => norm(h) === norm(f));
+    if (c < 0) fail(`Column "${f}" is not a letter and not a header in row ${t.first - 1}`);
+    const wanted = (Array.isArray(input.filterValues) ? input.filterValues : [input.filterValues]).map(norm).filter(Boolean);
+    if (!wanted.length) fail("filterValues: give the value(s) to keep, e.g. [\"MANISH MASTER\"]");
+    const col = (await readColumns(id, t, [c], ["FORMATTED_VALUE"])).get(c).shown;
+    keep = (i) => wanted.includes(norm(col[i]));
+    filterNote = `, only rows where ${colLetter(c)} is ${wanted.map((w) => `"${w.toUpperCase()}"`).join(" or ")}`;
+  }
+
+  const cols = await readColumns(id, t, chosen.flatMap((b) => [b.planned, b.actual]), ["UNFORMATTED_VALUE"]);
+  const rows = chosen.map((b) => ({ b, r: check.score(cols.get(b.planned).raw, cols.get(b.actual).raw, from, to, today, keep) }));
+  const head = "| Step | Planned col | Planned | Actual | Late | On time | Pending | Score |\n|---|---|---|---|---|---|---|---|";
+  const line = (name, col, r) => `| ${name} | ${col} | ${r.planned} | ${r.actual} | ${r.late} | ${r.onTime} | ${r.pending} | ${r.score} |`;
+  const lines = rows.map(({ b, r }) => line(cell(b.name), colLetter(b.planned), r));
+  if (rows.length > 1) {
+    const sum = (k) => rows.reduce((n, x) => n + x.r[k], 0);
+    const total = { planned: sum("planned"), actual: sum("actual"), late: sum("late"), onTime: sum("onTime"), pending: sum("pending"), score: check.scoreOf(sum("planned"), sum("late"), sum("pending")) };
+    lines.push(line("**All steps together**", "", total));
+  }
+  const notes = [];
+  for (const { b, r } of rows) {
+    if (r.notDue) notes.push(`${cell(b.name)}: ${r.notDue} of the pending are not due yet (planned today or later) – the MIS counts them as pending too.`);
+    if (r.textActual) notes.push(`${cell(b.name)}: ${r.textActual} rows have text instead of a date in Actual – counted as pending, as the MIS does.`);
+    if (r.notDate) notes.push(`${cell(b.name)}: ${r.notDate} Planned cells hold text or an error instead of a date – not counted (the MIS skips them too). sheet_fms_health shows where.`);
+  }
+  return [
+    `"${t.tab.name}" – MIS score for planned dates ${check.isoOf(from)} to ${check.isoOf(to)} (rows ${t.first}–${t.last}${filterNote}).`,
+    `Same method as the MIS file: a task counts when its Planned date is in the period; Late = Actual after the Planned day; Pending = no Actual date; score = −(50 × Late + 100 × Pending) ÷ Planned; 0 is perfect.`,
+    UNTRUSTED,
+    "",
+    head,
+    ...lines,
+    ...(notes.length ? ["", "Notes:", ...notes.map((n) => `- ${n}`)] : []),
+    ...(t.cut ? [`Only the first ${MAX_FMS_ROWS} data rows were read.`] : []),
+  ].join("\n");
+}
+
+async function sheetFmsHealth(_user, input, now = new Date()) {
+  const id = sheetId(input.sheet);
+  const today = todaySerial(now);
+  const t = await fmsTab(id, input.tab);
+  const chosen = pickSteps(t, input.step);
+  if (t.last < t.first) return `No entries in "${t.tab.name}" yet – nothing to check.`;
+  const statusCols = [...new Set(chosen.map((b) => b.status).filter((c) => c >= 0))];
+  const [cols, dd] = await Promise.all([
+    readColumns(id, t, chosen.flatMap((b) => [b.planned, b.actual, b.delay, b.status]), ["UNFORMATTED_VALUE", "FORMATTED_VALUE", "FORMULA"]),
+    dropdowns(id, t, statusCols),
+  ]);
+  const n = t.last - t.first + 1;
+  const data = t.data || Array.from({ length: n }, (_, i) => chosen.some((b) => [b.planned, b.actual, b.status].some((c) => c >= 0 && String(cols.get(c).raw[i] ?? "").trim() !== "")));
+  const report = check.health(chosen, { firstRow: t.first, data, cols, dropdown: dd, today });
+
+  const problems = report.reduce((k, s) => k + s.found.length, 0);
+  const bad = report.filter((s) => s.found.length).length;
+  const overdue = report.reduce((k, s) => k + s.overdue, 0);
+  const out = [
+    `"${t.tab.name}": checked rows ${t.first}–${t.last} (${data.filter(Boolean).length} rows with an entry), ${chosen.length} ${chosen.length === 1 ? "step" : "steps"}. Read only – nothing was changed.`,
+    problems ? `${problems} kinds of problem in ${bad} of ${chosen.length} steps; ${overdue} tasks overdue.` : `No problems found; ${overdue} tasks overdue.`,
+    UNTRUSTED,
+  ];
+  report.forEach((s, k) => {
+    out.push("", `${k + 1}. ${cell(s.block.name)} – ${stepCols(s.block)}`);
+    if (!s.found.length) out.push("- No problems.");
+    for (const f of s.found) out.push(`- ${f.what}: ${check.cellList(f.cells)}. Fix: ${f.fix}.`);
+    if (s.block.status >= 0 && !dd.has(s.block.status)) out.push("- (The Status dropdown could not be checked.)");
+    out.push(`- Overdue (Planned before today, no Actual): ${s.overdue}${s.oldestOverdue ? ` – oldest planned ${s.oldestOverdue.planned}, row ${s.oldestOverdue.row}` : ""}.`);
+  });
+  if (t.cut) out.push("", `Only the first ${MAX_FMS_ROWS} data rows were checked.`);
+  const text = out.join("\n");
+  return text.length > 8000 ? text.slice(0, 7900) + "\n… (cut – ask for one step at a time)" : text;
+}
+
 const sheet = { type: "string", description: "Google Sheet link or id (read with the person's connected Google account, or the app's service account)" };
 const tabProp = { type: "string", description: "Tab name exactly as in the sheet" };
 
@@ -242,8 +407,41 @@ const DEFS = [
       additionalProperties: false,
     },
   },
+  {
+    name: "sheet_fms_score",
+    description:
+      "MIS score of an FMS tab in a Google Sheet, calculated exactly like the MIS file (Feeder → Performance-daily → Task Count): for each step, Planned, Actual, Late, On time, Pending and Score for tasks whose Planned date is from..to (default: this month up to today). Optional: one step (its name or Planned column letter) and a row filter (filterColumn = letter or header, filterValues = values to keep, e.g. the master's name).",
+    input_schema: {
+      type: "object",
+      properties: {
+        sheet,
+        tab: tabProp,
+        from: { type: "string", description: "YYYY-MM-DD" },
+        to: { type: "string", description: "YYYY-MM-DD" },
+        step: { type: "string", description: "Step name (or part of it) or its Planned column letter" },
+        filterColumn: { type: "string" },
+        filterValues: { type: "array", items: { type: "string" } },
+      },
+      required: ["sheet", "tab"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sheet_fms_health",
+    description:
+      "Check an FMS tab in a Google Sheet for what breaks the MIS score: error values (#VALUE!, #REF!), wrong dates (1900 / 3799), text instead of a date, Planned or Time Delay formula missing or typed over in rows with an entry, Status Done with no Actual, Status dropdown missing, Actual after today; plus the overdue count per step. Gives the exact cells and the fix. Read only.",
+    input_schema: { type: "object", properties: { sheet, tab: tabProp, step: { type: "string", description: "Only this step (name or Planned column letter)" } }, required: ["sheet", "tab"], additionalProperties: false },
+  },
 ];
 
-const RUN = { sheet_tabs: sheetTabs, sheet_describe_fms: sheetDescribeFms, sheet_read: sheetRead, sheet_formulas: sheetFormulas, sheet_find_rows: sheetFindRows };
+const RUN = {
+  sheet_tabs: sheetTabs,
+  sheet_describe_fms: sheetDescribeFms,
+  sheet_read: sheetRead,
+  sheet_formulas: sheetFormulas,
+  sheet_find_rows: sheetFindRows,
+  sheet_fms_score: sheetFmsScore,
+  sheet_fms_health: sheetFmsHealth,
+};
 
 export = { DEFS, RUN, todaySerial, setSheetsForTests: (s) => (sheetsOverride = s) };

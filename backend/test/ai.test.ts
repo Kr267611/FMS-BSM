@@ -164,7 +164,7 @@ test("chat: the model calls a tool, gets the result, answers; the conversation i
   assert.strictEqual(first.fallbacks, "default");
   assert.deepStrictEqual(first.betas, ["server-side-fallback-2026-07-01"]);
   assert.deepStrictEqual(first.cache_control, { type: "ephemeral" });
-  assert.deepStrictEqual(first.tools.map((t) => t.name), ["find_people", "mis_scores", "list_tasks", "fms_overview", "find_entries", "entry_detail", "sheet_tabs", "sheet_describe_fms", "sheet_read", "sheet_formulas", "sheet_find_rows", "drive_search", "drive_list_folder", "drive_read", "search_knowledge"]);
+  assert.deepStrictEqual(first.tools.map((t) => t.name), ["find_people", "mis_scores", "list_tasks", "fms_overview", "find_entries", "entry_detail", "sheet_tabs", "sheet_describe_fms", "sheet_read", "sheet_formulas", "sheet_find_rows", "sheet_fms_score", "sheet_fms_health", "drive_search", "drive_list_folder", "drive_read", "search_knowledge"]);
   assert.match(first.messages[0].content, /^\[Today: \d{4}-\d{2}-\d{2} \(.*IST\)\]\nKya overdue hai\?$/);
   // the tool result goes back after the model's own blocks, unchanged
   const second = fake.calls[1];
@@ -517,7 +517,7 @@ test("free model: tool calls go through the OpenAI-compatible API; changing the 
     assert.strictEqual(sent[0].auth, "Bearer test-key");
     assert.strictEqual(sent[0].body.model, "test-model");
     assert.strictEqual(sent[0].body.messages[0].role, "system");
-    assert.strictEqual(sent[0].body.tools.length, 15);
+    assert.strictEqual(sent[0].body.tools.length, 17);
     assert.strictEqual(sent[0].body.tools[0].type, "function");
     const back = sent[1].body.messages;
     assert.deepStrictEqual(back.slice(-2).map((m) => [m.role, m.tool_call_id]), [["tool", "c1"], ["tool", "c2"]]);

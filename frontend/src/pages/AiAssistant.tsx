@@ -16,6 +16,8 @@ const STEP_LABEL = {
   sheet_read: "Sheet data",
   sheet_formulas: "Sheet formulas",
   sheet_find_rows: "Sheet search",
+  sheet_fms_score: "Sheet FMS score",
+  sheet_fms_health: "Sheet health check",
   drive_search: "Drive search",
   drive_list_folder: "Drive folder",
   drive_read: "Drive document",
@@ -28,6 +30,8 @@ const SUGGESTIONS = [
   "Which FMS has the most pending steps?",
   "Show the tasks completed late last week",
   "Summarise this Google Sheet: <link>",
+  "Check this FMS sheet for problems: <link>",
+  "MIS score of this FMS sheet this month: <link>",
 ];
 const istDate = (d) => new Date(d).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" });
 
