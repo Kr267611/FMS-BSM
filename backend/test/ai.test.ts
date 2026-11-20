@@ -533,8 +533,9 @@ test("free model: tool calls go through the OpenAI-compatible API; changing the 
     // an API error comes back as a clear message
     agent().setFetchForTests(async () => new Response(JSON.stringify({ error: { message: "Rate limit reached" } }), { status: 429 }));
     const busy = await post("admin", "/ai/chat", { message: "x" });
-    assert.strictEqual(busy.status, 502);
-    assert.match(busy.data.message, /busy/);
+    // never 502/503/504: the page would take those for a server that is still waking up and hide the message
+    assert.strictEqual(busy.status, 429);
+    assert.match(busy.data.message, /busy \(rate limit\) – try again in a minute \(Rate limit reached\)$/); // admin sees the detail
   } finally {
     for (const k of ["AI_PROVIDER", "AI_API_KEY", "AI_MODEL"]) delete process.env[k];
     agent().setFetchForTests(null);
@@ -636,8 +637,8 @@ test("backup chain: Gemini fails -> Groq answers; a failed model rests; all fail
     // 4. Everyone fails -> one clear error, nothing saved as an answer
     agent().setFetchForTests(async () => json({ error: { message: "down" } }, 503));
     const dead = await post("admin", "/ai/chat", { message: "x" });
-    assert.strictEqual(dead.status, 502);
-    assert.match(dead.data.message, /AI service had a problem/);
+    assert.strictEqual(dead.status, 500);
+    assert.match(dead.data.message, /AI service had a problem – try again in a minute \(All \d AI models failed – last: down\)/);
 
     // 5. A chat with any model of the chain can go on with the chain (same message format); a Claude chat cannot
     agent().setFetchForTests(async () => answer("ok"));

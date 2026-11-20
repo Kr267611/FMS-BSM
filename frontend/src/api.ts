@@ -51,8 +51,11 @@ export async function api<T = any>(path: string, { method = "GET", body, query }
       headers: { "Content-Type": "application/json" },
       body: body ? JSON.stringify(body) : undefined,
     }).catch(() => null);
+  // A 502/503/504 that our own server sent (JSON with a message, e.g. "AI is off") is an answer to show, not a server
+  // that is still waking up – those come from the host as an HTML or text page
+  const fromServer = (r: Response | null) => Boolean(r && (r.headers.get("content-type") || "").includes("application/json"));
   let res = await send();
-  if (!res || DOWN.includes(res.status)) {
+  if (!res || (DOWN.includes(res.status) && !fromServer(res))) {
     // The free server sleeps after 15 idle minutes and needs up to a minute to wake up.
     // Wait for it, then repeat reads and sign-in. Other changes are not repeated, because the first try
     // may have reached the server and repeating it could save the same thing twice.

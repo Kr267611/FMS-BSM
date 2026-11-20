@@ -140,8 +140,17 @@ router.post("/chat", async (req, res) => {
   } catch (err) {
     const status = err?.status;
     const message =
-      status === 401 || status === 403 ? "AI key is not valid – check the key on the server" : status === 429 ? "AI is busy (rate limit) – try again in a minute" : status >= 500 ? "AI service had a problem – try again" : err?.message || "AI failed";
-    res.status(status === 401 || status === 403 || status === 429 || status >= 500 ? 502 : 500).json({ message });
+      status === 401 || status === 403
+        ? "AI key is not valid – check the key on the server"
+        : status === 429
+          ? "AI is busy (rate limit) – try again in a minute"
+          : !status || status >= 500
+            ? "AI service had a problem – try again in a minute"
+            : err?.message || "AI failed";
+    // an admin also sees what the AI service said (never the key), to fix the setting
+    const detail = isAdmin(req.user) && err?.message && err.message !== message ? ` (${String(err.message).slice(0, 200)})` : "";
+    // Never 502 / 503 / 504 here: the page reads those as "the server is still waking up" and would hide this message
+    res.status(status === 429 ? 429 : 500).json({ message: message + detail });
   } finally {
     busy.delete(key);
   }
