@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import Markdown from "../components/Markdown";
+import { useVoice, voiceSupported } from "../voice";
 
 // AI Assistant: questions about the app's data, Google Sheets and company documents, in any language. It only reads –
 // the server's tools see what the signed-in user may see, and in Google what their own connected account sees.
@@ -33,6 +34,17 @@ const SUGGESTIONS = [
   "Check this FMS sheet for problems: <link>",
   "MIS score of this FMS sheet this month: <link>",
 ];
+// voice typing language, remembered on this device
+const VOICE_LANG_KEY = "fms_ai_voice_lang";
+const VOICE_LANGS = { "hi-IN": { short: "HI", name: "Hindi" }, "en-IN": { short: "EN", name: "English" } };
+function savedVoiceLang(): string {
+  try {
+    const v = localStorage.getItem(VOICE_LANG_KEY);
+    return v && VOICE_LANGS[v] ? v : "hi-IN";
+  } catch {
+    return "hi-IN";
+  }
+}
 const istDate = (d) => new Date(d).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" });
 
 type Turn = { role: "user" | "assistant"; text: string; steps?: { tool: string; ok: boolean }[] };
@@ -52,6 +64,29 @@ export default function AiAssistant() {
   const [googleNote, setGoogleNote] = useState("");
   const end = useRef<HTMLDivElement>(null);
   const box = useRef<HTMLTextAreaElement>(null);
+  // voice: the spoken words go after what was already typed, and stay in the box until Send
+  const [canSpeak] = useState(voiceSupported);
+  const [voiceLang, setVoiceLang] = useState(savedVoiceLang);
+  const typedBefore = useRef("");
+  const voice = useVoice((spoken) => setText((typedBefore.current ? `${typedBefore.current} ${spoken}` : spoken).slice(0, 4000)));
+
+  function toggleMic() {
+    if (voice.listening) return voice.stop();
+    setError("");
+    typedBefore.current = text.trim();
+    voice.start(voiceLang);
+  }
+
+  function switchVoiceLang() {
+    const next = voiceLang === "hi-IN" ? "en-IN" : "hi-IN";
+    setVoiceLang(next);
+    voice.clearError();
+    try {
+      localStorage.setItem(VOICE_LANG_KEY, next);
+    } catch {
+      /* private window: the choice lasts until the page closes */
+    }
+  }
 
   const loadChats = () => api("/ai/conversations").then(setChats).catch(() => {});
   const loadStatus = () => api("/ai/status").then(setStatus).catch((e) => setError(e.message));
@@ -143,6 +178,7 @@ export default function AiAssistant() {
   async function send(question = text) {
     const q = question.trim();
     if (!q || busy) return;
+    voice.cancel(); // late words must not refill the box after it is sent
     setError("");
     setBusy(true);
     setText("");
@@ -334,6 +370,7 @@ export default function AiAssistant() {
           </div>
 
           {error && <div className="error">{error}</div>}
+          {voice.error && <div className="error">{voice.error}</div>}
           <form
             className="ai-input"
             onSubmit={(e) => {
@@ -351,11 +388,47 @@ export default function AiAssistant() {
                   send();
                 }
               }}
-              placeholder={status?.enabled ? "Ask a question… (Enter to send, Shift+Enter for a new line)" : "The assistant is not available"}
+              placeholder={
+                voice.listening
+                  ? `Listening (${VOICE_LANGS[voiceLang].name})… speak now, then press the mic again`
+                  : status?.enabled
+                    ? "Ask a question… (Enter to send, Shift+Enter for a new line)"
+                    : "The assistant is not available"
+              }
               rows={2}
               maxLength={4000}
               disabled={!status?.enabled || busy}
+              // while listening the box shows the words as they come; stop the mic to edit them
+              readOnly={voice.listening}
             />
+            {canSpeak && (
+              <>
+                <button
+                  type="button"
+                  className="btn ghost ai-lang"
+                  onClick={switchVoiceLang}
+                  disabled={voice.listening}
+                  title={`Voice language: ${VOICE_LANGS[voiceLang].name} – click to switch`}
+                  aria-label={`Voice language ${VOICE_LANGS[voiceLang].name}, click to switch`}
+                >
+                  {VOICE_LANGS[voiceLang].short}
+                </button>
+                <button
+                  type="button"
+                  className={`btn ghost ai-mic${voice.listening ? " on" : ""}`}
+                  onClick={toggleMic}
+                  disabled={!status?.enabled || busy}
+                  aria-pressed={voice.listening}
+                  aria-label={voice.listening ? "Stop listening" : "Speak your question"}
+                  title={voice.listening ? "Stop listening" : "Speak your question"}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <rect x="9" y="2" width="6" height="12" rx="3" />
+                    <path d="M5 10v1a7 7 0 0 0 14 0v-1M12 18v4M8 22h8" />
+                  </svg>
+                </button>
+              </>
+            )}
             <button className="btn primary" disabled={!status?.enabled || busy || !text.trim()}>
               Send
             </button>
