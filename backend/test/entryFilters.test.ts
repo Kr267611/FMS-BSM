@@ -104,6 +104,22 @@ test("step columns: state and doer; several steps must all match", async () => {
   assert.strictEqual((await list({ steps: { s1: { states: ["doneLate"] } } })).total, 0);
 });
 
+test("with no sort the entries run #1, #2, #3… like a sheet's rows; the entry date sort still works", async () => {
+  // entry 1 has the oldest entry date, so newest-first would put it last
+  assert.deepStrictEqual((await list({})).jobs.map((j) => j.jobNo), ["1", "2", "3", "4"]);
+  assert.deepStrictEqual((await list({}, "&sort=jobNo:desc")).jobs.map((j) => j.jobNo), ["4", "3", "2", "1"]);
+  assert.strictEqual((await list({}, "&sort=startDate:asc")).jobs[0].jobNo, "1");
+  assert.notStrictEqual((await list({}, "&sort=startDate:desc")).jobs[0].jobNo, "1");
+  // more than 9 entries: #10 comes after #9, not after #1
+  for (let i = 0; i < 8; i++) assert.strictEqual((await call("admin", "/jobs", { method: "POST", body: { process: ids.p, data: { meter: 1, party: `X${i}` } } })).status, 201);
+  const page = (await call("admin", `/jobs?process=${ids.p}&status=&limit=200`)).data;
+  assert.deepStrictEqual(page.jobs.map((j) => Number(j.jobNo)), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+  const csv = (await call("admin", `/jobs/export?process=${ids.p}&status=`)).data;
+  assert.deepStrictEqual(csv.trim().split(/\r?\n/).slice(1, 4).map((l) => l.split(",")[0].replace(/"/g, "")), ["1", "2", "3"]);
+  // back to the four entries the other tests count on
+  for (const j of page.jobs.filter((x) => Number(x.jobNo) > 4)) assert.strictEqual((await call("admin", `/jobs/${j._id}`, { method: "DELETE" })).status, 200);
+});
+
 test("sorting by a column, the values list, and the export following the filters", async () => {
   const asc = await list({}, "&sort=meter:asc");
   assert.deepStrictEqual(asc.jobs.map((j) => j.data.meter), [500, 1200, 2600, 3100]);

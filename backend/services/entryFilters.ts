@@ -133,12 +133,16 @@ async function applyColumnFilters(filter, raw, process, now = new Date()) {
 }
 
 // "gross_meter:desc" -> a Mongo sort; the newest entries first otherwise
+// With no sort the entries run by number, #1 on top, like the rows of a sheet (row 8, 9, 10…).
+// The number is text ("10" sorts before "2"), so its order is taken from _id: an entry gets its number just
+// before it is made, and a sheet import makes them in row order.
 function sortOf(raw, process): Record<string, 1 | -1> {
   const [key, dir] = String(raw || "").split(":");
   const d = dir === "asc" ? 1 : -1;
-  if (key === "startDate" || key === "jobNo") return { [key]: d, _id: d };
-  if (KEY.test(key || "") && (process.fields || []).some((f) => f.key === key)) return { [`data.${key}`]: d, startDate: -1, _id: -1 };
-  return { startDate: -1, _id: -1 };
+  if (key === "startDate") return { startDate: d, _id: d };
+  if (key === "jobNo") return { _id: d };
+  if (KEY.test(key || "") && (process.fields || []).some((f) => f.key === key)) return { [`data.${key}`]: d, _id: 1 };
+  return { _id: 1 };
 }
 
 // A to Z, as a sheet lists them, "(blank)" last
