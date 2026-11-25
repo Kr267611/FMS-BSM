@@ -194,6 +194,19 @@ function normalizeProcess(body, { activeIds = new Set<any>() }: any = {}) {
         if (!earlier.has(s.start.step)) throw fail(`${where} must start from a step that comes before it`);
         start.step = s.start.step;
       }
+      // after step X or Y (whichever is done)
+      if (start.mode === "afterDone" && Array.isArray(s.start.also)) {
+        const also = [...new Set<any>(s.start.also.map(String))].filter((k) => k && k !== start.step);
+        for (const k of also) if (!earlier.has(k)) throw fail(`${where} can only start after steps that come before it`);
+        if (also.length) start.also = also.slice(0, 5);
+      }
+      // escalation: `days` after the planned day, and only if that step was not done by then
+      if (start.mode === "afterDue") {
+        const days = Number(s.start.days || 0);
+        if (!Number.isInteger(days) || days < 0 || days > 400) throw fail(`Enter 0 to 400 days for when ${where} escalates`);
+        if (days) start.days = days;
+        if (s.start.ifLate) start.ifLate = true;
+      }
     }
 
     const scope = { where, fieldKeys, steps: earlier };
@@ -211,6 +224,14 @@ function normalizeProcess(body, { activeIds = new Set<any>() }: any = {}) {
         if (!dateFields.has(s.plan.field)) throw fail(`Choose the date field the planned date of ${where} counts from`);
         plan.field = s.plan.field;
       }
+      if (plan.from === "monthDay") {
+        const day = Number(s.plan.day);
+        if (!Number.isInteger(day) || day < 1 || day > 31) throw fail(`Choose a day of the month (1–31) for the planned date of ${where}`);
+        plan.day = day;
+      }
+      const offset = Number(s.plan.offset || 0);
+      if (!Number.isInteger(offset) || Math.abs(offset) > 400) throw fail(`Enter whole days (up to 400) to add before the TAT of ${where}`);
+      if (offset) plan.offset = offset;
     }
 
     const tat = Number(s.tat);

@@ -39,10 +39,13 @@ const stepSchema = new Schema({
   videoLink: { type: String, default: "" },
   effortMinutes: { type: Number, default: 0 }, // MIDAP "effort time": how long the step's work takes
   doer: { type: doerSchema, default: () => ({}) },
-  // entry | afterDone | afterDue (escalation) | withStart (parallel), relative to `step`
-  start: { mode: { type: String, default: "entry" }, step: String },
+  // entry | afterDone | afterDue (escalation) | withStart (parallel), relative to `step`.
+  // also: afterDone when `step` or one of these is done; days / ifLate: an escalation `days` after the planned day,
+  // only if the step was not done by then
+  start: { mode: { type: String, default: "entry" }, step: String, also: { type: [String], default: undefined }, days: Number, ifLate: Boolean },
   when: Schema.Types.Mixed, // run condition; false -> the step is skipped
-  plan: { from: String, step: String, field: String }, // planned = base + TAT
+  // planned = base (+ offset calendar days) + TAT; monthDay: `day` of the entry date's month
+  plan: { from: String, step: String, field: String, day: Number, offset: Number },
   tat: { type: Number, default: 1 },
   tatUnit: { type: String, enum: ["minutes", "hours", "days"], default: "days" },
   tatOverrides: [{ _id: false, when: Schema.Types.Mixed, tat: Number, unit: String }],

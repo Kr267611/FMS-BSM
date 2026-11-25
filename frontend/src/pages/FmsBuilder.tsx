@@ -135,7 +135,66 @@ function StepEditor({ step, index, steps, fields, calendarMode, open, onToggle, 
                 </select>
               )}
             </div>
-            {step.start?.mode === "afterDue" && <p className="small muted">Like the sheet's =IF(TODAY()-P8&gt;0, …): the day after that step's planned day, whether or not it was done.</p>}
+            {step.start?.mode === "afterDone" && (
+              <div className="row wrap small">
+                {(step.start.also || []).map((k, i) => (
+                  <span key={i} className="row">
+                    or after
+                    <select
+                      value={k}
+                      onChange={(e) => set({ start: { ...step.start, also: step.start.also.map((x, j) => (j === i ? e.target.value : x)) } })}
+                    >
+                      {earlier
+                        .filter((s) => s.key !== step.start.step)
+                        .map((s) => (
+                          <option key={s.key} value={s.key}>
+                            Step {s.index} – {s.name || "untitled"}
+                          </option>
+                        ))}
+                    </select>
+                    <button type="button" className="btn ghost small" onClick={() => set({ start: { ...step.start, also: step.start.also.filter((_, j) => j !== i) } })} aria-label="Remove">
+                      ✕
+                    </button>
+                  </span>
+                ))}
+                {earlier.some((s) => s.key !== step.start.step && !(step.start.also || []).includes(s.key)) && (
+                  <button
+                    type="button"
+                    className="btn ghost small"
+                    onClick={() => {
+                      const next = earlier.find((s) => s.key !== step.start.step && !(step.start.also || []).includes(s.key));
+                      set({ start: { ...step.start, also: [...(step.start.also || []), next.key] } });
+                    }}
+                  >
+                    + or after another step
+                  </button>
+                )}
+                {(step.start.also || []).length > 0 && <span className="muted">Whichever is done first starts this step.</span>}
+              </div>
+            )}
+            {step.start?.mode === "afterDue" && (
+              <>
+                <div className="row wrap small">
+                  <input
+                    type="number"
+                    min="0"
+                    max="400"
+                    className="tat"
+                    value={step.start.days || 0}
+                    onChange={(e) => set({ start: { ...step.start, days: Math.max(0, Math.round(Number(e.target.value) || 0)) } })}
+                  />
+                  days after its planned day
+                  <label className="row">
+                    <input type="checkbox" checked={Boolean(step.start.ifLate)} onChange={(e) => set({ start: { ...step.start, ifLate: e.target.checked } })} />
+                    only if that step is not done by then
+                  </label>
+                </div>
+                <p className="small muted">
+                  Like the sheet's =IF(TODAY()-P8&gt;0, …): it starts the day after (that step's planned day + these days)
+                  {step.start.ifLate ? ", and is skipped when the step was done by then." : ", whether or not it was done."}
+                </p>
+              </>
+            )}
             {step.when ? (
               <>
                 <ConditionEditor value={step.when} onChange={(when) => set({ when })} fields={condFields} steps={earlier} />
@@ -173,7 +232,15 @@ function StepEditor({ step, index, steps, fields, calendarMode, open, onToggle, 
                 value={planFrom}
                 onChange={(e) => {
                   const from = e.target.value;
-                  set({ plan: { from, step: from.startsWith("step") ? planStep || earlier.at(-1)?.key : undefined, field: from === "field" ? dateFields[0]?.key : undefined } });
+                  set({
+                    plan: {
+                      from,
+                      step: from.startsWith("step") ? planStep || earlier.at(-1)?.key : undefined,
+                      field: from === "field" ? dateFields[0]?.key : undefined,
+                      day: from === "monthDay" ? step.plan?.day || 5 : undefined,
+                      offset: step.plan?.offset || undefined,
+                    },
+                  });
                 }}
               >
                 {PLAN_FROM.filter(([f]) => (f.startsWith("step") ? earlier.length : f === "field" ? dateFields.length : true)).map(([f, label]) => (
@@ -182,8 +249,21 @@ function StepEditor({ step, index, steps, fields, calendarMode, open, onToggle, 
                   </option>
                 ))}
               </select>
+              {planFrom === "monthDay" && (
+                <>
+                  <span className="small muted">day</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    className="tat"
+                    value={step.plan?.day || 5}
+                    onChange={(e) => set({ plan: { ...step.plan, from: "monthDay", day: Math.min(31, Math.max(1, Math.round(Number(e.target.value) || 1))) } })}
+                  />
+                </>
+              )}
               {planFrom.startsWith("step") && (
-                <select value={planStep || ""} onChange={(e) => set({ plan: { from: planFrom, step: e.target.value } })}>
+                <select value={planStep || ""} onChange={(e) => set({ plan: { ...step.plan, from: planFrom, step: e.target.value } })}>
                   {earlier.map((s) => (
                     <option key={s.key} value={s.key}>
                       Step {s.index} – {s.name || "untitled"}
@@ -202,6 +282,19 @@ function StepEditor({ step, index, steps, fields, calendarMode, open, onToggle, 
               )}
             </div>
             {planFrom === "field" && <p className="small muted">Use a negative TAT for "T − X", e.g. −2 days = two days before that date.</p>}
+            {planFrom === "monthDay" && <p className="small muted">Like the sheet's =DATE(YEAR(A8),MONTH(A8),5): with TAT 0 the step is planned on that day of the entry date's month.</p>}
+            {(Number(step.plan?.offset) || step.start?.mode === "afterDue") && planFrom !== "monthDay" ? (
+              <div className="row wrap small">
+                first add
+                <input
+                  type="number"
+                  className="tat"
+                  value={step.plan?.offset || 0}
+                  onChange={(e) => set({ plan: { ...(step.plan?.from ? step.plan : { from: planFrom, step: planStep }), offset: Math.round(Number(e.target.value) || 0) || undefined } })}
+                />
+                calendar days to that date, then the TAT (like =WORKDAY(AP8+30, 7))
+              </div>
+            ) : null}
             {(step.tatOverrides || []).map((o, i) => (
               <div key={i} className="override">
                 <ConditionEditor

@@ -29,6 +29,7 @@ export const PLAN_FROM = [
   ["stepActualOrPlanned", "Actual of step (or its planned)"],
   ["field", "A date field (T − X)"],
   ["now", "When the step starts"],
+  ["monthDay", "A day of the entry's month"],
 ];
 
 export const OPS = [
@@ -100,8 +101,14 @@ export function describeStart(step, steps) {
   const s = step.start || { mode: "entry" };
   if (!s.mode || s.mode === "entry") return "Starts with the entry";
   const name = stepNo(steps, s.step);
-  if (s.mode === "afterDone") return `Starts after ${name} is done`;
-  if (s.mode === "afterDue") return `Escalates the day after ${name}'s planned day`;
+  if (s.mode === "afterDone") {
+    const all = [s.step, ...(s.also || [])].map((k) => stepNo(steps, k));
+    return all.length > 1 ? `Starts after ${all.slice(0, -1).join(", ")} or ${all.at(-1)} is done (whichever is done)` : `Starts after ${name} is done`;
+  }
+  if (s.mode === "afterDue") {
+    const when = s.days ? `${s.days} days after ${name}'s planned day` : `the day after ${name}'s planned day`;
+    return `Escalates ${when}${s.ifLate ? `, only if ${name} is not done by then` : ""}`;
+  }
   if (s.mode === "withStart") return `Starts together with ${name}`;
   return "";
 }
@@ -129,9 +136,13 @@ export function describePlan(step, steps, fields, mode = "working") {
   else if (from === "now") base = "when it starts";
   else if (from === "field") base = `"${fields.find((f) => f.key === step.plan?.field)?.label || "?"}"`;
   else if (from === "stepPlanned") base = `${stepNo(steps, ref)} planned`;
-  else if (from === "stepActual") base = `${stepNo(steps, ref)} actual`;
+  else if (from === "stepActual") base = `${stepNo(steps, ref)} actual${step.start?.also?.length && ref === step.start.step ? " (of the step that was done)" : ""}`;
+  else if (from === "monthDay") base = `day ${step.plan?.day || "?"} of the entry's month`;
   else base = `${stepNo(steps, ref)} actual (or planned)`;
+  const offset = Number(step.plan?.offset) || 0;
+  if (offset) base = `${base} ${offset > 0 ? "+" : "−"} ${Math.abs(offset)} days`;
   const tat = Number(step.tat) || 0;
+  if (from === "monthDay" && !tat) return `Planned on ${base}`;
   const sign = tat < 0 ? "before" : "after";
   return `TAT ${Math.abs(tat)} ${unitWord(tat, step.tatUnit, mode)} ${sign} ${base}`;
 }
@@ -185,7 +196,7 @@ export function dependentsOf(steps: any[], key: string): Set<string> {
   const deps = new Set<string>();
   for (const s of steps) {
     if (s.key === key) continue;
-    const r = [s.start?.step, s.plan?.step, ...refs(s.when), ...(s.tatOverrides || []).flatMap((o) => [...refs(o.when)])];
+    const r = [s.start?.step, ...(s.start?.also || []), s.plan?.step, ...refs(s.when), ...(s.tatOverrides || []).flatMap((o) => [...refs(o.when)])];
     if (r.some((k) => k && (k === key || deps.has(k)))) deps.add(s.key);
   }
   return deps;

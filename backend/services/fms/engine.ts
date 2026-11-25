@@ -2,8 +2,10 @@
 //
 // An entry (job) has one task per step. A step starts in one of four ways:
 //   entry     – when the entry is made
-//   afterDone – when step X is done (a normal sequence)
-//   afterDue  – when step X's planned day has passed (an escalation, like =IF(TODAY()-P8>0, ...) in the sheet)
+//   afterDone – when step X is done (a normal sequence); with `also`, when X or one of those steps is done
+//               (e.g. Stage 7 after Stage 5 SOLVED or Stage 6 DONE), counting from the one that was done
+//   afterDue  – when step X's planned day has passed (an escalation, like =IF(TODAY()-P8>0, ...) in the sheet);
+//               `days` later than that, and with `ifLate` only when X was not done by then
 //   withStart – together with step X (a parallel step)
 // When it is due to start, its condition is checked: true -> the task becomes pending with a planned
 // date and a doer; false -> it is skipped (not scored). Steps that depend on a skipped step are skipped too.
@@ -17,7 +19,8 @@ import conditionsLib = require("./conditions");
 const { evaluate, stepRefs, isBlank, num, norm } = conditionsLib;
 
 const START_MODES = ["entry", "afterDone", "afterDue", "withStart"];
-const PLAN_FROM = ["entry", "stepPlanned", "stepActual", "stepActualOrPlanned", "field", "now"];
+// monthDay: a fixed day of the entry date's month, like =DATE(YEAR(A8),MONTH(A8),5) ("5th of month")
+const PLAN_FROM = ["entry", "stepPlanned", "stepActual", "stepActualOrPlanned", "field", "now", "monthDay"];
 const RESOLVED = new Set<any>(["done", "na", "skipped"]);
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -155,7 +158,16 @@ function cleanValues(defs, input, { requireAll = true }: any = {}) {
 
 // ---------- steps ----------
 
-function planBase(plan, tasks, job, at) {
+// Day `n` of the month of a "YYYY-MM-DD" day, at the start of that day; the 31st in a 30-day month is its last day
+function dayOfMonth(day, n) {
+  if (!day) return null;
+  const [y, m] = day.split("-").map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const d = Math.min(Math.max(1, Math.round(Number(n) || 1)), last);
+  return startOfDay(`${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
+}
+
+function planBaseOf(plan, tasks, job, at) {
   const t = plan.step ? tasks[plan.step] : null;
   switch (plan.from) {
     case "entry":
@@ -174,9 +186,18 @@ function planBase(plan, tasks, job, at) {
     }
     case "field":
       return fieldDate(job.data?.[plan.field]);
+    case "monthDay":
+      return dayOfMonth(dayOf(job.startDate), plan.day);
     default:
       return null;
   }
+}
+
+// The date the TAT counts from; `offset` calendar days are added first (=WORKDAY(AP8+30, 7) counts from Planned + 30)
+function planBase(plan, tasks, job, at) {
+  const base = planBaseOf(plan, tasks, job, at);
+  const offset = Math.round(Number(plan.offset) || 0);
+  return base && offset ? new Date(base.getTime() + offset * DAY_MS) : base;
 }
 
 // TAT override (MIDAP "Override TAT"): the first matching rule wins
@@ -195,14 +216,23 @@ function triggerOf(step, tasks, job, now) {
   const src = tasks[s.step];
   if (!src) return { state: "skip", reason: "dependency" };
   if (s.mode === "afterDone") {
-    if (src.status === "done") return { state: "go", at: new Date(src.actual) };
-    if (src.status === "na" || src.status === "skipped") return { state: "go", at: new Date(src.resolvedAt || now) };
+    // the step, or any of `also`: the first one done starts it (and is what it counts from)
+    const sources = [s.step, ...(s.also || [])].filter((k, i, all) => tasks[k] && all.indexOf(k) === i).map((k) => [k, tasks[k]]);
+    const done = sources.filter(([, t]) => t.status === "done").sort((a, b) => time(a[1].actual) - time(b[1].actual));
+    if (done.length) return { state: "go", at: new Date(done[0][1].actual), step: done[0][0] };
+    if (sources.every(([, t]) => t.status === "na" || t.status === "skipped")) {
+      const last = Math.max(...sources.map(([, t]) => time(t.resolvedAt || now)));
+      return { state: "go", at: new Date(isNaN(last) ? now : last), step: s.step };
+    }
     return { state: "wait" };
   }
   if (s.mode === "afterDue") {
     if (src.status === "na" || src.status === "skipped") return { state: "skip", reason: "dependency" };
     if (!src.plannedDay) return { state: "wait" };
-    const at = startOfDay(addDaysKey(src.plannedDay, 1)); // the day after the planned day
+    // `days` after the planned day (0 = the planned day itself); with ifLate, only if the step was not done by then
+    const limit = addDaysKey(src.plannedDay, Math.max(0, Math.round(Number(s.days) || 0)));
+    if (s.ifLate && src.status === "done" && src.actualDay && src.actualDay <= limit) return { state: "skip", reason: "condition" };
+    const at = startOfDay(addDaysKey(limit, 1)); // the day after
     return at.getTime() <= now.getTime() ? { state: "go", at } : { state: "wait", at };
   }
   if (s.mode === "withStart") {
@@ -278,7 +308,11 @@ function advance({ process, job, tasks, now = new Date(), calendar = normalizeCa
       changed.add(step.key);
       continue;
     }
-    const plan = step.plan?.from ? step.plan : defaultPlan(step);
+    let plan = step.plan?.from ? step.plan : defaultPlan(step);
+    // started by one of several steps (start.also): count from the one that was done
+    if (tr.step && step.start?.also?.length && plan.step === step.start.step && ["stepActual", "stepActualOrPlanned"].includes(plan.from)) {
+      plan = { ...plan, step: tr.step };
+    }
     const base = planBase(plan, tasks, job, tr.at);
     if (!base) {
       skipTask(t, "no date", now);
@@ -289,7 +323,9 @@ function advance({ process, job, tasks, now = new Date(), calendar = normalizeCa
     // the doer first: the TAT runs on their calendar, and never ends on a day they are on leave
     const doer = doerOf(step, job.data || {}) || fallbackDoer || t.doer || null;
     const cal = (calendarFor && doer && calendarFor(doer)) || calendar;
-    const planned = outsideLeave(addTatCal(base, tat, unit, cal, mode), cal);
+    // "5th of month" with no TAT stays on the 5th, like the sheet's =DATE(…,5), even when that is an off day
+    const raw = tat === 0 && plan.from === "monthDay" ? base : addTatCal(base, tat, unit, cal, mode);
+    const planned = outsideLeave(raw, cal);
     Object.assign(t, {
       status: "pending",
       planned,
@@ -313,7 +349,7 @@ function dependentsOf(steps, key) {
   const hit = (k) => k === key || deps.has(k);
   for (const s of steps || []) {
     if (s.key === key) continue;
-    const refs = [s.start?.step, s.plan?.step, ...stepRefs(s.when), ...(s.tatOverrides || []).flatMap((o) => [...stepRefs(o.when)])];
+    const refs = [s.start?.step, ...(s.start?.also || []), s.plan?.step, ...stepRefs(s.when), ...(s.tatOverrides || []).flatMap((o) => [...stepRefs(o.when)])];
     if (refs.some((k) => k && hit(k))) deps.add(s.key);
   }
   return deps;
