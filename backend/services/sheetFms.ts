@@ -37,18 +37,58 @@ function fail(message, status = 400) {
 // "AYUSH SIR", "Paresh Bhai", "NIKUNJBHAI" -> the user named Ayush / Paresh / Nikunj
 const HONORIFIC = /\b(sir|ji|bhai|ben|madam|mam|sahab|saheb|master)\b|(bhai|ji|sir)$/gi;
 const personKey = (s) => text(s).toLowerCase().replace(HONORIFIC, "").replace(/[^a-z0-9]+/g, "");
-function matchUser(hint, users) {
-  const h = personKey(hint);
-  if (h.length < 3) return null;
-  const exact = users.find((u) => personKey(u.name) === h || personKey(u.username) === h);
-  if (exact) return exact;
+const whole = (s) => text(s).toLowerCase().replace(/[^a-z0-9]+/g, "");
+const deptOf = (u) => (u.department && typeof u.department === "object" ? u.department.name : u.department) || "";
+const nameWords = (s) => text(s).split(/\s+/).map(personKey).filter((w) => w.length >= 2);
+
+// The users a name in the sheet may mean, best match first:
+//   "Jyoti" -> the user named Jyoti / Jyoti Sharma (every Jyoti, when there are two)
+//   "Mahesh (Excise)" -> the Mahesh of the Excise department when there are two Maheshes
+//   "Vinod Patel" -> "Vinod Ramprasad Patel" (every word of the sheet's name is in the user's name)
+//   "AVINASH MASTER" -> the user whose department is AVINASH MASTER
+//   "Mukesh / Vinod" -> two people: the users of both names (one of them is chosen)
+function userCandidates(hint, users) {
+  const full = text(hint);
+  if (/[\/,&]| or /i.test(full)) {
+    const parts = full.split(/[\/,&]| or /i).map(text).filter(Boolean);
+    if (parts.length > 1) return [...new Set<any>(parts.flatMap((p) => userCandidates(p, users)))];
+  }
+  const bracket = full.match(/\(([^)]+)\)\s*$/)?.[1] || "";
+  const name = bracket ? full.slice(0, full.lastIndexOf("(")).trim() : full;
+  const h = personKey(name);
+  if (h.length < 3) return [];
+  // two users of the same name: the department in brackets tells them apart
+  const narrow = (list) => {
+    if (list.length < 2 || !bracket) return list;
+    const d = list.filter((u) => whole(deptOf(u)).includes(whole(bracket)) || whole(bracket).includes(whole(deptOf(u)) || "\0"));
+    return d.length ? d : list;
+  };
+  const exact = users.filter((u) => personKey(u.name) === h || personKey(u.username) === h);
+  if (exact.length) return narrow(exact);
+  // "AVINASH MASTER" in the sheet, a user whose department is "AVINASH MASTER"
+  const dept = users.filter((u) => whole(deptOf(u)) && whole(deptOf(u)) === whole(full));
+  if (dept.length) return dept;
   const first = users.filter((u) => personKey(String(u.name).split(/\s+/)[0]) === h);
-  if (first.length === 1) return first[0];
-  // "Vinod Patel" in the sheet, "Vinod" in the software: the sheet's first name, when only one user has it
-  const hintFirst = personKey(text(hint).split(/\s+/)[0]);
-  if (hintFirst.length < 3 || hintFirst === h) return null;
-  const byFirst = users.filter((u) => personKey(u.name) === hintFirst || personKey(String(u.name).split(/\s+/)[0]) === hintFirst);
-  return byFirst.length === 1 ? byFirst[0] : null;
+  if (first.length) return narrow(first);
+  // "Vinod Patel" in the sheet, "Vinod Ramprasad Patel" in the software
+  const words = nameWords(name);
+  if (words.length > 1) {
+    const all = users.filter((u) => {
+      const uw = nameWords(u.name);
+      return words.every((w) => uw.includes(w));
+    });
+    if (all.length) return narrow(all);
+  }
+  // "Vinod Patel" in the sheet, "Vinod" in the software: the sheet's first name
+  const hintFirst = personKey(name.split(/\s+/)[0]);
+  if (hintFirst.length < 3 || hintFirst === h) return [];
+  return narrow(users.filter((u) => personKey(u.name) === hintFirst || personKey(String(u.name).split(/\s+/)[0]) === hintFirst));
+}
+
+// The one user a name in the sheet means, or null when none or more than one fit
+function matchUser(hint, users) {
+  const c = userCandidates(hint, users);
+  return c.length === 1 ? c[0] : null;
 }
 
 // Who the sheet names for a step: "Accountable Person ( PRADEEP BHAI )", "Update to AYUSH SIR", or the name written under it
@@ -92,7 +132,14 @@ function planFms(top, fmt, raw) {
     let key = slug(header[c]);
     for (let n = 2; seenKeys.has(key); n++) key = `${slug(header[c])}_${n}`;
     seenKeys.add(key);
-    fields.push({ key, label: header[c].slice(0, 80), col: colLetter(c), ...guessType(cells(c)) });
+    const g = guessType(cells(c));
+    // a dropdown lists every value of the column, not only those of the first rows looked at
+    if (g.type === "select" && fmt.length > SAMPLE) {
+      const all = [...new Set<any>(fmt.map((r) => text(r?.[c])).filter(Boolean))];
+      if (all.length <= 40) g.options = all;
+      else Object.assign(g, { type: "text", options: [] });
+    }
+    fields.push({ key, label: header[c].slice(0, 80), col: colLetter(c), ...g });
   }
 
   const steps = found.steps.map((s, k) => {
@@ -110,16 +157,30 @@ function planFms(top, fmt, raw) {
       const g = guessType(cells(c));
       stepFields.push({ key, label: header[c].slice(0, 80), col: colLetter(c), ...(g.type === "datetime" ? { type: "date", options: [] } : g) });
     }
-    // TAT: a number written above the block (header rows); the doer: the nearest name above it
+    // TAT: the block's When / TAT row when the sheet labels it, else a number written above the block;
+    // the doer: the block's Who, else the nearest name above it
     let tat = 1;
-    for (let r = found.headerRow - 2; r >= 0; r--) {
-      const n = (top[r] || []).slice(Math.max(k > 0 ? planned[k - 1] + 1 : 0, p - 2), end).map(text).find((v) => /^\d+(\.\d+)?$/.test(v));
-      if (n !== undefined) {
-        tat = Number(n);
-        break;
+    if (s.when !== undefined && /^\d+(\.\d+)?$/.test(s.when)) tat = Number(s.when);
+    else if (s.when === undefined) {
+      for (let r = found.headerRow - 2; r >= 0; r--) {
+        const n = (top[r] || []).slice(Math.max(k > 0 ? planned[k - 1] + 1 : 0, p - 2), end).map(text).find((v) => /^\d+(\.\d+)?$/.test(v));
+        if (n !== undefined) {
+          tat = Number(n);
+          break;
+        }
       }
     }
-    return { key: `s${k + 1}`, name: s.name.slice(0, 120), doerHint: doerHint(s), plannedCol: s.plannedCol, actualCol: s.actualCol, tat, fields: stepFields };
+    return {
+      key: `s${k + 1}`,
+      name: s.name.slice(0, 120),
+      doerHint: s.who ? s.who.slice(0, 80) : doerHint(s),
+      how: s.how ? s.how.slice(0, 2000) : "",
+      when: s.when || "",
+      plannedCol: s.plannedCol,
+      actualCol: s.actualCol,
+      tat,
+      fields: stepFields,
+    };
   });
   return { headerRow: found.headerRow, firstDataRow: found.headerRow + 1, fields, steps };
 }
@@ -127,7 +188,9 @@ function planFms(top, fmt, raw) {
 // The sheet's formulas -> each step's rule (how it starts, its condition, what its planned date counts from),
 // the auto-calculated entry fields and the "Status by PC" column that closes an entry. Pure (covered by tests).
 //   topF : the header rows as formulas (to find the =TODAY() cell)   rowsF: the data rows as formulas
-function applyFormulas(plan, top, topF, rowsF) {
+//   ext  : other tabs the step formulas read, as text rows ({ Rules: [[…], …] }) – e.g. the Rules tab of a
+//          "Next Stage" column, or Rules!$G$2 holding the days of an escalation
+function applyFormulas(plan, top, topF, rowsF, ext: Record<string, any[]> = {}) {
   const cols: Record<string, any> = {};
   const dateField = plan.fields.find((f) => f.type === "date" || f.type === "datetime");
   for (const f of plan.fields) cols[f.col] = { kind: f === dateField ? "entryDate" : "field", key: f.key, date: f.type === "date" || f.type === "datetime" };
@@ -144,7 +207,11 @@ function applyFormulas(plan, top, topF, rowsF) {
       const v = text(cell(top, col, row));
       return v !== "" && isFinite(Number(v)) ? Number(v) : v;
     },
-    isToday: (col, row) => /^=\s*TODAY\(\s*\)\s*$/i.test(String(cell(topF, col, row) ?? "")),
+    isToday: (col, row) => /^=\s*(TODAY|NOW)\(\s*\)\s*$/i.test(String(cell(topF, col, row) ?? "")),
+    ext: (tab, col, row) => {
+      const v = text(ext[tab]?.[row - 1]?.[colIndex(col)]);
+      return v !== "" && isFinite(Number(v)) ? Number(v) : v;
+    },
   };
   const common = (col) => F.commonFormula(rowsF.map((r) => r?.[colIndex(col)]), plan.firstDataRow);
   const parsed = (pattern) => {
@@ -168,12 +235,62 @@ function applyFormulas(plan, top, topF, rowsF) {
     }
   }
 
+  // "Next Stage" columns: a step's Status looked up in a Rules tab ("S2|GR" -> 3). The column is worked out from the
+  // Status, so the doer does not fill it; the Status dropdown gets every status the Rules tab knows for that step.
+  for (const s of plan.steps) {
+    const routes = [];
+    for (const sf of s.fields) {
+      const r = F.routeOf(parsed(common(sf.col)));
+      const rows = r && ext[r.tab];
+      if (!rows) continue;
+      const input = s.fields.find((f) => f.col === r.inputCol);
+      const map = [];
+      for (const row of rows) {
+        const key = text(row?.[colIndex(r.keyCol)]);
+        if (!key || !key.toUpperCase().startsWith(r.prefix.toUpperCase())) continue;
+        const status = key.slice(r.prefix.length).trim();
+        if (status) map.push({ status, to: text(row?.[colIndex(r.valueCol)]) });
+      }
+      if (!input || !map.length) continue;
+      cols[sf.col] = { kind: "route", step: s.key, statusKey: input.key, map };
+      const options = [...map.map((m) => m.status), ...(input.options || [])].filter((o, i, all) => all.findIndex((x) => x.toLowerCase() === o.toLowerCase()) === i);
+      Object.assign(input, { type: "select", options: options.slice(0, 500) });
+      routes.push({ col: sf.col, label: sf.label, tab: r.tab, map });
+    }
+    if (routes.length) {
+      s.fields = s.fields.filter((f) => !routes.some((r) => r.col === f.col));
+      s.routes = routes;
+    }
+  }
+
+  // An entry column worked out only from the steps (e.g. "Final Status": "S2 pending - Master", "CLOSED at S2 - …")
+  // is not part of the entry form: the software shows each step's state itself
+  const stepKinds = ["planned", "actual", "stepField", "route"];
+  const readsSteps = (ast) => {
+    let hit = false;
+    (function visit(n) {
+      if (hit || !n || typeof n !== "object") return;
+      if (n.k === "ref" && !n.sheet && !n.rowAbs && stepKinds.includes(cols[n.col]?.kind)) hit = true;
+      for (const v of Object.values<any>(n)) if (v && typeof v === "object") visit(v);
+    })(ast);
+    return hit;
+  };
+  const fromSteps = [];
   for (const f of plan.fields) {
     const pattern = common(f.col);
     if (!pattern) continue;
-    const formula = F.fieldFormula(parsed(pattern), ctx);
+    const ast = parsed(pattern);
+    if (ast && f !== dateField && readsSteps(ast)) {
+      fromSteps.push(f);
+      continue;
+    }
+    const formula = F.fieldFormula(ast, ctx);
     if (formula) f.formula = formula;
     else f.sheetFormula = show(pattern);
+  }
+  if (fromSteps.length) {
+    plan.fields = plan.fields.filter((f) => !fromSteps.includes(f));
+    plan.fromSteps = fromSteps.map((f) => ({ col: f.col, label: f.label }));
   }
 
   let working = 0;
@@ -254,7 +371,15 @@ async function loadTab(sheets, spreadsheetId, tab) {
   const lastCol = Math.max(...head.steps.map((s) => Math.max(colIndex(s.actualCol), ...s.fields.map((f) => colIndex(f.col)))));
   const range = `${quote(tab)}!A${head.firstDataRow}:${colLetter(lastCol)}`;
   const [fmt, raw, rowsF] = await Promise.all(["FORMATTED_VALUE", "UNFORMATTED_VALUE", "FORMULA"].map((o) => get(sheets, spreadsheetId, range, o)));
-  const plan = applyFormulas(planFms(top, fmt, raw), top, topF, rowsF);
+  // the other tabs that the steps' formulas read (a Rules tab), only read
+  const stepCols = head.steps.flatMap((s) => [s.plannedCol, ...s.fields.map((f) => f.col)]);
+  const tabs = [...new Set<string>(stepCols.flatMap((c) => F.tabsIn(F.commonFormula(rowsF.map((r) => r?.[colIndex(c)]), head.firstDataRow))))].filter((t) => t !== tab).slice(0, 5);
+  const ext: Record<string, any[]> = {};
+  if (tabs.length) {
+    const res = await sheets.spreadsheets.values.batchGet({ spreadsheetId, ranges: tabs.map((t) => `${quote(t)}!A1:Z1000`), valueRenderOption: "FORMATTED_VALUE" });
+    (res.data.valueRanges || []).forEach((v, i) => (ext[tabs[i]] = v.values || []));
+  }
+  const plan = applyFormulas(planFms(top, fmt, raw), top, topF, rowsF, ext);
   return { plan, fmt, raw };
 }
 
@@ -287,6 +412,7 @@ function definition(plan, tab, body: any = {}, ctx: any = {}) {
     steps: plan.steps.map((s, i) => ({
       key: s.key,
       name: over[s.key]?.name || s.name,
+      how: s.how || "",
       doer: D.doerRule(over[s.key]?.source || s.source, { fallback: over[s.key]?.doer, hint: s.doerHint, people: body.people, rows: ctx.rows, lookups: ctx.lookups }),
       ...(s.rule || { start: i === 0 ? { mode: "entry" } : { mode: "afterDone", step: plan.steps[i - 1].key } }),
       tat: over[s.key]?.tat ?? s.tat,
@@ -340,14 +466,17 @@ async function doerTabs(sheets, spreadsheetId, tab, plan, wanted?) {
 
 async function previewSheetFms(sheets, spreadsheetId, tab, { now = new Date() }: any = {}) {
   const { plan, fmt, raw } = await loadTab(sheets, spreadsheetId, tab);
-  const users = await User.find({ active: true }).select("name username").lean<any>();
+  const users = await User.find({ active: true }).select("name username department").populate("department", "name").lean<any>();
   const rows = entryRows(plan, fmt, raw);
   const lookups = await doerTabs(sheets, spreadsheetId, tab, plan);
   const persons = D.personFields(plan.fields);
   const sources = D.suggestSources(plan.steps, persons, lookups);
   plan.steps.forEach((s, i) => {
-    const u = matchUser(s.doerHint, users);
-    s.doer = u ? String(u._id) : "";
+    // the step's Who: the one user it names becomes the doer; when it fits several (two Jyotis, "Mukesh / Vinod"),
+    // the page shows them to pick from
+    const found = userCandidates(s.doerHint, users);
+    s.doer = found.length === 1 ? String(found[0]._id) : "";
+    s.doerCandidates = found.length > 1 ? found.slice(0, 8).map((u) => ({ _id: String(u._id), name: u.name, department: deptOf(u) })) : [];
     s.source = sources[i];
   });
 
@@ -448,4 +577,4 @@ async function importSheetFms(sheets, spreadsheetId, tab, body, user, { now = ne
   return { process: { _id: process._id, name: process.name }, counts };
 }
 
-export = { planFms, applyFormulas, rowTasks, rowValues, entryRows, definition, settleRows, matchUser, personKey, guessType, previewSheetFms, importSheetFms };
+export = { planFms, applyFormulas, rowTasks, rowValues, entryRows, definition, settleRows, matchUser, userCandidates, personKey, guessType, previewSheetFms, importSheetFms };

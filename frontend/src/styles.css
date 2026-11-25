@@ -605,6 +605,7 @@ input[type="file"] { padding: 7px; }
 .mt { margin-top: 10px; }
 .req { color: var(--bad); font-weight: 700; }
 .warn-text { color: var(--warn); }
+.ok-text { color: var(--good); }
 .link-btn { background: none; border: 0; padding: 0; color: var(--primary); cursor: pointer; font-size: 12px; text-decoration: underline; }
 .btn.danger { border-color: rgba(220, 38, 38, 0.5); color: var(--bad); }
 input.search { width: 240px; max-width: 100%; }

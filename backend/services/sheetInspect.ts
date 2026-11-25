@@ -21,6 +21,27 @@ function stepName(above) {
   return top.toUpperCase().includes(near.toUpperCase()) ? short(top) : `${short(top)} · ${short(near, 30)}`;
 }
 
+// The FMS header block of the method: rows labelled What / Who / How / When in the first columns
+// ("Who" = the doer of each step block, "When" = its TAT). An unlabelled row right above the column headers holds
+// the TAT when no row is labelled When (as in sheets where row 5 is just the numbers).
+const LABELS = { what: /^what$/i, who: /^(who|doer)$/i, how: /^how$/i, when: /^(when|tat)$/i };
+function labelRows(rows, headerIdx) {
+  const found: Record<string, number> = {};
+  for (let r = 0; r < headerIdx; r++) {
+    for (const v of (rows[r] || []).slice(0, 3)) {
+      const t = cellText(v).replace(/[:?.\s]+$/, "");
+      const key = Object.keys(LABELS).find((k) => LABELS[k].test(t));
+      if (key && found[key] === undefined) found[key] = r;
+    }
+  }
+  if (found.what === undefined && found.who === undefined) return null;
+  if (found.when === undefined) {
+    const last = Math.max(...Object.values(found));
+    if (headerIdx - 1 > last) found.when = headerIdx - 1;
+  }
+  return found;
+}
+
 // rows = top rows of the tab as text (rows[0] = sheet row 1). Pure function (covered by tests).
 function findSteps(rows) {
   let headerIdx = -1;
@@ -33,6 +54,7 @@ function findSteps(rows) {
 
   const header = rows[headerIdx].map(cellText);
   const plannedCols = header.map((v, c) => (PLANNED.test(v) ? c : -1)).filter((c) => c >= 0);
+  const labels = labelRows(rows, headerIdx);
   const steps = plannedCols.map((p, k) => {
     const end = k + 1 < plannedCols.length ? plannedCols[k + 1] : Math.min(header.length, p + 6);
     let a = -1;
@@ -53,13 +75,24 @@ function findSteps(rows) {
         }
       }
     }
+    // What / Who / How / When of this block, from the labelled rows ("-" means nothing written)
+    const block: Record<string, string> = {};
+    if (labels) {
+      for (const [k, r] of Object.entries(labels)) {
+        const row = rows[r] || [];
+        let t = "";
+        for (let c = start; c < end && !t; c++) t = cellText(row[c]);
+        if (t && !/^[-–—.]+$/.test(t)) block[k] = t;
+      }
+    }
     return {
       plannedCol: colLetter(p),
       actualCol: colLetter(a),
       plannedHeader: header[p],
       actualHeader: header[a] || "",
-      name: stepName(above) || header[p],
+      name: (block.what && short(block.what, 120)) || stepName(above) || header[p],
       above,
+      ...block,
     };
   });
   return { headerRow: headerIdx + 1, steps };

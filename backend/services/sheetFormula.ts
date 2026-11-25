@@ -33,9 +33,10 @@ function tokenize(src) {
       i += m[1].length;
       continue;
     }
-    const ref = s.slice(i).match(/^(?:'[^']+'!|[A-Za-z_][\w ]*!)?(\$?)([A-Za-z]{1,3})(\$?)(\d+)?(?::(\$?)([A-Za-z]{1,3})(\$?)(\d+)?)?(?![\w(])/);
+    // a cell or range, maybe on another tab: Rules!$G$2, 'Daily Outward'!E:E
+    const ref = s.slice(i).match(/^(?:'([^']+)'!|([A-Za-z_][\w ]*)!)?(\$?)([A-Za-z]{1,3})(\$?)(\d+)?(?::(\$?)([A-Za-z]{1,3})(\$?)(\d+)?)?(?![\w(])/);
     if (ref && !/^[A-Za-z]+\s*\(/.test(s.slice(i)) && !/^(true|false)\b/i.test(s.slice(i))) {
-      out.push({ t: "ref", col: ref[2].toUpperCase(), colAbs: Boolean(ref[1]), row: ref[4] ? Number(ref[4]) : null, rowAbs: Boolean(ref[3]), range: Boolean(ref[6]) });
+      out.push({ t: "ref", sheet: ref[1] || ref[2] || null, col: ref[4].toUpperCase(), colAbs: Boolean(ref[3]), row: ref[6] ? Number(ref[6]) : null, rowAbs: Boolean(ref[5]), range: Boolean(ref[8]) });
       i += ref[0].length;
       continue;
     }
@@ -119,45 +120,86 @@ function parse(src) {
 const NOT = { "=": "!=", "!=": "=", ">": "<=", "<=": ">", "<": ">=", ">=": "<", empty: "notEmpty", notEmpty: "empty" };
 const OP = { "=": "=", "<>": "!=", ">": ">", "<": "<", ">=": ">=", "<=": "<=" };
 const isEmptyStr = (n) => n?.k === "str" && n.v === "";
+// N(x), TRIM(x), INT(x) and VALUE(x) read the same cell as x
+const WRAPPERS = ["N", "TRIM", "INT", "VALUE"];
+function unwrap(n) {
+  while (n?.k === "fn" && WRAPPERS.includes(n.name) && n.args.length === 1) n = n.args[0];
+  return n;
+}
+// 2 = "2", "Done" = "done"
+function sameValue(a, b) {
+  const x = String(a ?? "").trim();
+  const y = String(b ?? "").trim();
+  return x !== "" && y !== "" && isFinite(Number(x)) && isFinite(Number(y)) ? Number(x) === Number(y) : x.toLowerCase() === y.toLowerCase();
+}
+const DATE_KINDS = ["entryDate", "planned", "actual"];
 
-function translate(ast, { cols, head, isToday = () => false, dataRow }: any) {
+function translate(ast, { cols, head, isToday = () => false, dataRow, ext }: any) {
   const notes = [];
   const reqs = []; // conditions that must hold for the step to have a planned date
-  let due = null; // "today - step planned > 0" -> escalation after that step
+  let due = null; // { step, days?, ifLate? }: an escalation after that step's planned day
   let working = false;
   const deps = new Set<any>(); // steps whose planned date must exist
 
-  const info = (n) => refInfo(n, { cols, isToday, dataRow });
-  const constOf = (n) => {
+  const info = (n) => refInfo(unwrap(n), { cols, isToday, dataRow });
+  const constOf = (raw) => {
+    const n = unwrap(raw);
     if (n?.k === "num" || n?.k === "str") return n.v;
     const i = info(n);
-    if (i?.kind === "head") {
-      const v = head(i.col, i.row);
-      return v === undefined || v === "" ? undefined : isFinite(Number(v)) ? Number(v) : v;
-    }
-    return undefined;
+    const v = i?.kind === "head" ? head(i.col, i.row) : i?.kind === "ext" ? ext?.(i.sheet, i.col, i.row) : undefined;
+    return v === undefined || v === "" ? undefined : isFinite(Number(v)) ? Number(v) : v;
   };
+
+  // IF(AQ8="", TODAY(), AQ8) / IF(N(AQ8)=0, TODAY(), AQ8): step X's actual, or today while it is not done -> X
+  function actualOrToday(n) {
+    if (n?.k !== "fn" || n.name !== "IF" || n.args.length < 3) return null;
+    const [c, a, b] = n.args;
+    if (c?.k !== "bin" || !(c.op === "=" || c.op === "<>")) return null;
+    const ci = info(c.l);
+    if (ci?.kind !== "actual" || !(isEmptyStr(c.r) || constOf(c.r) === 0)) return null;
+    const [whenOpen, whenDone] = c.op === "=" ? [a, b] : [b, a];
+    return info(whenOpen)?.kind === "today" && info(whenDone)?.kind === "actual" && info(whenDone).step === ci.step ? ci.step : null;
+  }
 
   // one comparison / truthy test -> { rule } | { dep } | { due } | null (ignored)
   function atom(n, negate) {
     let op;
     let l;
     let r;
-    if (n.k === "bin" && OP[n.op]) [op, l, r] = [OP[n.op], n.l, n.r];
-    else [op, l, r] = ["notEmpty", n, null]; // IF(A8, …): A8 is filled
+    if (n.k === "bin" && OP[n.op]) [op, l, r] = [OP[n.op], unwrap(n.l), unwrap(n.r)];
+    else [op, l, r] = ["notEmpty", unwrap(n), null]; // IF(A8, …): A8 is filled
     // "$A$1 - P8 > 0": today is past step X's planned date
     if (l?.k === "bin" && l.op === "-" && info(l.l)?.kind === "today" && info(l.r)?.kind === "planned" && (op === ">" || op === ">=") && constOf(r) === 0) {
       if (negate) return { unknown: true };
-      return { due: info(l.r).step };
+      return { due: { step: info(l.r).step } };
+    }
+    // INT(IF(N(AQ8)=0,TODAY(),AQ8)) > AP8 + 30: step X still not done (or done) more than 30 days after its planned day
+    const late = actualOrToday(l);
+    if (late && (op === ">" || op === ">=")) {
+      const [base, plus] = r?.k === "bin" && r.op === "+" ? [r.l, constOf(r.r)] : [r, 0];
+      const bi = info(base);
+      if (bi?.kind === "planned" && bi.step === late && typeof plus === "number" && plus >= (op === ">=" ? 1 : 0)) {
+        if (negate) return { unknown: true };
+        return { due: { step: late, days: op === ">=" ? plus - 1 : plus, ifLate: true } };
+      }
+      return { unknown: true };
     }
     if (r && isEmptyStr(r) && (op === "=" || op === "!=")) op = op === "=" ? "empty" : "notEmpty";
     if (l && isEmptyStr(l) && r && (op === "=" || op === "!=")) [l, op] = [r, op === "=" ? "empty" : "notEmpty"];
+    // N(P8)=0 on a date column: the date is empty
+    if (r && (op === "=" || op === "!=") && constOf(r) === 0 && DATE_KINDS.includes(info(l)?.kind)) op = op === "=" ? "empty" : "notEmpty";
     if (negate) op = NOT[op];
     const li = info(l);
     if (!li) return { unknown: true };
     const value = op === "empty" || op === "notEmpty" ? undefined : constOf(r);
     if (value === undefined && !(op === "empty" || op === "notEmpty")) return { unknown: true };
     switch (li.kind) {
+      case "route": {
+        // N(Z8)=2: step X's Status is one that the Rules tab sends to stage 2
+        if (!li.statusKey || !(op === "=" || op === "!=")) return { unknown: true };
+        const statuses = li.map.filter((m) => sameValue(m.to, value)).map((m) => m.status);
+        return { rule: { src: "step", step: li.step, key: li.statusKey, op: op === "=" ? "in" : "notIn", value: statuses.join(",") } };
+      }
       case "entryDate":
         return op === "notEmpty" ? null : { unknown: true };
       case "planned":
@@ -210,8 +252,36 @@ function translate(ast, { cols, head, isToday = () => false, dataRow }: any) {
     return true;
   }
 
+  // a date column (or a date column + K days) -> where a planned date counts from
+  function baseOf(raw) {
+    let n = unwrap(raw);
+    let offset = 0;
+    if (n?.k === "bin" && (n.op === "+" || n.op === "-")) {
+      const k = constOf(n.r);
+      if (typeof k !== "number") return null;
+      offset = n.op === "+" ? k : -k;
+      n = unwrap(n.l);
+    }
+    const i = info(n);
+    const extra = offset ? { offset } : {};
+    if (i?.kind === "entryDate") return { from: "entry", ...extra };
+    if (i?.kind === "field") return { from: "field", field: i.key, ...extra };
+    if (i?.kind === "planned") return { from: "stepPlanned", step: i.step, ...extra };
+    if (i?.kind === "actual") return { from: "stepActual", step: i.step, ...extra };
+    return null;
+  }
+
   // the planned value: base + TAT
-  function value(n) {
+  function value(raw) {
+    const n = unwrap(raw);
+    // DATE(YEAR(A8),MONTH(A8),5): the 5th of the entry date's month
+    if (n.k === "fn" && n.name === "DATE" && n.args.length === 3) {
+      const [y, m, d] = n.args.map(unwrap);
+      const day = constOf(d);
+      const same = y?.k === "fn" && y.name === "YEAR" && m?.k === "fn" && m.name === "MONTH" && JSON.stringify(y.args[0]) === JSON.stringify(m.args[0]);
+      if (same && info(y.args[0])?.kind === "entryDate" && Number.isInteger(day) && day >= 1 && day <= 31) return { from: "monthDay", day, tat: 0 };
+      return null;
+    }
     if (n.k === "fn" && n.name === "IF") {
       const [c, a, b] = n.args;
       // IF(Q<>"", Q+t, P+t): step X's actual if done, else its planned
@@ -240,23 +310,51 @@ function translate(ast, { cols, head, isToday = () => false, dataRow }: any) {
         if (i.kind === "actual") return { from: "stepActual", step: i.step, tat };
       }
     }
+    // WORKDAY(base, TAT) / WORKDAY.INTL(base, TAT, "0000001"): working days (week-offs skipped)
     if (n.k === "fn" && n.name.startsWith("WORKDAY")) {
       working = true;
-      const i = info(n.args[0]?.k === "fn" ? n.args[0].args[0] : n.args[0]);
+      const base = baseOf(n.args[0]);
       const t = constOf(n.args[1]);
-      if (i?.kind === "entryDate" && typeof t === "number") return { from: "entry", tat: t };
+      if (base && typeof t === "number") return { ...base, tat: t };
     }
     const i = info(n);
     if (i?.kind === "entryDate") return { from: "entry", tat: 0 };
     return null;
   }
 
+  // IF(c1, WORKDAY(S5 actual, t), IF(c2, WORKDAY(S6 actual, t), "")): after step 5 or step 6, whichever is done
+  function alternatives(n) {
+    const branches = [];
+    let cur = n;
+    while (cur?.k === "fn" && cur.name === "IF" && cur.args.length >= 2 && !isEmptyStr(cur.args[1])) {
+      branches.push([cur.args[0], cur.args[1]]);
+      cur = cur.args[2] ?? { k: "str", v: "" };
+    }
+    if (branches.length < 2 || !isEmptyStr(cur)) return null;
+    const rules = [];
+    const vals = [];
+    for (const [c, a] of branches) {
+      const x: any = cond(c, false);
+      if (!x || x === "unknown" || x.dep || x.due) return null;
+      const v = value(a);
+      if (!v || v.from !== "stepActual" || v.offset) return null;
+      rules.push(x.rule || x);
+      vals.push(v);
+    }
+    if (vals.some((v) => v.tat !== vals[0].tat) || new Set<any>(vals.map((v) => v.step)).size !== vals.length) return null;
+    reqs.push({ any: rules });
+    return { from: "stepActual", step: vals[0].step, tat: vals[0].tat, alt: vals.map((v) => v.step) };
+  }
+
   // walk the IFs down to the branch that gives the date
-  function walk(n) {
+  function walk(raw) {
+    const n = unwrap(raw);
     if (n.k === "fn" && n.name === "IF" && n.args.length >= 2) {
       const [c, a, b = { k: "str", v: "" }] = n.args;
       if (isEmptyStr(b) && !isEmptyStr(a)) return take(cond(c, false)) ? walk(a) : null;
       if (isEmptyStr(a) && !isEmptyStr(b)) return take(cond(c, true)) ? walk(b) : null;
+      const alt = alternatives(n);
+      if (alt) return alt;
     }
     return value(n);
   }
@@ -271,7 +369,8 @@ function translate(ast, { cols, head, isToday = () => false, dataRow }: any) {
 
   // How the step starts
   let start;
-  if (due) start = { mode: "afterDue", step: due };
+  if (due) start = { mode: "afterDue", step: due.step, ...(due.days ? { days: due.days } : {}), ...(due.ifLate ? { ifLate: true } : {}) };
+  else if (plan.alt) start = { mode: "afterDone", step: plan.alt[0], also: plan.alt.slice(1) };
   else if (plan.from === "stepActual" || plan.from === "stepActualOrPlanned") start = { mode: "afterDone", step: plan.step };
   else if (plan.from === "stepPlanned") start = { mode: "withStart", step: plan.step };
   else if (deps.size) start = { mode: "withStart", step: [...deps].pop() };
@@ -283,14 +382,29 @@ function translate(ast, { cols, head, isToday = () => false, dataRow }: any) {
     notes.push("Counts from the step's planned date while it is not done (the sheet gave no date then)");
   }
 
-  const out: Record<string, any> = { ok: true, start, plan: { from: plan.from, ...(plan.step ? { step: plan.step } : {}), ...(plan.field ? { field: plan.field } : {}) }, tat: plan.tat, working, notes };
+  const out: Record<string, any> = {
+    ok: true,
+    start,
+    plan: {
+      from: plan.from,
+      ...(plan.step ? { step: plan.step } : {}),
+      ...(plan.field ? { field: plan.field } : {}),
+      ...(plan.day ? { day: plan.day } : {}),
+      ...(plan.offset ? { offset: plan.offset } : {}),
+    },
+    tat: plan.tat,
+    working,
+    notes,
+  };
   const flat = reqs.flatMap((r) => (r.all ? r.all : [r])); // AND inside AND is one list
   if (flat.length) out.when = { all: flat };
   return out;
 }
 
 function refInfo(n, { cols, isToday, dataRow }: any) {
+  if (n?.k === "fn" && (n.name === "TODAY" || n.name === "NOW") && !n.args.length) return { kind: "today" };
   if (n?.k !== "ref" || n.range) return null;
+  if (n.sheet) return { kind: "ext", sheet: n.sheet, col: n.col, row: n.row }; // a cell on another tab (Rules!$G$2)
   if (n.rowAbs || (n.row !== null && n.row < dataRow)) return isToday(n.col, n.row) ? { kind: "today" } : { kind: "head", col: n.col, row: n.row };
   return cols[n.col] || { kind: "unknown", col: n.col };
 }
@@ -322,13 +436,49 @@ function closureColumn(ast, ctx) {
   return found[0] || null;
 }
 
+// A "Next Stage" column: =IF(TRIM(Y8)="","",IFERROR(INDEX(Rules!$D:$D,MATCH("S1|"&TRIM(Y8),Rules!$A:$A,0)),"CHECK STATUS"))
+// -> { tab: "Rules", keyCol: "A", valueCol: "D", prefix: "S1|", inputCol: "Y" }: the stage a Status sends the entry to
+function routeOf(ast) {
+  let found = null;
+  (function visit(n) {
+    if (found || !n || typeof n !== "object") return;
+    if (n.k === "fn" && n.name === "INDEX" && n.args[0]?.k === "ref" && n.args[0].sheet && n.args[1]?.k === "fn" && n.args[1].name === "MATCH") {
+      const [key, range] = n.args[1].args;
+      let prefix = "";
+      let input = unwrap(key);
+      if (input?.k === "bin" && input.op === "&" && input.l?.k === "str") {
+        prefix = input.l.v;
+        input = unwrap(input.r);
+      }
+      if (range?.k === "ref" && range.sheet === n.args[0].sheet && input?.k === "ref" && !input.sheet && !input.rowAbs) {
+        found = { tab: n.args[0].sheet, valueCol: n.args[0].col, keyCol: range.col, prefix, inputCol: input.col };
+        return;
+      }
+    }
+    for (const v of Object.values<any>(n)) if (v && typeof v === "object") visit(v);
+  })(ast);
+  return found;
+}
+
+// The other tabs a formula reads ('Daily Outward'!E:E, Rules!$G$2)
+function tabsIn(formula) {
+  const out = new Set<string>();
+  for (const m of String(formula || "").matchAll(/(?:'((?:[^']|'')+)'|([A-Za-z_][\w.]*))!/g)) out.add((m[1] || m[2]).replace(/''/g, "'"));
+  return [...out];
+}
+
 // The formula most rows of a column use, with the row number written as {r} ("A8+2" -> "A{r}+2")
 function commonFormula(cells, firstRow) {
   const count = new Map();
   cells.forEach((f, i) => {
     if (typeof f !== "string" || !f.startsWith("=")) return;
     const row = firstRow + i;
-    const pattern = f.replace(new RegExp(`(?<![\\d$])${row}(?!\\d)`, "g"), "{r}");
+    // only the row of a cell reference (A7, $A7) – not a number on its own (=7) and not inside quotes ("S7|")
+    const rowRef = new RegExp(`(?<=[A-Za-z])${row}(?!\\d)`, "g");
+    const pattern = f
+      .split(/("(?:[^"]|"")*")/)
+      .map((part, k) => (k % 2 ? part : part.replace(rowRef, "{r}")))
+      .join("");
     count.set(pattern, (count.get(pattern) || 0) + 1);
   });
   let best = null;
@@ -340,4 +490,4 @@ function commonFormula(cells, firstRow) {
 const ROW = 100000;
 const parseCommon = (pattern) => parse(pattern.replace(/{r}/g, String(ROW)));
 
-export = { tokenize, parse, parseCommon, translate, fieldFormula, closureColumn, commonFormula, ROW };
+export = { tokenize, parse, parseCommon, translate, fieldFormula, closureColumn, commonFormula, routeOf, tabsIn, sameValue, ROW };

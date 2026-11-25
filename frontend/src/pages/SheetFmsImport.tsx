@@ -195,7 +195,7 @@ export default function SheetFmsImport() {
                   <tr>
                     <th>#</th>
                     <th>Step name</th>
-                    <th>Sheet says</th>
+                    <th>Sheet says (Who / How)</th>
                     <th>Doer comes from</th>
                     <th>Doer</th>
                     <th>TAT (days)</th>
@@ -211,7 +211,15 @@ export default function SheetFmsImport() {
                       <td>
                         <input value={steps[s.key]?.name || ""} onChange={(e) => setStep(s.key, { name: e.target.value })} />
                       </td>
-                      <td className="muted small">{s.doerHint || "—"}</td>
+                      <td className="small">
+                        {s.doerHint || "—"}
+                        {s.how && (
+                          <div className="muted clamp" title={s.how}>
+                            How: {s.how}
+                          </div>
+                        )}
+                        {s.when && !/^\d+(\.\d+)?$/.test(s.when) && <div className="muted">When: {s.when}</div>}
+                      </td>
                       <td>
                         <select value={sourceKey(steps[s.key]?.source)} onChange={(e) => setStep(s.key, { source: sourceOf(e.target.value) })}>
                           <option value="fixed">One person</option>
@@ -230,6 +238,25 @@ export default function SheetFmsImport() {
                       <td>
                         <DoerSelect value={steps[s.key]?.doer} onChange={(v) => setStep(s.key, { doer: v })} placeholder={steps[s.key]?.source?.type === "fixed" ? "Choose…" : "Otherwise…"} />
                         {steps[s.key]?.source?.type !== "fixed" && <div className="muted small">when no name matches</div>}
+                        {steps[s.key]?.source?.type === "fixed" && s.doerHint && (
+                          steps[s.key]?.doer ? (
+                            steps[s.key].doer === s.doer && <div className="ok-text small">from Who: {s.doerHint}</div>
+                          ) : s.doerCandidates?.length ? (
+                            <div className="small">
+                              <span className="warn-text">“{s.doerHint}” fits {s.doerCandidates.length} users – pick one:</span>
+                              <div className="row wrap">
+                                {s.doerCandidates.map((u) => (
+                                  <button key={u._id} type="button" className="btn ghost small" onClick={() => setStep(s.key, { doer: u._id })}>
+                                    {u.name}
+                                    {u.department ? ` (${u.department})` : ""}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="warn-text small">No user named “{s.doerHint}” – add them in Users, or choose here</div>
+                          )
+                        )}
                       </td>
                       <td>
                         <input type="number" min="0" step="0.5" style={{ width: 70 }} value={steps[s.key]?.tat ?? ""} onChange={(e) => setStep(s.key, { tat: Number(e.target.value) })} />
@@ -245,6 +272,11 @@ export default function SheetFmsImport() {
                           <span className="warn-text">{i === 0 ? "Starts with the entry" : "Starts after the step before it"} – {s.ruleNotes?.[0] || "no rule found"}</span>
                         )}
                         {s.rule && s.ruleNotes?.length > 0 && <div className="muted">{s.ruleNotes.join(" · ")}</div>}
+                        {s.routes?.map((r) => (
+                          <div key={r.col} className="muted" title={r.map.map((m) => `${m.status} → ${m.to}`).join("\n")}>
+                            {r.label} (column {r.col}) is worked out from the “{r.tab}” tab: {r.map.map((m) => `${m.status} → ${m.to}`).join(", ")}
+                          </div>
+                        ))}
                       </td>
                       <td className="nowrap small">
                         {s.plannedCol} / {s.actualCol}
