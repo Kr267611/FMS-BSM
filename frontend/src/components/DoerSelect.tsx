@@ -34,21 +34,30 @@ export interface DoerSelectProps {
   required?: boolean;
   // only the people who audit (Auditor role, admins, "Make Auditor"); everyone when nobody is marked yet
   auditors?: boolean;
-  // only people with one of these roles (e.g. ["pc"] for the PC of an FMS); the one already chosen always shows
+  // only people with one of these roles; the one already chosen always shows
   roles?: string[];
+  // the PC of an FMS: people with the PC role or in the M.D.O department (everyone when nobody is marked yet).
+  // Always a type-to-find list that opens below the box (a plain select opens upwards at the bottom of the page).
+  pcs?: boolean;
 }
 
 const canAudit = (u) => u.role === "auditor" || isAdmin(u) || u.isAuditor;
+// "M.D.O", "MDO", "m d o" are the same department
+const isPc = (u) => u.role === "pc" || String(u.department || "").toLowerCase().replace(/[^a-z]/g, "") === "mdo";
 
-export default function DoerSelect({ value, onChange, placeholder = "Select doer", required, auditors, roles }: DoerSelectProps) {
+export default function DoerSelect({ value, onChange, placeholder = "Select doer", required, auditors, roles, pcs }: DoerSelectProps) {
   const everyone = useUsers();
   const users = useMemo(() => {
+    if (pcs) {
+      const list = everyone.filter((u) => isPc(u) || u._id === value);
+      return list.some(isPc) ? list : everyone;
+    }
     if (roles?.length) return everyone.filter((u) => roles.includes(u.role) || u._id === value);
     if (!auditors) return everyone;
     const list = everyone.filter((u) => canAudit(u) || u._id === value);
     return list.some((u) => !isAdmin(u) && canAudit(u)) ? list : everyone;
-  }, [everyone, auditors, roles, value]);
-  if (users.length > SEARCH_FROM) return <PeopleSearch users={users} value={value} onChange={onChange} placeholder={placeholder} required={required} />;
+  }, [everyone, auditors, roles, pcs, value]);
+  if (pcs || users.length > SEARCH_FROM) return <PeopleSearch users={users} value={value} onChange={onChange} placeholder={placeholder} required={required} />;
   return (
     <select value={value || ""} onChange={(e) => onChange(e.target.value)} required={required} aria-label={placeholder}>
       <option value="">{placeholder}</option>
@@ -67,6 +76,11 @@ function PeopleSearch({ users, value, onChange, placeholder, required }: DoerSel
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const box = useRef(null);
+  const list = useRef<HTMLUListElement>(null);
+  // at the bottom of a page the list would open below the screen: scroll just enough to show it
+  useEffect(() => {
+    if (open) list.current?.scrollIntoView?.({ block: "nearest" });
+  }, [open]);
   const current = users.find((u) => u._id === value);
   const matches = useMemo(() => {
     // any spelling of the name or a typo finds the person, the closest matches first
@@ -101,7 +115,7 @@ function PeopleSearch({ users, value, onChange, placeholder, required }: DoerSel
         required={required && !value}
       />
       {open && (
-        <ul className="people-search-list" role="listbox">
+        <ul className="people-search-list" role="listbox" ref={list}>
           {!required && (
             <li role="option" aria-selected={!value} className="muted" onMouseDown={() => pick(null)}>
               {placeholder}

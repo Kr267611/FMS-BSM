@@ -334,7 +334,7 @@ export default function SheetFmsImport() {
             </label>
             <label className="span-2">
               PC (follows up) <small className="muted">— optional</small>
-              <DoerSelect value={pc} onChange={setPc} placeholder="—" />
+              <DoerSelect value={pc} onChange={setPc} placeholder="—" pcs />
             </label>
             <p className="muted small span-all">
               Every step keeps the rule shown above. Rules, doers and TATs can be changed afterwards in Master FMS. Doers then mark their steps

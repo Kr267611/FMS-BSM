@@ -250,9 +250,6 @@ function StepEditor({ step, index, steps, fields, calendarMode, open, onToggle, 
   );
 }
 
-// who may be the PC of an FMS: people with the PC role
-const PC_ROLES = ["pc"];
-
 export default function FmsBuilder() {
   const { id } = useParams();
   const [params] = useSearchParams();
@@ -378,7 +375,7 @@ export default function FmsBuilder() {
         </label>
         <label>
           PC (follows up, closes entries)
-          <DoerSelect value={p.pc} onChange={(pc) => set({ pc })} placeholder="—" roles={PC_ROLES} />
+          <DoerSelect value={p.pc} onChange={(pc) => set({ pc })} placeholder="—" pcs />
         </label>
         <label>
           Auditor <small className="muted">(checks a sample of finished steps)</small>
