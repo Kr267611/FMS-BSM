@@ -5,9 +5,15 @@ import { useEffect, useRef, useState } from "react";
 const recognition = (): any => (typeof window === "undefined" ? undefined : (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
 export const voiceSupported = (): boolean => Boolean(recognition());
 
+// on a computer the switch is in the site settings (lock icon by the address); on a phone, in the browser or phone settings
+const BLOCKED = "The microphone is blocked. Allow it for this site in the browser's site settings (on a phone: the browser or phone settings), then try again.";
+// Chrome on Android repeats the earlier words in every new result when it listens continuously,
+// so there it listens to one sentence at a time (press the mic again to add more)
+const ANDROID = typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent || "");
+
 const PROBLEM: Record<string, string> = {
-  "not-allowed": "The microphone is blocked. Allow it from the icon at the left of the address bar, then try again.",
-  "service-not-allowed": "The microphone is blocked. Allow it from the icon at the left of the address bar, then try again.",
+  "not-allowed": BLOCKED,
+  "service-not-allowed": BLOCKED,
   "no-speech": "Nothing was heard. Press the mic and speak again.",
   "audio-capture": "No microphone was found on this device.",
   network: "Voice typing needs the internet. Check the connection and try again.",
@@ -29,7 +35,7 @@ export function useVoice(onWords: (spoken: string) => void) {
     setError("");
     const r = new Recognition();
     r.lang = lang;
-    r.continuous = true;
+    r.continuous = !ANDROID;
     r.interimResults = true;
     // every result so far, final and in progress, so the box always shows the whole sentence
     r.onresult = (e: any) => {
@@ -58,11 +64,12 @@ export function useVoice(onWords: (spoken: string) => void) {
   // stop listening; the last words still arrive
   const stop = () => live.current?.stop();
 
-  // stop and drop anything still on its way (the question is being sent)
+  // stop and drop anything still on its way (the question is being sent), with any old voice message
   function cancel() {
     const r = live.current;
     live.current = null;
     setListening(false);
+    setError("");
     r?.abort();
   }
 

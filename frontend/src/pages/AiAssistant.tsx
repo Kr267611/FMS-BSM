@@ -68,7 +68,15 @@ export default function AiAssistant() {
   const [canSpeak] = useState(voiceSupported);
   const [voiceLang, setVoiceLang] = useState(savedVoiceLang);
   const typedBefore = useRef("");
-  const voice = useVoice((spoken) => setText((typedBefore.current ? `${typedBefore.current} ${spoken}` : spoken).slice(0, 4000)));
+  const voice = useVoice((spoken) => {
+    const all = typedBefore.current ? `${typedBefore.current} ${spoken}` : spoken;
+    // the box holds 4,000 characters: stop listening and say so, rather than cutting words off silently
+    if (all.length > 4000) {
+      voice.stop();
+      setError("The question is too long – 4,000 characters at most. Shorten it, or ask it in two parts.");
+    }
+    setText(all.slice(0, 4000));
+  });
 
   function toggleMic() {
     if (voice.listening) return voice.stop();
@@ -171,6 +179,7 @@ export default function AiAssistant() {
 
   function suggest(s: string) {
     if (!s.includes("<link>")) return send(s);
+    voice.cancel(); // the mic would write over the suggestion with the next word it hears
     setText(s.replace("<link>", ""));
     box.current?.focus();
   }
