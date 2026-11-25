@@ -419,7 +419,8 @@ function definition(plan, tab, body: any = {}, ctx: any = {}) {
       key: s.key,
       name: over[s.key]?.name || s.name,
       how: s.how || "",
-      doer: D.doerRule(over[s.key]?.source || s.source, { fallback: over[s.key]?.doer, hint: s.doerHint, people: body.people, rows: ctx.rows, lookups: ctx.lookups }),
+      // a step may bring its own table (Master Name -> Mukesh / Vinod), else the names table of the whole sheet
+      doer: D.doerRule(over[s.key]?.source || s.source, { fallback: over[s.key]?.doer, hint: s.doerHint, people: over[s.key]?.people || body.people, rows: ctx.rows, lookups: ctx.lookups }),
       ...(s.rule || { start: i === 0 ? { mode: "entry" } : { mode: "afterDone", step: plan.steps[i - 1].key } }),
       tat: over[s.key]?.tat ?? s.tat,
       tatUnit: "days",

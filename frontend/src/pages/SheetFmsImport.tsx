@@ -59,7 +59,11 @@ export default function SheetFmsImport() {
     setError("");
     try {
       const used = Object.fromEntries(usedNames.map(([n]) => [n, people[n] || ""]).filter(([, u]) => u));
-      setDone(await api("/sheets/fms-import", { method: "POST", body: { sheetUrl: url, tabName: tab, name, pc, steps, people: used } }));
+      // a step with its own table sends it as that step's people (Master → Mukesh / Vinod)
+      const sent = Object.fromEntries(
+        Object.entries(steps).map(([k, st]) => [k, st.own ? { ...st, own: undefined, people: Object.fromEntries(Object.entries(st.own).filter(([, u]) => u)) } : st])
+      );
+      setDone(await api("/sheets/fms-import", { method: "POST", body: { sheetUrl: url, tabName: tab, name, pc, steps: sent, people: used } }));
     } catch (e) {
       setError(e.message);
     } finally {
@@ -77,11 +81,23 @@ export default function SheetFmsImport() {
   const sourceKey = (x) => (x?.type === "field" ? `field:${x.field}` : x?.type === "lookup" ? `lookup:${x.tab}` : "fixed");
   const sourceOf = (k) => (k.startsWith("field:") ? { type: "field", field: k.slice(6) } : k.startsWith("lookup:") ? { type: "lookup", tab: k.slice(7) } : { type: "fixed" });
   const namesFor = (x) => (x?.type === "field" ? src.fields.find((f) => f.key === x.field)?.names : x?.type === "lookup" ? src.lookups.find((l) => l.tab === x.tab)?.names : null) || [];
+  // the names of the shared table: a step with its own table (st.own) keeps its names to itself
   const usedNames = (() => {
     const all = new Map();
-    for (const st of Object.values(steps)) for (const [n, c] of namesFor(st.source)) all.set(n, (all.get(n) || 0) + c);
+    for (const st of Object.values(steps)) if (!st.own) for (const [n, c] of namesFor(st.source)) all.set(n, (all.get(n) || 0) + c);
     return [...all.entries()].sort((a, b) => b[1] - a[1]);
   })();
+  // "Mukesh / Vinod" and the column "Master Name" share no word: the names are not the doers, so the step
+  // gets its own table (each master -> Mukesh or Vinod); "Master" and "Master Name" do share one
+  const words = (t) => String(t || "").toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2);
+  const sharesWord = (a, b) => words(a).some((w) => words(b).includes(w));
+  function chooseSource(s, value) {
+    const source = sourceOf(value);
+    const field = source.type === "field" ? src.fields.find((f) => f.key === source.field) : null;
+    const own = field && !sharesWord(s.doerHint, field.label) ? steps[s.key]?.own || {} : undefined;
+    setStep(s.key, { source, own });
+  }
+  const setOwn = (key, name, user) => setSteps((prev) => ({ ...prev, [key]: { ...prev[key], own: { ...(prev[key].own || {}), [name]: user } } }));
   const unmatched = usedNames.filter(([n]) => !people[n]).length;
 
   if (done) {
@@ -223,7 +239,7 @@ export default function SheetFmsImport() {
                         {s.when && !/^\d+(\.\d+)?$/.test(s.when) && <div className="muted">When: {s.when}</div>}
                       </td>
                       <td>
-                        <select value={sourceKey(steps[s.key]?.source)} onChange={(e) => setStep(s.key, { source: sourceOf(e.target.value) })}>
+                        <select value={sourceKey(steps[s.key]?.source)} onChange={(e) => chooseSource(s, e.target.value)}>
                           <option value="fixed">One person</option>
                           {src.fields.map((f) => (
                             <option key={f.key} value={`field:${f.key}`}>
@@ -236,6 +252,12 @@ export default function SheetFmsImport() {
                             </option>
                           ))}
                         </select>
+                        {steps[s.key]?.source?.type === "field" && (
+                          <label className="check small">
+                            <input type="checkbox" checked={Boolean(steps[s.key]?.own)} onChange={(e) => setStep(s.key, { own: e.target.checked ? {} : undefined })} />
+                            own table for this step
+                          </label>
+                        )}
                       </td>
                       <td>
                         <DoerSelect value={steps[s.key]?.doer} onChange={(v) => setStep(s.key, { doer: v })} placeholder={steps[s.key]?.source?.type === "fixed" ? "Choose…" : "Otherwise…"} />
@@ -290,6 +312,64 @@ export default function SheetFmsImport() {
               </table>
             </div>
           </div>
+
+          {plan.steps
+            .map((s, i) => ({ s, no: i + 1, st: steps[s.key] }))
+            .filter(({ st }) => st?.own && st.source?.type === "field")
+            .map(({ s, no, st }) => {
+              const field = src.fields.find((f) => f.key === st.source.field);
+              const names = namesFor(st.source);
+              const picks = s.doerCandidates || [];
+              const left = names.filter(([n]) => !st.own[n]).length;
+              return (
+                <div key={s.key} className="card">
+                  <div className="row between wrap">
+                    <h3>
+                      Step {no} ({s.doerHint || s.name}) – who does it for each {field?.label || "name"}
+                    </h3>
+                    <span className={left ? "warn-text small" : "ok-text small"}>{left ? `${left} without a doer` : "every name has a doer"}</span>
+                  </div>
+                  <p className="muted small">
+                    Each entry's {field?.label} (column {field?.col}) decides who does step {no}, and it counts in that person's score. Names left empty go to this
+                    step's “Otherwise” doer. This table is only for step {no}.
+                  </p>
+                  <div className="table-scroll people-table">
+                    <table className="grid">
+                      <thead>
+                        <tr>
+                          <th>{field?.label}</th>
+                          <th>Used</th>
+                          <th>Doer of step {no}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {names.map(([n, c]) => (
+                          <tr key={n}>
+                            <td>{n}</td>
+                            <td className="muted small">{c}×</td>
+                            <td>
+                              {picks.length > 1 ? (
+                                <select value={st.own[n] || ""} onChange={(e) => setOwn(s.key, n, e.target.value)}>
+                                  <option value="">— (Otherwise doer)</option>
+                                  {picks.map((u) => (
+                                    <option key={u._id} value={u._id}>
+                                      {u.name}
+                                      {u.department ? ` (${u.department})` : ""}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <DoerSelect value={st.own[n] || ""} onChange={(v) => setOwn(s.key, n, v)} placeholder="— (Otherwise doer)" />
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })}
 
           {usedNames.length > 0 && (
             <div className="card">

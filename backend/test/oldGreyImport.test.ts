@@ -217,6 +217,24 @@ test("numbers in the Master Name column are not people: left out of the names, t
   assert.deepStrictEqual(["AVINASH MASTER", "5", "6", "11", "4.0"].map((m) => resolveDoer(live, { master_name: m }, dir)), [ids[0], ids[1], ids[1], ids[1], ids[1]]);
 });
 
+test("a step with its own table: Master Name gives S2 to the master, and S5 to Mukesh or Vinod by master", () => {
+  const ids = { avinash: "a1a1a1a1a1a1a1a1a1a1a1a1", rajesh: "b2b2b2b2b2b2b2b2b2b2b2b2", mukesh: "c3c3c3c3c3c3c3c3c3c3c3c3", vinod: "d4d4d4d4d4d4d4d4d4d4d4d4", jyoti: "e5e5e5e5e5e5e5e5e5e5e5e5" };
+  const rows = entryRows(plan, fmt, raw); // masters: AVINASH (rows 7, 9), RAJESH (row 8)
+  const body = {
+    name: "Old Grey",
+    people: { "AVINASH MASTER": ids.avinash, "RAJESH MASTER": ids.rajesh }, // the shared table: S2's doers
+    steps: {
+      s2: { source: { type: "field", field: "master_name" }, doer: ids.jyoti },
+      s5: { source: { type: "field", field: "master_name" }, doer: ids.mukesh, people: { "AVINASH MASTER": ids.vinod, "RAJESH MASTER": ids.mukesh } },
+    },
+  };
+  const def = normalizeProcess({ ...definition(plan, "FMS", body, { rows }), active: false }, { activeIds: new Set<any>(Object.values(ids)) });
+  const dir = directory(Object.values(ids).map((id) => ({ _id: id, name: id, active: true })));
+  const doerOf = (key, master) => resolveDoer(def.steps.find((s) => s.key === key).doer, { master_name: master }, dir);
+  assert.deepStrictEqual([doerOf("s2", "AVINASH MASTER"), doerOf("s2", "RAJESH MASTER")], [ids.avinash, ids.rajesh]);
+  assert.deepStrictEqual([doerOf("s5", "AVINASH MASTER"), doerOf("s5", "RAJESH MASTER"), doerOf("s5", "4")], [ids.vinod, ids.mukesh, ids.mukesh]);
+});
+
 test("a sheet name like AVINASH MASTER finds the user of that department", () => {
   const users = [
     { _id: 1, name: "Vinayprakash Ramujageer Singh", department: { name: "AVINASH MASTER" } },
