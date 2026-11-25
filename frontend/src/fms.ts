@@ -225,8 +225,10 @@ export function headlineValue(step, task) {
   return f ? v[f.key] : undefined;
 }
 
-// A step's other boxes (Remarks, Bill no…): shown as their own columns after Status, like the sheet
-export function extraFields(step) {
+// A step's columns after Delay: its boxes in their own order (Status, Remarks, Bill no… – a column can be put in
+// anywhere); `head` is the box that also shows the step's state. With no status box, a Status column comes first.
+export function stepColumns(step): { field: any; head: boolean }[] {
   const head = headlineField(step);
-  return (step?.fields || []).filter((f) => f.key && f !== head);
+  const fields = (step?.fields || []).filter((f) => f.key);
+  return head ? fields.map((f) => ({ field: f, head: f === head })) : [{ field: null, head: true }, ...fields.map((f) => ({ field: f, head: false }))];
 }

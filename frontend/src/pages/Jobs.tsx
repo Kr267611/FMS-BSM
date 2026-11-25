@@ -7,7 +7,7 @@ import { useUsers } from "../components/DoerSelect";
 import FieldInput, { FieldValue } from "../components/FieldInput";
 import StepForm from "../components/StepForm";
 import ColumnFilter, { describeFilter } from "../components/ColumnFilter";
-import { SKIP_REASONS, dependentsOf, describeCondition, describeStart, extraFields, headlineValue, stepKeyOf, taskState } from "../fms";
+import { SKIP_REASONS, dependentsOf, describeCondition, describeStart, headlineValue, stepColumns, stepKeyOf, taskState } from "../fms";
 
 const shortDt = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
 const dm = (key) => (key ? `${key.slice(8, 10)}/${key.slice(5, 7)}` : "");
@@ -34,6 +34,7 @@ export default function Jobs() {
   const [page, setPage] = useState(1);
   const [data, setData] = useState(null);
   const [form, setForm] = useState(false);
+  const [addCol, setAddCol] = useState(false);
   const [openId, setOpenId] = useState(null);
   const [error, setError] = useState("");
   const [showFilters, setShowFilters] = useState(false); // phones: search, dates and export fold away under one button
@@ -154,6 +155,11 @@ export default function Jobs() {
               Export (Excel)
             </a>
           </div>
+          {can(user, "fms", "edit") && process && (
+            <button type="button" className="btn ghost small" onClick={() => setAddCol(true)} title="Put a new column anywhere, like inserting a column in the sheet">
+              + Column
+            </button>
+          )}
           {canAdd && (
             <button className="btn primary" onClick={() => setForm(!form)} disabled={!process}>
               + New Entry
@@ -242,8 +248,122 @@ export default function Jobs() {
           </button>
         </div>
       )}
+      {addCol && process && (
+        <AddColumn
+          process={process}
+          onClose={() => setAddCol(false)}
+          onAdded={() => {
+            setAddCol(false);
+            api(`/processes/${pid}`).then(setProcess).catch((e) => setError(e.message));
+          }}
+        />
+      )}
       {openId && process && <EntryPanel id={openId} process={process} nameOf={nameOf} onClose={() => setOpenId(null)} onChanged={load} />}
     </>
+  );
+}
+
+// Put a new column anywhere, like "Insert column" in the sheet: among the entry columns, or among the boxes a
+// step's doer fills (after Delay). Planned, Actual and Delay are the software's own and stay where they are.
+const COLUMN_TYPES = [
+  ["text", "Text"],
+  ["longtext", "Long text"],
+  ["number", "Number"],
+  ["date", "Date"],
+  ["select", "Dropdown"],
+  ["yesno", "Yes / No"],
+  ["link", "Link"],
+  ["photo", "Photo"],
+  ["user", "Person"],
+];
+function AddColumn({ process, onClose, onAdded }) {
+  const [where, setWhere] = useState("");
+  const [after, setAfter] = useState("");
+  const [label, setLabel] = useState("");
+  const [type, setType] = useState("text");
+  const [options, setOptions] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const step = process.steps.find((s) => s.key === where);
+  const cols = step ? (step.fields || []).filter((f) => f.key) : process.fields;
+  const types = step ? COLUMN_TYPES.filter(([t]) => t !== "user") : COLUMN_TYPES;
+  const afterLast = cols.at(-1)?.key || "";
+
+  useEffect(() => setAfter(afterLast), [where]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function save(e) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/processes/${process._id}/columns`, { method: "POST", body: { step: where || undefined, after, label, type, options: type === "select" ? options : undefined } });
+      onAdded();
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="modal-bg" onClick={onClose}>
+      <form className="modal card add-column" onClick={(e) => e.stopPropagation()} onSubmit={save} role="dialog" aria-modal="true" aria-label="Add a column">
+        <h3>Add a column</h3>
+        <label>
+          Where
+          <select value={where} onChange={(e) => setWhere(e.target.value)}>
+            <option value="">Entry columns (left side)</option>
+            {process.steps.map((s, i) => (
+              <option key={s.key} value={s.key}>
+                Step {i + 1} – {s.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Put it after
+          <select value={after} onChange={(e) => setAfter(e.target.value)}>
+            <option value="">{step ? "Delay (first box of the step)" : "Entry date (first column)"}</option>
+            {cols.map((f) => (
+              <option key={f.key} value={f.key}>
+                {f.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Column name
+          <input value={label} onChange={(e) => setLabel(e.target.value)} maxLength={80} placeholder="e.g. Remarks" autoFocus required />
+        </label>
+        <label>
+          Type
+          <select value={type} onChange={(e) => setType(e.target.value)}>
+            {types.map(([t, name]) => (
+              <option key={t} value={t}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </label>
+        {type === "select" && (
+          <label>
+            Dropdown options (comma between them)
+            <input value={options} onChange={(e) => setOptions(e.target.value)} placeholder="e.g. Done, Not Required, Hold" required />
+          </label>
+        )}
+        <p className="muted small">
+          {step ? "The doer fills it when marking the step done." : "Filled with each entry."} Entries already made keep their values; this column starts empty for them. Rename, move or remove it later in Master FMS.
+        </p>
+        {error && <div className="error small">{error}</div>}
+        <div className="row">
+          <button className="btn primary" disabled={busy || !label.trim()}>
+            {busy ? "Adding…" : "Add column"}
+          </button>
+          <button type="button" className="btn ghost" onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }
 
@@ -338,7 +458,7 @@ function Grid({ process, data, nameOf, onOpen, filters, sort, onFilter, onSort, 
                 </th>
               ))}
               {steps.map((s, i) => (
-                <th key={s.key} colSpan={4 + extraFields(s).length} className="step-head" title={describeStart(s, steps) + (s.when ? ` · only if ${describeCondition(s.when, fields, steps)}` : "")}>
+                <th key={s.key} colSpan={3 + stepColumns(s).length} className="step-head" title={describeStart(s, steps) + (s.when ? ` · only if ${describeCondition(s.when, fields, steps)}` : "")}>
                   {i + 1}. {s.name} {funnel("steps", s.key, s.name)}
                   <div className="muted small">
                     TAT {s.tat} {s.tatUnit === "hours" ? "h" : s.tatUnit === "minutes" ? "min" : "d"}
@@ -394,16 +514,17 @@ function Grid({ process, data, nameOf, onOpen, filters, sort, onFilter, onSort, 
 }
 
 // Planned | Actual | Delay | Status of a step; each one's ▾ opens that step's filter
+// After Delay, a step shows its boxes in their own order (a column can be put in anywhere); the status box
+// also shows the step's state (Pending, Done…), and a step with no status box gets a Status column for it
 function SubHead({ step, filter }) {
   return (
     <>
       <th className="sub step-start">Planned {filter}</th>
       <th className="sub">Actual {filter}</th>
       <th className="sub">Delay {filter}</th>
-      <th className="sub">Status {filter}</th>
-      {extraFields(step).map((f) => (
-        <th key={f.key} className="sub">
-          {f.label}
+      {stepColumns(step).map((c) => (
+        <th key={c.field?.key || "_state"} className="sub">
+          {c.field?.label || "Status"} {c.head ? filter : null}
         </th>
       ))}
     </>
@@ -413,6 +534,7 @@ function SubHead({ step, filter }) {
 function StepCells({ step, task, today, nameOf }) {
   const st = taskState(task, today);
   const who = task?.doer?.name || (task?.doer ? nameOf(task.doer) : "");
+  const cols = stepColumns(step);
   if (!task || task.status === "waiting" || task.status === "skipped" || task.status === "na") {
     const note = task?.status === "waiting" && task.triggerAt ? `from ${dm(istDay(task.triggerAt))}` : st.text;
     return (
@@ -420,16 +542,18 @@ function StepCells({ step, task, today, nameOf }) {
         <td className={st.cls + " step-start"}></td>
         <td className={st.cls}></td>
         <td className={st.cls}></td>
-        <td className={st.cls + " small nowrap"} title={task?.skipReason ? `Skipped: ${SKIP_REASONS[task.skipReason] || task.skipReason}` : ""}>
-          {note}
-        </td>
-        {extraFields(step).map((f) => (
-          <td key={f.key} className={st.cls}></td>
-        ))}
+        {cols.map((c) =>
+          c.head ? (
+            <td key={c.field?.key || "_state"} className={st.cls + " small nowrap"} title={task?.skipReason ? `Skipped: ${SKIP_REASONS[task.skipReason] || task.skipReason}` : ""}>
+              {note}
+            </td>
+          ) : (
+            <td key={c.field.key} className={st.cls}></td>
+          )
+        )}
       </>
     );
   }
-  const value = headlineValue(step, task);
   return (
     <>
       <td className="nowrap step-start" title={who ? `Doer: ${who}` : ""}>
@@ -437,8 +561,9 @@ function StepCells({ step, task, today, nameOf }) {
       </td>
       <td className={"nowrap " + st.cls}>{task.actual ? shortDt.format(new Date(task.actual)) : ""}</td>
       <td className={st.cls}>{st.delay > 0 ? `${st.delay}d` : task.status === "done" ? "0" : ""}</td>
-      <td className={"nowrap small " + st.cls}>{value || st.text}</td>
-      {extraFields(step).map((f) => {
+      {cols.map((c) => {
+        if (c.head) return <td key={c.field?.key || "_state"} className={"nowrap small " + st.cls}>{headlineValue(step, task) || st.text}</td>;
+        const f = c.field;
         const v = task.values?.[f.key];
         const shown = f.type === "user" ? (v ? nameOf(v) : "") : FieldCell({ field: f, value: v });
         return (

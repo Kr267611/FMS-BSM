@@ -1662,3 +1662,5 @@ html[data-theme="aubergine"],
 .words-cond .row input { flex: 1; min-width: 0; }
 .words-cond-result { margin-top: 6px; padding: 8px 10px; border: 1px solid var(--stroke-22); background: var(--tint-primary); border-radius: 8px; display: grid; gap: 4px; }
 .cell-text { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.add-column { max-width: 460px; display: grid; gap: 10px; }
+.add-column label { display: grid; gap: 4px; }

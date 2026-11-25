@@ -115,6 +115,33 @@ router.post("/condition-text", auth, permit("fms", "view"), async (req, res) => 
   res.json(out);
 });
 
+// A new column put in anywhere, like inserting a column in the sheet: an entry column (after any other one,
+// or first), or a box the doer fills in a step (after Delay, or after any of that step's boxes).
+// Only adds: the other columns, their keys and the entries already made stay as they are.
+router.post("/:id/columns", auth, permit("fms", "edit"), async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: "Invalid ID" });
+  const p = await Process.findById(req.params.id);
+  if (!p) return res.status(404).json({ message: "FMS not found" });
+  const { step: stepKey, after = "", label, type, options } = req.body || {};
+  const step = stepKey ? p.steps.find((s) => s.key === stepKey) : null;
+  if (stepKey && !step) return res.status(400).json({ message: "Step not found" });
+  const list = step ? step.fields : p.fields;
+  const where = step ? `step "${step.name}"` : "the entry columns";
+  const [col] = definitionLib.cleanFields([{ label, type, options }], step ? definitionLib.STEP_FIELD_TYPES : Process.FIELD_TYPES, where);
+  if (!col) return res.status(400).json({ message: "Write the column's name" });
+  const labels = new Set<string>(list.map((f) => String(f.label).trim().toLowerCase()));
+  if (labels.has(col.label.toLowerCase())) return res.status(400).json({ message: `${where} already has a column "${col.label}"` });
+  const keys = new Set<string>(list.map((f) => f.key));
+  let key = col.key;
+  for (let n = 2; keys.has(key); n++) key = `${col.key}_${n}`;
+  const at = after ? list.findIndex((f) => f.key === after) + 1 : 0;
+  if (after && at === 0) return res.status(400).json({ message: "The column to put it after was not found – reload the page" });
+  list.splice(at, 0, { ...col, key });
+  await p.save();
+  audit(req, "fms.update", { entity: "Process", entityId: p._id, summary: `${p.name}: column "${col.label}" added to ${where}` });
+  res.status(201).json({ key, label: col.label });
+});
+
 // Rule changes apply to steps that have not started yet; steps already started keep their planned date and doer.
 router.put("/:id", auth, permit("fms", "edit"), async (req, res) => {
   const p = await Process.findById(req.params.id);

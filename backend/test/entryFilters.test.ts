@@ -135,6 +135,31 @@ test("a condition in plain words: the rule, and how many entries it is true for"
   assert.match(bad.data.message, /Meter/);
 });
 
+test("a column put in anywhere: entry columns and a step's boxes, nothing else changed", async () => {
+  const add = (body) => call("admin", `/processes/${ids.p}/columns`, { method: "POST", body });
+  const before = (await call("admin", `/processes/${ids.p}`)).data;
+  assert.strictEqual((await add({ after: "meter", label: "Lot no", type: "text" })).status, 201);
+  assert.strictEqual((await add({ label: "Sr", type: "number" })).status, 201); // first
+  assert.strictEqual((await add({ step: "s1", label: "Remark", type: "text" })).status, 201); // right after Delay
+  assert.strictEqual((await add({ step: "s1", after: "remark", label: "Bill status", type: "select", options: "Paid, Unpaid" })).status, 201);
+  const p = (await call("admin", `/processes/${ids.p}`)).data;
+  assert.deepStrictEqual(p.fields.map((f) => f.key), ["sr", ...before.fields.map((f) => f.key)].flatMap((k) => (k === "meter" ? ["meter", "lot_no"] : [k])));
+  assert.deepStrictEqual(p.steps[0].fields.map((f) => [f.key, f.type, f.options]), [["remark", "text", []], ["bill_status", "select", ["Paid", "Unpaid"]]]);
+  assert.deepStrictEqual(p.steps[0].doer, before.steps[0].doer);
+  // same name twice, a dropdown with no options, a step or column that is not there: refused
+  assert.strictEqual((await add({ label: "lot NO", type: "text" })).status, 400);
+  assert.strictEqual((await add({ step: "s2", label: "Mode", type: "select" })).status, 400);
+  assert.strictEqual((await add({ step: "s9", label: "X", type: "text" })).status, 400);
+  assert.strictEqual((await add({ after: "nothing", label: "Y", type: "text" })).status, 400);
+  // a doer cannot change the FMS
+  await login("vinod");
+  assert.strictEqual((await call("vinod", `/processes/${ids.p}/columns`, { method: "POST", body: { label: "Z", type: "text" } })).status, 403);
+  // the entries are as they were, and still open / edit with the new columns empty
+  const jobs = (await list({})).jobs;
+  assert.strictEqual(jobs.length, 4);
+  assert.strictEqual(jobs[0].data.lot_no, undefined);
+});
+
 test("sorting by a column, the values list, and the export following the filters", async () => {
   const asc = await list({}, "&sort=meter:asc");
   assert.deepStrictEqual(asc.jobs.map((j) => j.data.meter), [500, 1200, 2600, 3100]);
