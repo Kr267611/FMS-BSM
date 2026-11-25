@@ -68,7 +68,9 @@ export default function SheetFmsImport() {
   }
 
   const setStep = (key, patch) => setSteps((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
-  const missing = plan ? plan.steps.filter((s) => !steps[s.key]?.doer).length : 0;
+  // the steps still without a doer (a step's doer, or its "Otherwise" doer when it comes from a column)
+  const missingSteps = plan ? plan.steps.map((s, i) => ({ ...s, no: i + 1 })).filter((s) => !steps[s.key]?.doer) : [];
+  const missing = missingSteps.length;
 
   // Where each step's doer can come from: one person, a person column of the entry, or a doer tab
   const src = plan?.doerSources || { fields: [], lookups: [] };
@@ -206,7 +208,7 @@ export default function SheetFmsImport() {
                 </thead>
                 <tbody>
                   {plan.steps.map((s, i) => (
-                    <tr key={s.key}>
+                    <tr key={s.key} id={`import-step-${s.key}`}>
                       <td>{i + 1}</td>
                       <td>
                         <input value={steps[s.key]?.name || ""} onChange={(e) => setStep(s.key, { name: e.target.value })} />
@@ -301,6 +303,14 @@ export default function SheetFmsImport() {
                 The sheet writes names its own way (OP, SB PATIL…). Choose the user for each name; names left empty go to the step's “Otherwise” doer.
                 A user can be linked later too, in Doer Conditions.
               </p>
+              {src.fields
+                .filter((f) => f.notNames?.length && Object.values(steps).some((st) => st.source?.type === "field" && st.source.field === f.key))
+                .map((f) => (
+                  <p key={f.key} className="muted small">
+                    Not names, so left out: {f.notNames.map(([v, n]) => `“${v}” (${n}×)`).join(", ")} in column {f.col} ({f.label}) – those{" "}
+                    {f.notNames.reduce((a, [, n]) => a + n, 0)} entries go to the step's “Otherwise” doer.
+                  </p>
+                ))}
               <div className="table-scroll people-table">
                 <table className="grid">
                   <thead>
@@ -376,7 +386,20 @@ export default function SheetFmsImport() {
               <button className="btn primary" onClick={create} disabled={busy === "import" || missing > 0 || !name.trim()}>
                 {busy === "import" ? "Importing…" : `Create FMS + import ${plan.counts.entries} entries`}
               </button>
-              {missing > 0 && <span className="warn-text small">Choose the doer for {missing} step(s)</span>}
+              {missing > 0 && (
+                <span className="warn-text small">
+                  Choose the doer for{" "}
+                  {missingSteps.map((s, i) => (
+                    <span key={s.key}>
+                      {i > 0 && ", "}
+                      <button type="button" className="link-btn" onClick={() => document.getElementById(`import-step-${s.key}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}>
+                        step {s.no}
+                        {s.doerHint ? ` (${s.doerHint}${steps[s.key]?.source?.type && steps[s.key].source.type !== "fixed" ? " – its “Otherwise” doer" : ""})` : ""}
+                      </button>
+                    </span>
+                  ))}
+                </span>
+              )}
             </div>
           </div>
         </>

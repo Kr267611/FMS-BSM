@@ -12,6 +12,9 @@ const { normalizeProcess } = definitionLib;
 import calendarLib = require("../services/calendar");
 const { normalizeCalendar } = calendarLib;
 import F = require("../services/sheetFormula");
+import D = require("../services/sheetDoers");
+import doersLib = require("../services/fms/doers");
+const { resolveDoer, directory } = doersLib;
 
 const colIndex = (letters) => [...letters].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1;
 const row = (cells) => {
@@ -193,9 +196,25 @@ test("the entry form: Final Status (worked out from the steps) is left out; a dr
   assert.deepStrictEqual(plan.fromSteps, [{ col: "S", label: "Final Status" }]);
   assert.ok(plan.fields.some((f) => f.label === "No of Days without program" && f.sheetFormula));
   // 450 rows: the master named only after the first 400 rows is in the list too
-  const many = Array.from({ length: 450 }, (_, i) => row({ A: "05/11/2026", C: i === 449 ? "YOGESH MASTER" : i % 2 ? "AVINASH MASTER" : "MANISH MASTER", G: String(30000 + i) }));
+  // ("4" pasted into Master Name on a few rows is not a choice)
+  const many = Array.from({ length: 450 }, (_, i) => row({ A: "05/11/2026", C: i === 449 ? "YOGESH MASTER" : i < 3 ? "4" : i % 2 ? "AVINASH MASTER" : "MANISH MASTER", G: String(30000 + i) }));
   const master = planFms(top, many, many).fields.find((f) => f.label === "Master Name");
-  assert.deepStrictEqual([master.type, master.options], ["select", ["MANISH MASTER", "AVINASH MASTER", "YOGESH MASTER"]]);
+  assert.deepStrictEqual([master.type, master.options], ["select", ["AVINASH MASTER", "MANISH MASTER", "YOGESH MASTER"]]);
+});
+
+test("numbers in the Master Name column are not people: left out of the names, their entries go to the Otherwise doer", () => {
+  const rows = [{ data: { master_name: "AVINASH MASTER" } }, { data: { master_name: "4" } }, { data: { master_name: "4" } }, { data: { master_name: "11.0" } }, { data: { master_name: "PAPPU MASTER" } }];
+  const src = { type: "field", field: "master_name" };
+  assert.deepStrictEqual([...D.namesOf(src, rows, []).keys()], ["AVINASH MASTER", "PAPPU MASTER"]);
+  assert.deepStrictEqual([...D.notNamesOf(src, rows).entries()], [["4", 2], ["11.0", 1]]);
+  const rule = D.doerRule(src, { fallback: "fallbackUser", people: { "AVINASH MASTER": "avinashUser" }, rows });
+  assert.deepStrictEqual(rule.map.map((r) => r.match[0]), ["AVINASH MASTER", "PAPPU MASTER"]);
+  assert.strictEqual(rule.fallback, "fallbackUser");
+  // later too: any number in Master Name (5, 6, 11…) gives the step to the Otherwise doer
+  const ids = ["a1a1a1a1a1a1a1a1a1a1a1a1", "f0f0f0f0f0f0f0f0f0f0f0f0"];
+  const dir = directory([{ _id: ids[0], name: "Avinash", active: true }, { _id: ids[1], name: "Jyoti", active: true }]);
+  const live = { mode: "map", keys: ["master_name"], map: [{ match: ["AVINASH MASTER"], user: ids[0] }], fallback: ids[1] };
+  assert.deepStrictEqual(["AVINASH MASTER", "5", "6", "11", "4.0"].map((m) => resolveDoer(live, { master_name: m }, dir)), [ids[0], ids[1], ids[1], ids[1], ids[1]]);
 });
 
 test("a sheet name like AVINASH MASTER finds the user of that department", () => {

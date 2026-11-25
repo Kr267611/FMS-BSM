@@ -141,6 +141,12 @@ function planFms(top, fmt, raw) {
     }
     fields.push({ key, label: header[c].slice(0, 80), col: colLetter(c), ...g });
   }
+  // a name column's dropdown lists names only ("4" pasted in Master Name is not a choice)
+  for (const f of D.personFields(fields)) {
+    if (f.type !== "select") continue;
+    f.options = f.options.filter((o) => !D.notAName(o));
+    if (!f.options.length) f.type = "text";
+  }
 
   const steps = found.steps.map((s, k) => {
     const p = planned[k];
@@ -484,7 +490,13 @@ async function previewSheetFms(sheets, spreadsheetId, tab, { now = new Date() }:
   const people: Record<string, any> = {};
   const named = (count) => [...count.entries()].sort((a, b) => b[1] - a[1]).map(([name, n]) => ((people[name] ??= String(matchUser(name, users)?._id || "")), [name, n]));
   const doerSources = {
-    fields: persons.map((f) => ({ key: f.key, label: f.label, col: f.col, names: named(D.namesOf({ type: "field", field: f.key }, rows, lookups)) })),
+    fields: persons.map((f) => ({
+      key: f.key,
+      label: f.label,
+      col: f.col,
+      names: named(D.namesOf({ type: "field", field: f.key }, rows, lookups)),
+      notNames: [...D.notNamesOf({ type: "field", field: f.key }, rows).entries()],
+    })),
     lookups: lookups.map((l) => ({
       tab: l.tab,
       field: l.field,

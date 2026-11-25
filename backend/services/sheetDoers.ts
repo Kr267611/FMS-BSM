@@ -55,14 +55,28 @@ function suggestSources(steps, persons, lookups) {
   });
 }
 
+// "4", "11", "1.0" in a name column are not people (a code pasted by mistake): such entries go to the step's
+// "Otherwise" doer, and the names list leaves them out
+const notAName = (v) => /^[\d\s.,\-\/#]+$/.test(v);
+
 // The names a step's doer can come from, with how many entries / rows use each
 function namesOf(source, rows, lookups) {
   const count = new Map();
   if (source?.type === "field") for (const r of rows) {
     const v = text(r.data[source.field]);
-    if (v) count.set(v, (count.get(v) || 0) + 1);
+    if (v && !notAName(v)) count.set(v, (count.get(v) || 0) + 1);
   }
-  if (source?.type === "lookup") for (const r of lookups.find((l) => l.tab === source.tab)?.rows || []) count.set(r.name, (count.get(r.name) || 0) + 1);
+  if (source?.type === "lookup") for (const r of lookups.find((l) => l.tab === source.tab)?.rows || []) if (!notAName(r.name)) count.set(r.name, (count.get(r.name) || 0) + 1);
+  return count;
+}
+
+// The values of a name column that are not names ("4": 5 entries), so the page can say where those entries go
+function notNamesOf(source, rows) {
+  const count = new Map();
+  if (source?.type === "field") for (const r of rows) {
+    const v = text(r.data[source.field]);
+    if (v && notAName(v)) count.set(v, (count.get(v) || 0) + 1);
+  }
   return count;
 }
 
@@ -98,4 +112,4 @@ async function findLookups(sheets, spreadsheetId, tabs, current, fields) {
   return out;
 }
 
-export = { personFields, readLookup, suggestSources, namesOf, doerRule, findLookups };
+export = { personFields, readLookup, suggestSources, namesOf, notNamesOf, notAName, doerRule, findLookups };
