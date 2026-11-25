@@ -1656,3 +1656,9 @@ html[data-theme="aubergine"],
   .ai-input:has(.ai-mic) textarea { flex-basis: 100%; }
   .ai-input:has(.ai-mic) .btn.primary { flex: 1; }
 }
+
+/* FMS builder: a step's condition in plain words */
+.words-cond { margin: 12px 0 10px; }
+.words-cond .row input { flex: 1; min-width: 0; }
+.words-cond-result { margin-top: 6px; padding: 8px 10px; border: 1px solid var(--stroke-22); background: var(--tint-primary); border-radius: 8px; display: grid; gap: 4px; }
+.cell-text { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

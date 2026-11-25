@@ -7,7 +7,7 @@ import { useUsers } from "../components/DoerSelect";
 import FieldInput, { FieldValue } from "../components/FieldInput";
 import StepForm from "../components/StepForm";
 import ColumnFilter, { describeFilter } from "../components/ColumnFilter";
-import { SKIP_REASONS, dependentsOf, describeCondition, describeStart, headlineValue, stepKeyOf, taskState } from "../fms";
+import { SKIP_REASONS, dependentsOf, describeCondition, describeStart, extraFields, headlineValue, stepKeyOf, taskState } from "../fms";
 
 const shortDt = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
 const dm = (key) => (key ? `${key.slice(8, 10)}/${key.slice(5, 7)}` : "");
@@ -338,7 +338,7 @@ function Grid({ process, data, nameOf, onOpen, filters, sort, onFilter, onSort, 
                 </th>
               ))}
               {steps.map((s, i) => (
-                <th key={s.key} colSpan={4} className="step-head" title={describeStart(s, steps) + (s.when ? ` · only if ${describeCondition(s.when, fields, steps)}` : "")}>
+                <th key={s.key} colSpan={4 + extraFields(s).length} className="step-head" title={describeStart(s, steps) + (s.when ? ` · only if ${describeCondition(s.when, fields, steps)}` : "")}>
                   {i + 1}. {s.name} {funnel("steps", s.key, s.name)}
                   <div className="muted small">
                     TAT {s.tat} {s.tatUnit === "hours" ? "h" : s.tatUnit === "minutes" ? "min" : "d"}
@@ -354,7 +354,7 @@ function Grid({ process, data, nameOf, onOpen, filters, sort, onFilter, onSort, 
             </tr>
             <tr>
               {steps.map((s) => (
-                <SubHead key={s.key} filter={funnel("steps", s.key, s.name)} />
+                <SubHead key={s.key} step={s} filter={funnel("steps", s.key, s.name)} />
               ))}
             </tr>
           </thead>
@@ -394,13 +394,18 @@ function Grid({ process, data, nameOf, onOpen, filters, sort, onFilter, onSort, 
 }
 
 // Planned | Actual | Delay | Status of a step; each one's ▾ opens that step's filter
-function SubHead({ filter }) {
+function SubHead({ step, filter }) {
   return (
     <>
       <th className="sub step-start">Planned {filter}</th>
       <th className="sub">Actual {filter}</th>
       <th className="sub">Delay {filter}</th>
       <th className="sub">Status {filter}</th>
+      {extraFields(step).map((f) => (
+        <th key={f.key} className="sub">
+          {f.label}
+        </th>
+      ))}
     </>
   );
 }
@@ -418,6 +423,9 @@ function StepCells({ step, task, today, nameOf }) {
         <td className={st.cls + " small nowrap"} title={task?.skipReason ? `Skipped: ${SKIP_REASONS[task.skipReason] || task.skipReason}` : ""}>
           {note}
         </td>
+        {extraFields(step).map((f) => (
+          <td key={f.key} className={st.cls}></td>
+        ))}
       </>
     );
   }
@@ -430,6 +438,15 @@ function StepCells({ step, task, today, nameOf }) {
       <td className={"nowrap " + st.cls}>{task.actual ? shortDt.format(new Date(task.actual)) : ""}</td>
       <td className={st.cls}>{st.delay > 0 ? `${st.delay}d` : task.status === "done" ? "0" : ""}</td>
       <td className={"nowrap small " + st.cls}>{value || st.text}</td>
+      {extraFields(step).map((f) => {
+        const v = task.values?.[f.key];
+        const shown = f.type === "user" ? (v ? nameOf(v) : "") : FieldCell({ field: f, value: v });
+        return (
+          <td key={f.key} className={"small " + (f.type === "longtext" || f.type === "text" ? "cell-text" : "nowrap")} title={typeof shown === "string" && shown.length > 40 ? shown : ""}>
+            {shown}
+          </td>
+        );
+      })}
     </>
   );
 }

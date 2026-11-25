@@ -217,8 +217,16 @@ export function taskState(task, today) {
 }
 
 // The value shown for a step in the grid: its Status if it has one, else the first filled value
+const headlineField = (step) => (step?.fields || []).find((x) => x.key === "status") || (step?.fields || []).find((x) => x.type === "select" || x.type === "yesno");
+
 export function headlineValue(step, task) {
   const v = task?.values || {};
-  const f = (step?.fields || []).find((x) => x.key === "status") || (step?.fields || []).find((x) => x.type === "select" || x.type === "yesno");
+  const f = headlineField(step);
   return f ? v[f.key] : undefined;
+}
+
+// A step's other boxes (Remarks, Bill no…): shown as their own columns after Status, like the sheet
+export function extraFields(step) {
+  const head = headlineField(step);
+  return (step?.fields || []).filter((f) => f.key && f !== head);
 }

@@ -120,6 +120,21 @@ test("with no sort the entries run #1, #2, #3… like a sheet's rows; the entry 
   for (const j of page.jobs.filter((x) => Number(x.jobNo) > 4)) assert.strictEqual((await call("admin", `/jobs/${j._id}`, { method: "DELETE" })).status, 200);
 });
 
+test("a condition in plain words: the rule, and how many entries it is true for", async () => {
+  const p = (await call("admin", `/processes/${ids.p}`)).data;
+  const ask = (text, index = 1) => call("admin", "/processes/condition-text", { method: "POST", body: { text, fields: p.fields, steps: p.steps, index, process: ids.p } });
+  const a = await ask("Meter 1000 se zyada ho aur master GUDDU MASTER ho");
+  assert.strictEqual(a.status, 200, a.data.message);
+  assert.deepStrictEqual(a.data.when, { all: [{ src: "field", key: "meter", op: ">", value: 1000 }, { src: "field", key: "master", op: "=", value: "GUDDU MASTER" }] });
+  assert.deepStrictEqual(a.data.matches, { count: 2, total: 4 });
+  const b = await ask("step 1 done");
+  assert.deepStrictEqual(b.data.matches, { count: 1, total: 4 }); // only entry 3's step 1 is done
+  assert.strictEqual((await ask("step 1 done", 0)).status, 400); // step 1 cannot look at itself
+  const bad = await ask("colour is red");
+  assert.strictEqual(bad.status, 400);
+  assert.match(bad.data.message, /Meter/);
+});
+
 test("sorting by a column, the values list, and the export following the filters", async () => {
   const asc = await list({}, "&sort=meter:asc");
   assert.deepStrictEqual(asc.jobs.map((j) => j.data.meter), [500, 1200, 2600, 3100]);

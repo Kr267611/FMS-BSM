@@ -22,6 +22,9 @@ import templates = require("../templates");
 import sheetSync = require("../services/fmsSheetSync");
 import sheetSyncLib = require("../services/sheetSync");
 import sheetFmsLib = require("../services/sheetFms");
+import conditionTextLib = require("../services/fms/conditionText");
+const { conditionFromText } = conditionTextLib;
+import conditions = require("../services/fms/conditions");
 
 const router = express.Router();
 
@@ -80,6 +83,36 @@ router.post("/", auth, permit("fms", "add"), async (req, res) => {
   const p = await Process.create(data);
   audit(req, "fms.create", { entity: "Process", entityId: p._id, summary: `${p.name} (${p.steps.length} steps${p.active ? "" : ", draft"})` });
   res.status(201).json(p);
+});
+
+// A step's condition written in plain English / Hinglish -> the rule, and (for a saved FMS) how many of its
+// entries it is true for, so the builder can show it back before it is used. Reads only.
+router.post("/condition-text", auth, permit("fms", "view"), async (req, res) => {
+  const body = req.body || {};
+  const fields = (Array.isArray(body.fields) ? body.fields : []).filter((f) => f && f.key && f.label).slice(0, 200);
+  const index = Math.max(0, Math.min(100, Number(body.index) || 0));
+  const steps = (Array.isArray(body.steps) ? body.steps : [])
+    .slice(0, index)
+    .map((s, i) => ({ key: String(s?.key || ""), no: i + 1, name: String(s?.name || ""), fields: (Array.isArray(s?.fields) ? s.fields : []).filter((f) => f && f.key && f.label) }))
+    .filter((s) => s.key);
+  const out: any = conditionFromText(String(body.text || ""), { fields, steps });
+  if (out.error) return res.status(400).json({ message: out.error });
+  if (mongoose.isValidObjectId(body.process)) {
+    const jobs = await Job.find({ process: body.process }).select("data").limit(20000).lean<any>();
+    const refs = [...conditions.stepRefs(out.when)];
+    const byJob = new Map<string, any>();
+    if (refs.length && jobs.length) {
+      const tasks = await Task.find({ process: body.process, kind: "app", stepKey: { $in: refs } }).select("job stepKey status values").lean<any>();
+      for (const t of tasks) {
+        const id = String(t.job);
+        if (!byJob.has(id)) byJob.set(id, {});
+        byJob.get(id)[t.stepKey] = { status: t.status, values: t.values };
+      }
+    }
+    const hits = jobs.filter((j) => conditions.evaluate(out.when, { data: j.data || {}, steps: byJob.get(String(j._id)) || {} }) === true);
+    out.matches = { count: hits.length, total: jobs.length };
+  }
+  res.json(out);
 });
 
 // Rule changes apply to steps that have not started yet; steps already started keep their planned date and doer.

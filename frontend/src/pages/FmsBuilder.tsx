@@ -68,7 +68,90 @@ const blank = () => ({
   steps: [newStep([])],
 });
 
-function StepEditor({ step, index, steps, fields, calendarMode, open, onToggle, onChange, onRemove, onMove, userName }) {
+// The step's condition written in plain English / Hinglish: the server reads it, this shows back what it
+// understood (and on how many entries it is true) and only "Use this" puts it in the condition boxes
+function ConditionInWords({ index, steps, fields, processId, onUse }) {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [got, setGot] = useState<any>(null);
+  const earlier = steps.slice(0, index);
+
+  async function understand(e) {
+    e?.preventDefault?.();
+    setBusy(true);
+    setError("");
+    setGot(null);
+    try {
+      setGot(await api("/processes/condition-text", { method: "POST", body: { text, fields, steps, index, process: processId || undefined } }));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="words-cond">
+      <label className="small">
+        Write it in your words (English / Hinglish)
+        <div className="row">
+          <input
+            value={text}
+            onChange={(e) => {
+              setText(e.target.value);
+              setGot(null);
+              setError("");
+            }}
+            onKeyDown={(e) => e.key === "Enter" && understand(e)}
+            placeholder={`e.g. ${index ? `step ${index} done  ·  ` : ""}only if Repeat Frq more than 1  ·  PC status solved na ho`}
+            maxLength={400}
+          />
+          <button type="button" className="btn small" disabled={busy || !text.trim()} onClick={understand}>
+            {busy ? "Reading…" : "Understand"}
+          </button>
+        </div>
+      </label>
+      {error && <div className="error small">{error}</div>}
+      {got && (
+        <div className="words-cond-result small">
+          <div>
+            Understood: <b>Only if {describeCondition(got.when, fields, earlier) || "—"}</b>
+          </div>
+          {got.matches && (
+            <div className="muted">
+              True for {got.matches.count} of {got.matches.total} entries now.
+            </div>
+          )}
+          {(got.notes || []).map((n) => (
+            <div key={n} className="muted">
+              {n}
+            </div>
+          ))}
+          <div className="row">
+            <button
+              type="button"
+              className="btn small"
+              onClick={() => {
+                onUse(got.when);
+                setGot(null);
+                setText("");
+              }}
+            >
+              Use this
+            </button>
+            <button type="button" className="btn ghost small" onClick={() => setGot(null)}>
+              Not right
+            </button>
+          </div>
+          <div className="muted">It replaces this step's condition. Save the FMS to keep it; steps already started are not changed.</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StepEditor({ step, index, steps, fields, calendarMode, open, onToggle, onChange, onRemove, onMove, userName, processId }) {
   const set = (patch) => onChange({ ...step, ...patch });
   const earlier = steps.slice(0, index).map((s, i) => ({ ...s, index: i + 1 }));
   const dateFields = fields.filter((f) => ["date", "datetime"].includes(f.type) && f.key);
@@ -195,6 +278,7 @@ function StepEditor({ step, index, steps, fields, calendarMode, open, onToggle, 
                 </p>
               </>
             )}
+            <ConditionInWords index={index} steps={steps} fields={condFields} processId={processId} onUse={(when) => set({ when })} />
             {step.when ? (
               <>
                 <ConditionEditor value={step.when} onChange={(when) => set({ when })} fields={condFields} steps={earlier} />
@@ -523,6 +607,7 @@ export default function FmsBuilder() {
           fields={p.fields}
           calendarMode={p.calendar?.mode}
           userName={nameOf}
+          processId={id}
           open={Boolean(open[s.key])}
           onToggle={() => setOpen((o) => ({ ...o, [s.key]: !o[s.key] }))}
           onChange={(next) => setStep(i, next)}
