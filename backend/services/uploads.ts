@@ -1,6 +1,7 @@
 // Photos for step fields (old part / new part…), stored in MongoDB GridFS – no extra storage service needed.
 // The browser shrinks a photo to about 200–400 KB before it is sent.
 import mongoose = require("mongoose");
+import crypto = require("crypto");
 
 const MAX_BYTES = 3 * 1024 * 1024;
 const TYPES = {
@@ -8,6 +9,10 @@ const TYPES = {
   "image/png": [0x89, 0x50, 0x4e, 0x47],
   "image/webp": [0x52, 0x49, 0x46, 0x46], // "RIFF"
 };
+
+// A photo's id is its link. A normal id counts up (time + counter), so one's own upload would show roughly what the
+// next and last ones are; a fully random id (96 bits) cannot be guessed.
+const randomId = () => new mongoose.Types.ObjectId(crypto.randomBytes(12).toString("hex"));
 
 const bucket = () => new mongoose.mongo.GridFSBucket(mongoose.connection.db, { bucketName: "uploads" });
 
@@ -33,7 +38,7 @@ async function saveImage({ dataUrl, filename, userId }: any) {
   const { buffer, contentType } = decodeDataUrl(dataUrl);
   const name = String(filename || "photo").replace(/[^\w.\- ]+/g, "_").slice(0, 80) || "photo";
   return new Promise((resolve, reject) => {
-    const stream = bucket().openUploadStream(name, { metadata: { contentType, uploadedBy: userId } });
+    const stream = bucket().openUploadStreamWithId(randomId(), name, { metadata: { contentType, uploadedBy: userId } });
     stream.on("error", reject);
     stream.on("finish", () => resolve({ id: String(stream.id), size: buffer.length, contentType }));
     stream.end(buffer);

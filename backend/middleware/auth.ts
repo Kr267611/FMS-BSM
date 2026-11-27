@@ -13,7 +13,7 @@ async function auth(req, res, next) {
 
   let decoded;
   try {
-    decoded = jwt.verify(token, process.env.JWT_SECRET);
+    decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ["HS256"] }); // only the kind this server signs
   } catch {
     endSession(res);
     return res.status(401).json({ message: "Your session has expired. Please sign in again." });

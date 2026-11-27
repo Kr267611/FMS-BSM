@@ -9,7 +9,7 @@ const { mailer, fromAddress } = mailerLib;
 import passwordsLib = require("../services/passwords");
 const { passwordProblem } = passwordsLib;
 import sessionLib = require("../services/session");
-const { startSession, endSession, rateLimit } = sessionLib;
+const { startSession, endSession, rateLimit, failureLimit } = sessionLib;
 import OrgLib = require("../models/Org");
 const { Department } = OrgLib;
 import permissionsLib = require("../services/permissions");
@@ -26,11 +26,16 @@ const LOCK_MIN = 15;
 const RESET_TTL_MIN = 30;
 const RESET_COOLDOWN_SEC = 60;
 
-const loginLimiter = rateLimit({
+// 30 wrong sign-ins from one network in 15 minutes; right ones do not count (see failureLimit)
+const loginFails = failureLimit({
   windowMs: 15 * 60 * 1000,
   max: 30,
-  message: "Too many sign-in attempts from this network. Please wait 15 minutes.",
+  message: "Too many wrong sign-in attempts from this network. Please wait 15 minutes.",
 });
+// Checked when the name does not exist (or the account is off), so the answer takes as long as for a real one
+// and the time cannot tell which names exist
+let dummyHash = null;
+const dummy = () => (dummyHash ||= bcrypt.hashSync(crypto.randomBytes(16).toString("hex"), 10));
 const resetLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
@@ -58,20 +63,23 @@ const hashToken = (token) => crypto.createHash("sha256").update(token).digest("h
 const minutesLeft = (date) => Math.max(1, Math.ceil((date.getTime() - Date.now()) / 60000));
 
 // Sign in with an email address or a username
-router.post("/login", loginLimiter, async (req, res) => {
+router.post("/login", loginFails.guard, async (req, res) => {
   const { username, password, remember } = req.body || {};
   const id = String(username || "").toLowerCase().trim();
   if (!id || !password) return res.status(400).json({ message: "Enter your email and password" });
 
   const user = await User.findOne({ $or: [{ email: id }, { username: id }] }).select("+password +failedLogins +lockUntil");
   if (user?.lockUntil && user.lockUntil > new Date()) {
+    loginFails.failed(req);
     return res.status(423).json({
       message: `This account is locked after too many wrong passwords. Try again in ${minutesLeft(user.lockUntil)} minute(s), or reset your password.`,
     });
   }
 
-  const ok = user && user.active && (await bcrypt.compare(String(password), user.password));
+  const match = await bcrypt.compare(String(password), user?.password || dummy());
+  const ok = Boolean(user && user.active && match);
   if (!ok) {
+    loginFails.failed(req);
     if (user) {
       user.failedLogins = (user.failedLogins || 0) + 1;
       if (user.failedLogins >= MAX_FAILED) {

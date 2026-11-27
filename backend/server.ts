@@ -20,15 +20,26 @@ app.set("trust proxy", true);
 app.disable("x-powered-by");
 // No CORS: the browser only talks to the app's own URL (Vercel forwards /api here),
 // so other sites cannot call the API with a user's session cookie.
+const hosted = Boolean(process.env.RENDER || process.env.VERCEL || process.env.NODE_ENV === "production");
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("Referrer-Policy", "same-origin");
+  res.setHeader("Permissions-Policy", "camera=(self), geolocation=(self), microphone=(), payment=(), usb=()");
+  // the browser always uses https for this site once it has seen it (only on the real host, not on localhost)
+  if (hosted) res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  if (req.path.startsWith("/api")) {
+    // API answers are data, never a page: nothing in them may run, and nobody's data is kept in a shared cache
+    res.setHeader("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'");
+    res.setHeader("Cache-Control", "no-store"); // photos set their own
+  }
   next();
 });
 // Photos (/api/files) have their own, larger body limit
 const jsonBody = express.json({ limit: "1mb" });
 app.use((req, res, next) => (req.path.startsWith("/api/files") ? next() : jsonBody(req, res, next)));
+// No MongoDB operators or __proto__ keys in any body or query (see services/inputGuard.ts)
+app.use(require("./services/inputGuard").inputGuard);
 
 // Connect once per process. On Vercel each cold start runs this on its first request;
 // locally start() has already done it before listening.

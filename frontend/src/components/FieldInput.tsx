@@ -85,8 +85,10 @@ export function FieldValue({ field, value, userName }: { field: any; value: any;
     case "photo":
       return <PhotoThumbs ids={Array.isArray(value) ? value : [value]} />;
     case "link":
+      // only web links open (the server accepts nothing else either); anything odd is shown as plain text
+      if (!/^https?:\/\//i.test(String(value || ""))) return String(value || "");
       return (
-        <a href={value} target="_blank" rel="noreferrer">
+        <a href={value} target="_blank" rel="noopener noreferrer">
           Open link ↗
         </a>
       );

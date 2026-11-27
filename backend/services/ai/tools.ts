@@ -1,5 +1,6 @@
 // The AI assistant's tools: read-only questions about people, the MIS, tasks and FMS entries.
-// Every tool runs as the signed-in user and sees only the people their access reaches (scope.ts).
+// Every tool runs as the signed-in user and sees only the people their access reaches (scope.ts), and only the
+// pages they have in the app: the AI is never a way around a missing tick (FMS Entries, MIS Score).
 // Nothing here changes data.
 import mongoose = require("mongoose");
 import User = require("../../models/User");
@@ -13,7 +14,9 @@ import sheetTools = require("./sheetTools");
 import driveTools = require("./driveTools");
 import knowledge = require("./knowledge");
 import googleAccess = require("./googleAccess");
+import permissionsLib = require("../permissions");
 const { misReport } = scoringLib;
+const { can } = permissionsLib;
 const { visibleUserIds } = scopeLib;
 const { todayKey, addDaysKey } = datesLib;
 
@@ -97,7 +100,10 @@ async function misScores(user, input) {
   if (from > to) fail("from must be on or before to");
   const visible = await reach(user);
   const person = input.person ? await resolvePerson(user, input.person) : null;
-  const report = await misReport({ from, to, doerId: person ? String(person._id) : null, doerIds: person ? null : visible });
+  // like the app: one's own score always, other people's only with the MIS Score page
+  const others = can(user, "misScore", "view");
+  if (person && String(person._id) !== String(user._id) && !others) fail("You can see only your own MIS score (other people's need the MIS Score page). Ask your admin.");
+  const report = await misReport({ from, to, doerId: person ? String(person._id) : others ? null : String(user._id), doerIds: person || !others ? null : visible });
   if (!report.doers.length) return `No scored tasks between ${report.from} and ${report.to}.`;
   const line = (t) => `planned ${t.planned}, done ${t.actual} (on time ${t.onTime}, late ${t.late}), pending ${t.pending}, auto-closed ${t.autoClosed || 0}, score ${t.score}`;
   const head = `MIS ${report.from} to ${report.to} (score = −(50×late + 100×pending) ÷ planned; 0 is perfect).`;
@@ -192,7 +198,13 @@ async function fmsOverview(user, _input, now = new Date()) {
   );
 }
 
+// FMS entries are read only by people who have the FMS Entries page in the app
+function needEntries(user) {
+  if (!can(user, "fmsEntries", "view")) fail("Reading FMS entries needs the FMS Entries page. Ask your admin.");
+}
+
 async function findEntries(user, input) {
+  needEntries(user);
   const p = await resolveProcess(input.fms);
   const filter: any = { process: p._id };
   const status = String(input.status || "open");
@@ -212,6 +224,7 @@ async function findEntries(user, input) {
 }
 
 async function entryDetail(user, input) {
+  needEntries(user);
   const p = await resolveProcess(input.fms);
   const job = await Job.findOne({ process: p._id, jobNo: String(input.entryNo || "").replace(/^#/, "") }).lean<any>();
   if (!job) fail(`Entry #${input.entryNo} not found in ${p.name}`);

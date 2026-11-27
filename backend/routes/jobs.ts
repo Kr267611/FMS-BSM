@@ -110,7 +110,7 @@ const showDay = (k) => (k ? k.split("-").reverse().join("/") : "");
 const showDt = (d) => (d ? dtFmt.format(new Date(d)).replace(",", "") : "");
 function cell(v) {
   let s = Array.isArray(v) ? v.join(" ") : v === undefined || v === null ? "" : String(v);
-  if (/^[=+\-@]/.test(s)) s = "'" + s; // no formulas from user text
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; // no formulas from user text (Excel also starts one after a tab or CR)
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 const STATUS_TEXT = { waiting: "Not started", pending: "Pending", done: "Done", na: "Not required", skipped: "Skipped" };

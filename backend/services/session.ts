@@ -26,6 +26,7 @@ function cookieString(value, maxAgeMs) {
 // The token carries tokenVersion; a password change bumps it and ends every other session.
 function startSession(res, user, remember) {
   const token = jwt.sign({ id: user._id, tv: user.tokenVersion || 0, r: remember ? 1 : 0 }, process.env.JWT_SECRET, {
+    algorithm: "HS256",
     expiresIn: remember ? "7d" : SHORT,
   });
   res.setHeader("Set-Cookie", cookieString(token, remember ? LONG_MS : undefined));
@@ -61,4 +62,32 @@ function rateLimit({ windowMs, max, message }: any) {
   };
 }
 
-export = { startSession, endSession, readToken, rateLimit, COOKIE };
+// Like rateLimit, but only failures count (call failed(req) after a wrong password). A whole office signing in at
+// 9 am from one network is never blocked; guessing passwords from one place still stops.
+function failureLimit({ windowMs, max, message }: any) {
+  const fails = new Map();
+  const live = (key, now) => {
+    const e = fails.get(key);
+    return e && now <= e.reset ? e : null;
+  };
+  return {
+    guard(req, res, next) {
+      const now = Date.now();
+      const e = live(req.ip, now);
+      if (e && e.count >= max) {
+        res.setHeader("Retry-After", Math.ceil((e.reset - now) / 1000));
+        return res.status(429).json({ message });
+      }
+      next();
+    },
+    failed(req) {
+      const now = Date.now();
+      const e = live(req.ip, now);
+      if (e) e.count++;
+      else fails.set(req.ip, { count: 1, reset: now + windowMs });
+      if (fails.size > 10000) for (const [k, v] of fails) if (now > v.reset) fails.delete(k);
+    },
+  };
+}
+
+export = { startSession, endSession, readToken, rateLimit, failureLimit, COOKIE };

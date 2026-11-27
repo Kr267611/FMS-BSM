@@ -1,4 +1,5 @@
 import express = require("express");
+import crypto = require("crypto");
 import sheetSyncLib = require("../services/sheetSync");
 const { syncAll } = sheetSyncLib;
 import remindersLib = require("../services/reminders");
@@ -11,9 +12,16 @@ const { maybeSendMeeting } = meetingLib;
 // Called by Vercel Cron (see vercel.json). Vercel sends "Authorization: Bearer <CRON_SECRET>".
 const router = express.Router();
 
+// Compared in constant time, so the secret cannot be guessed letter by letter from how long the answer takes
+function sameSecret(given, secret) {
+  const a = crypto.createHash("sha256").update(String(given || "")).digest();
+  const b = crypto.createHash("sha256").update(`Bearer ${secret}`).digest();
+  return crypto.timingSafeEqual(a, b);
+}
+
 router.use((req, res, next) => {
   const secret = process.env.CRON_SECRET;
-  if (!secret || req.headers.authorization !== `Bearer ${secret}`) {
+  if (!secret || !sameSecret(req.headers.authorization, secret)) {
     return res.status(401).json({ message: "Unauthorized" });
   }
   next();

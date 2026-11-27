@@ -7,7 +7,7 @@ const { auth, permit } = authLib;
 import auditLib = require("../services/audit");
 const { audit } = auditLib;
 import permissionsLib = require("../services/permissions");
-const { cleanOverrides, isAdmin } = permissionsLib;
+const { cleanOverrides, isAdmin, can } = permissionsLib;
 
 const router = express.Router();
 router.use(auth);
@@ -50,7 +50,9 @@ router.get("/departments", async (req, res) => {
     User.aggregate([{ $match: { active: true, department: { $ne: null } } }, { $group: { _id: "$department", n: { $sum: 1 } } }]),
   ]);
   const n = new Map<any, any>(counts.map((c) => [String(c._id), c.n]));
-  res.json(depts.map((d) => ({ ...d, users: n.get(String(d._id)) || 0 })));
+  // a department's access settings are for the people who manage users or the org; everyone else gets the list only
+  const seesAccess = can(req.user, "users", "view") || can(req.user, "org", "view");
+  res.json(depts.map(({ permissions, ...d }) => ({ ...d, ...(seesAccess ? { permissions } : {}), users: n.get(String(d._id)) || 0 })));
 });
 
 async function deptBody(body, exceptId?) {

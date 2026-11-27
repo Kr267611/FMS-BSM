@@ -90,7 +90,10 @@ test("entry columns: values (and blanks), contains, number range, date range –
   assert.deepStrictEqual(nos(await list({ fields: { master: { in: ["GUDDU MASTER"] }, meter: { min: 2000 } } })), [3]);
   assert.deepStrictEqual(nos(await list({ fields: { checker: { in: [ids.rajesh] } } })), [2]);
   // a key that is not a field of this FMS is ignored, not used as a database path
-  assert.strictEqual((await list({ fields: { $where: { in: ["x"] }, "data.x": { text: "a" } } })).total, 4);
+  assert.strictEqual((await list({ fields: { "data.x": { text: "a" }, other: { in: ["x"] } } })).total, 4);
+  // a MongoDB operator as a key is refused outright (services/inputGuard.ts)
+  const bad = await call("admin", `/jobs?process=${ids.p}&f=${encodeURIComponent(JSON.stringify({ fields: { $where: { in: ["x"] } } }))}`);
+  assert.strictEqual(bad.status, 400);
 });
 
 test("step columns: state and doer; several steps must all match", async () => {

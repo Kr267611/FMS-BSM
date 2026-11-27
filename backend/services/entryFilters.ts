@@ -41,6 +41,8 @@ function parse(raw) {
   } catch {
     throw fail("The filters could not be read");
   }
+  // the same lock as every request body: no MongoDB operators or __proto__ keys inside the filters
+  if (require("./inputGuard").badKey(f)) throw fail("The filters could not be read");
   return { fields: f?.fields && typeof f.fields === "object" ? f.fields : {}, steps: f?.steps && typeof f.steps === "object" ? f.steps : {}, close: f?.close && typeof f.close === "object" ? f.close : null };
 }
 
