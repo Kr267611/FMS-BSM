@@ -1017,6 +1017,14 @@ input.bad-input { border-color: var(--bad); }
 .sheet-url > input { flex: 1; min-width: 0; }
 .sheet-find { display: grid; gap: 8px; padding: 10px 12px; border: 1px dashed var(--stroke-30); border-radius: 10px; background: var(--glass-8); }
 .sheet-find .chips { margin: 0; }
+.bulk-links { display: grid; gap: 10px; }
+.bulk-links td { vertical-align: top; }
+.bulk-links td input:not([type="checkbox"]) { width: 100%; min-width: 0; }
+.bulk-links td:nth-child(2) { min-width: 260px; max-width: 380px; }
+.bulk-links td .tag { white-space: normal; }
+.bulk-links .bulk-doer { min-width: 220px; }
+.bulk-links .bulk-filter { min-width: 200px; max-width: 360px; }
+.bulk-links .chips { margin: 4px 0 0; }
 .doer-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 4px; font-weight: normal; }
 .share-with { display: grid; gap: 6px; }
 .share-with code { user-select: all; word-break: break-all; }

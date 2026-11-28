@@ -5,7 +5,7 @@ const { dayKey, addTat, parseSheetDate } = datesLib;
 import scoringLib = require("../services/scoring");
 const { score, classify } = scoringLib;
 import sheetSyncLib = require("../services/sheetSync");
-const { buildRows, extractSpreadsheetId } = sheetSyncLib;
+const { buildRows, extractSpreadsheetId, linksOverlap } = sheetSyncLib;
 
 // Google Sheets serial number for a given IST wall-clock time
 const serial = (y, m, d, hh = 0, mm = 0) => (Date.UTC(y, m - 1, d, hh, mm) - Date.UTC(1899, 11, 30)) / 86400000;
@@ -64,6 +64,19 @@ test("buildRows: skips blank Planned, applies filter, keeps row numbers", () => 
   const noFilter = buildRows({ firstDataRow: 8, filterCol: "" }, columns);
   assert.strictEqual(noFilter.length, 3);
   assert.strictEqual(noFilter[1].status, "pending");
+});
+
+test("linksOverlap: two links of one step may not count the same sheet rows", () => {
+  const step = { spreadsheetId: "S1", tabName: "FMS", plannedCol: "AV", actualCol: "AW" };
+  const mukesh = { ...step, filterCol: "C", filterValues: ["MANISH MASTER", "Bablu Shera Master"] };
+  const vinod = { ...step, filterCol: "C", filterValues: ["KALPESH MASTER", "GUDDU MASTER"] };
+  assert.strictEqual(linksOverlap(mukesh, vinod), false); // the Stage 5 split: each their own masters
+  assert.strictEqual(linksOverlap(mukesh, { ...vinod, filterValues: ["bablu shera master "] }), true); // a master in both
+  assert.strictEqual(linksOverlap(mukesh, { ...step, filterCol: "", filterValues: [] }), true); // no filter = every row
+  assert.strictEqual(linksOverlap(mukesh, { ...step, filterCol: "C", filterValues: [] }), true); // a column with no values = every row
+  assert.strictEqual(linksOverlap(step, { ...step, plannedCol: "BN", actualCol: "BO" }), false); // another step
+  assert.strictEqual(linksOverlap(step, { ...step, tabName: "Coal" }), false); // another tab
+  assert.strictEqual(linksOverlap(mukesh, { ...vinod, filterCol: "K", filterValues: ["MANISH MASTER"] }), false); // another column: not decidable
 });
 
 test("spreadsheet id from URL or raw id", () => {

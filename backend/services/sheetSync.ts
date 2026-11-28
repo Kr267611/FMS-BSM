@@ -103,6 +103,34 @@ function buildRows(link, columns) {
   return rows;
 }
 
+// Two links that would count the same sheet rows twice: the same tab and step (Planned + Actual columns), and rows
+// both filters let through (no filter = every row; the same filter column with a value in common).
+// A different filter column can't be checked without reading the sheet, so it is not called a clash. Pure (tested).
+const filterKeys = (l) => new Set<string>((l.filterCol ? l.filterValues || [] : []).map((v) => String(v).trim().toUpperCase()).filter(Boolean));
+function linksOverlap(a, b) {
+  if (a.spreadsheetId !== b.spreadsheetId || a.tabName !== b.tabName) return false;
+  if (String(a.plannedCol).toUpperCase() !== String(b.plannedCol).toUpperCase()) return false;
+  if (String(a.actualCol).toUpperCase() !== String(b.actualCol).toUpperCase()) return false;
+  const fa = filterKeys(a);
+  const fb = filterKeys(b);
+  if (!fa.size || !fb.size) return true;
+  if (String(a.filterCol).toUpperCase() !== String(b.filterCol).toUpperCase()) return false;
+  return [...fa].some((v) => fb.has(v));
+}
+
+// The distinct values of one column (for picking filter values), most used first. Read-only.
+async function columnValues(spreadsheetId, tabName, col, firstDataRow) {
+  const res = await getSheets().spreadsheets.values.get({ spreadsheetId, range: `${quoteTab(tabName)}!${col}${firstDataRow}:${col}`, valueRenderOption: "UNFORMATTED_VALUE" });
+  const count = new Map<string, { value: string; count: number }>();
+  for (const r of res.data.values || []) {
+    const value = String(r?.[0] ?? "").trim();
+    if (!value) continue;
+    const k = value.toUpperCase(); // the sync matches without caring about capitals, so these are one value
+    count.set(k, { value: count.get(k)?.value || value, count: (count.get(k)?.count || 0) + 1 });
+  }
+  return [...count.values()].sort((a, b) => b.count - a.count || a.value.localeCompare(b.value)).slice(0, 100);
+}
+
 async function fetchColumns(link) {
   const sheets = getSheets();
   const tab = quoteTab(link.tabName);
@@ -167,4 +195,4 @@ async function syncAll() {
   return results;
 }
 
-export = { syncLink, syncAll, buildRows, extractSpreadsheetId, isColumn, serviceAccountEmail, serviceAccountCredentials, getSheets, getSheetsWriter, friendlyError };
+export = { syncLink, syncAll, buildRows, linksOverlap, columnValues, extractSpreadsheetId, isColumn, serviceAccountEmail, serviceAccountCredentials, getSheets, getSheetsWriter, friendlyError };

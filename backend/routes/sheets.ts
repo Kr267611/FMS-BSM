@@ -5,7 +5,7 @@ import User = require("../models/User");
 import authLib = require("../middleware/auth");
 const { auth, permit } = authLib;
 import sheetSyncLib = require("../services/sheetSync");
-const { syncLink, syncAll, extractSpreadsheetId, isColumn, serviceAccountEmail, getSheets, friendlyError } = sheetSyncLib;
+const { syncLink, syncAll, extractSpreadsheetId, isColumn, serviceAccountEmail, getSheets, friendlyError, linksOverlap, columnValues } = sheetSyncLib;
 import sheetInspectLib = require("../services/sheetInspect");
 const { inspectSheet } = sheetInspectLib;
 import sheetFmsLib = require("../services/sheetFms");
@@ -51,6 +51,13 @@ async function cleanBody(body) {
   };
 }
 
+// The same sheet rows must not be counted twice (two links of one step whose filters let the same rows through)
+async function checkClash(data, exceptId = null) {
+  const others = await SheetLink.find({ spreadsheetId: data.spreadsheetId, tabName: data.tabName, ...(exceptId ? { _id: { $ne: exceptId } } : {}) }).lean<any>();
+  const clash = others.find((o) => linksOverlap(o, data));
+  if (clash) throw new Error(`"${data.name}" counts the same rows as the link "${clash.name}" – give each a filter with different values, or edit that link`);
+}
+
 router.get("/", async (req, res) => {
   const links = await SheetLink.find().populate("doer", "name").sort({ name: 1 }).lean<any>();
   res.json({ serviceAccountEmail: serviceAccountEmail(), links });
@@ -58,7 +65,9 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    const link = await SheetLink.create(await cleanBody(req.body));
+    const data = await cleanBody(req.body);
+    await checkClash(data);
+    const link = await SheetLink.create(data);
     const result = await syncLink(link);
     res.status(201).json({ link, result });
   } catch (err) {
@@ -70,7 +79,9 @@ router.put("/:id", async (req, res) => {
   try {
     const link = await SheetLink.findById(req.params.id);
     if (!link) return res.status(404).json({ message: "Sheet link not found" });
-    Object.assign(link, await cleanBody(req.body));
+    const data = await cleanBody(req.body);
+    await checkClash(data, link._id);
+    Object.assign(link, data);
     await link.save();
     // Drop the old tasks and resync, in case the doer or name changed
     await Task.deleteMany({ sheetLink: link._id });
@@ -101,6 +112,54 @@ router.post("/inspect", async (req, res) => {
       out.steps = out.steps.map((s) => ({ ...s, ...suggestDoer(s, users) }));
     }
     res.json(out);
+  } catch (err) {
+    res.status(400).json({ message: friendlyError(err, { tabName: req.body.tabName }) });
+  }
+});
+
+// Several steps of one sheet tab at once (one link per step, or per doer of a step split by a filter).
+// Every row is checked first; nothing is saved when one is wrong. Then each new link is synced.
+const MAX_BULK = 60;
+router.post("/bulk", async (req, res) => {
+  try {
+    const shared = { sheetUrl: req.body?.sheetUrl, tabName: req.body?.tabName, firstDataRow: req.body?.firstDataRow };
+    const rows = Array.isArray(req.body?.links) ? req.body.links : [];
+    if (!rows.length) throw new Error("Tick at least one step");
+    if (rows.length > MAX_BULK) throw new Error(`At most ${MAX_BULK} links at a time`);
+    const all = [];
+    for (const [i, r] of rows.entries()) {
+      let data;
+      try {
+        data = await cleanBody({ ...r, ...shared });
+        await checkClash(data);
+      } catch (err) {
+        throw new Error(`Row ${i + 1} (${r?.name || "no name"}): ${err.message}`);
+      }
+      const twin = all.find((d) => d.name.toLowerCase() === data.name.toLowerCase());
+      if (twin) throw new Error(`Two rows are named "${data.name}" – each MIS row needs its own name`);
+      const same = all.find((d) => linksOverlap(d, data));
+      if (same) throw new Error(`"${data.name}" and "${same.name}" count the same rows – give each a filter with different values`);
+      all.push(data);
+    }
+    const created = await SheetLink.insertMany(all);
+    const results = [];
+    for (const link of created) results.push({ _id: link._id, name: link.name, ...(await syncLink(link)) });
+    audit(req, "sheetLink.bulk", { entity: "SheetLink", summary: `${created.length} sheet links for the tab "${shared.tabName}"` });
+    res.status(201).json({ results });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+// The values written in one column of the tab (to pick filter values from). Read-only.
+router.post("/column-values", async (req, res) => {
+  const spreadsheetId = extractSpreadsheetId(req.body?.sheetUrl);
+  const col = String(req.body?.col || "").toUpperCase();
+  const firstDataRow = Number(req.body?.firstDataRow);
+  if (!spreadsheetId) return res.status(400).json({ message: "Invalid Google Sheet URL. Paste the plain link." });
+  if (!req.body.tabName || !isColumn(col) || !(firstDataRow >= 1)) return res.status(400).json({ message: "Choose the tab, the column and the first data row" });
+  try {
+    res.json({ values: await columnValues(spreadsheetId, String(req.body.tabName), col, firstDataRow) });
   } catch (err) {
     res.status(400).json({ message: friendlyError(err, { tabName: req.body.tabName }) });
   }

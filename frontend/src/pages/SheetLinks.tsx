@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, showDateTime } from "../api";
 import DoerSelect, { useUsers } from "../components/DoerSelect";
 import ShareWith from "../components/ShareWith";
+import BulkLinkForm from "./SheetLinksBulk";
 
 const blank = {
   name: "",
@@ -19,6 +20,7 @@ const blank = {
 export default function SheetLinks() {
   const [data, setData] = useState(null);
   const [editing, setEditing] = useState(null);
+  const [bulk, setBulk] = useState(null); // the sheet URL to start from ("" = none yet), or null when closed
   const [busyId, setBusyId] = useState(null);
   const [error, setError] = useState("");
 
@@ -51,7 +53,10 @@ export default function SheetLinks() {
           <button className="btn ghost" onClick={() => sync("all")} disabled={busyId === "all" || !data?.links.length}>
             {busyId === "all" ? "Syncing…" : "Sync all"}
           </button>
-          <button className="btn primary" onClick={() => setEditing({ ...blank })}>
+          <button className="btn ghost" onClick={() => (setEditing(null), setBulk(""))}>
+            + All steps of a sheet
+          </button>
+          <button className="btn primary" onClick={() => (setBulk(null), setEditing({ ...blank }))}>
             + New Link
           </button>
         </div>
@@ -73,6 +78,18 @@ export default function SheetLinks() {
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null);
+            load();
+          }}
+          onBulk={(url) => (setEditing(null), setBulk(url))}
+        />
+      )}
+      {bulk !== null && (
+        <BulkLinkForm
+          initialUrl={bulk}
+          existing={data?.links || []}
+          onClose={() => setBulk(null)}
+          onSaved={() => {
+            setBulk(null);
             load();
           }}
         />
@@ -152,7 +169,7 @@ export default function SheetLinks() {
   );
 }
 
-function LinkForm({ initial, onClose, onSaved }) {
+function LinkForm({ initial, onClose, onSaved, onBulk }) {
   const [v, setV] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -286,7 +303,14 @@ function LinkForm({ initial, onClose, onSaved }) {
               </div>
               {info.steps.length > 0 && (
                 <>
-                  <div className="small">Choose the step:</div>
+                  <div className="small">
+                    Choose the step:{" "}
+                    {isNew && info.steps.length > 1 && (
+                      <button type="button" className="btn ghost small" onClick={() => onBulk(v.sheetUrl)}>
+                        Take all {info.steps.length} steps at once
+                      </button>
+                    )}
+                  </div>
                   <div className="chips">
                     {info.steps.map((s) => (
                       <button
