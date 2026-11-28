@@ -2,7 +2,8 @@
 import test = require("node:test");
 import assert = require("node:assert");
 import sheetFmsLib = require("../services/sheetFms");
-const { planFms, rowTasks, entryRows, matchUser } = sheetFmsLib;
+import sheetInspectLib = require("../services/sheetInspect");
+const { planFms, rowTasks, entryRows, matchUser, suggestDoer } = sheetFmsLib;
 
 const top = [];
 top[0] = ["", "Repeat Spare Parts Entry"];
@@ -48,4 +49,24 @@ test("each row comes in with its steps as in the sheet; empty rows are left out"
 test("the sheet's names are matched to users without Sir / Bhai", () => {
   const users = [{ _id: 1, name: "Ayush" }, { _id: 2, name: "Nikunj Patel" }, { _id: 3, name: "Paresh" }];
   assert.deepStrictEqual(["AYUSH SIR", "NIKUNJBHAI", "Paresh Bhai", "Riya"].map((h) => matchUser(h, users)?._id ?? null), [1, 2, 3, null]);
+});
+
+test("Sheet Links: each step found in the sheet gets its doer from the Who row / the name above it", () => {
+  const { findSteps } = sheetInspectLib;
+  const users = [
+    { _id: 1, name: "Ayush" },
+    { _id: 2, name: "Pradeep" },
+    { _id: 3, name: "Mukesh", department: "QC" },
+    { _id: 4, name: "Vinod Ramprasad Patel", department: { name: "PRINTING" } },
+    { _id: 5, name: "Vinod Vedpal Singh Bhalothia", department: { name: "DYEING" } },
+  ];
+  const steps = findSteps(top).steps.map((s) => suggestDoer(s, users));
+  assert.deepStrictEqual(steps.map((s) => [s.doerHint, s.doer, s.doerCandidates.length]), [["PRADEEP BHAI", "2", 0], ["AYUSH SIR", "1", 0]]);
+
+  // a Who row naming two people: nobody is guessed, both are offered to pick from
+  const two = suggestDoer({ who: "Mukesh / Vinod", above: [] }, users);
+  assert.deepStrictEqual([two.doer, two.doerCandidates.map((c) => [c._id, c.department])], ["", [["3", "QC"], ["4", "PRINTING"], ["5", "DYEING"]]]);
+  // a name nobody has, and no name at all
+  assert.deepStrictEqual(suggestDoer({ who: "Riya", above: [] }, users), { doerHint: "Riya", doer: "", doerCandidates: [] });
+  assert.deepStrictEqual(suggestDoer({ above: [] }, users), { doerHint: "", doer: "", doerCandidates: [] });
 });

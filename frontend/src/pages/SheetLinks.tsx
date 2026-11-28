@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, showDateTime } from "../api";
-import DoerSelect from "../components/DoerSelect";
+import DoerSelect, { useUsers } from "../components/DoerSelect";
 import ShareWith from "../components/ShareWith";
 
 const blank = {
@@ -187,14 +187,20 @@ function LinkForm({ initial, onClose, onSaved }) {
   }, [v.sheetUrl]); // only a new URL needs a new look at the sheet
 
   function stepPatch(r, s, prev) {
+    // the doer the sheet names for this step fills the Doer box, unless someone chose a doer by hand
+    const autoDoer = !prev.doer || prev.doer === prev._autoDoer;
     return {
       plannedCol: s.plannedCol,
       actualCol: s.actualCol,
       firstDataRow: r.firstDataRow || prev.firstDataRow,
       name: !prev.name || prev.name.startsWith(`${r.tab} – `) ? `${r.tab} – ${s.name}` : prev.name,
+      ...(autoDoer ? { doer: s.doer || "", _autoDoer: s.doer || "" } : {}),
     };
   }
   const picked = (s) => v.plannedCol === s.plannedCol && v.actualCol === s.actualCol;
+  const step = info?.steps?.find(picked);
+  const users = useUsers();
+  const nameOf = (id) => users.find((u) => u._id === id)?.name || "";
 
   async function save(e) {
     e.preventDefault();
@@ -224,6 +230,38 @@ function LinkForm({ initial, onClose, onSaved }) {
       <label className="span-2">
         Doer (whose score it counts towards)
         <DoerSelect value={v.doer} onChange={(d) => set({ doer: d })} required />
+        {step?.doerHint && (
+          <span className="small doer-hint">
+            <span className="muted">Sheet says: </span>
+            <b>{step.doerHint}</b>
+            {step.doer && v.doer === step.doer && <span className="muted"> → chosen from the sheet. Change it above if needed.</span>}
+            {step.doer && v.doer !== step.doer && (
+              <>
+                <span className="muted"> → {nameOf(step.doer) || "a user"}. </span>
+                <button type="button" className="btn ghost small" onClick={() => set({ doer: step.doer, _autoDoer: step.doer })}>
+                  Use this
+                </button>
+              </>
+            )}
+            {!step.doer && step.doerCandidates?.length > 0 && (
+              <>
+                <span className="muted"> → fits more than one person, pick one: </span>
+                {step.doerCandidates.map((c) => (
+                  <button
+                    type="button"
+                    key={c._id}
+                    className={"chip check" + (v.doer === c._id ? " on" : "")}
+                    onClick={() => set({ doer: c._id, _autoDoer: "" })}
+                  >
+                    {c.name}
+                    {c.department && <span className="muted small"> ({c.department})</span>}
+                  </button>
+                ))}
+              </>
+            )}
+            {!step.doer && !step.doerCandidates?.length && <span className="muted"> → no user with this name, choose the doer above.</span>}
+          </span>
+        )}
       </label>
       <label className="span-all">
         Google Sheet URL (donor sheet)
@@ -256,7 +294,7 @@ function LinkForm({ initial, onClose, onSaved }) {
                         key={s.plannedCol}
                         className={"chip check" + (picked(s) ? " on" : "")}
                         onClick={() => setV((prev) => ({ ...prev, ...stepPatch(info, s, prev) }))}
-                        title={`Planned ${s.plannedCol} (${s.plannedHeader}) · Actual ${s.actualCol} (${s.actualHeader})`}
+                        title={`Planned ${s.plannedCol} (${s.plannedHeader}) · Actual ${s.actualCol} (${s.actualHeader})${s.doerHint ? ` · Doer: ${s.doerHint}` : ""}`}
                       >
                         {s.name} <span className="muted small">{s.plannedCol}/{s.actualCol}</span>
                       </button>

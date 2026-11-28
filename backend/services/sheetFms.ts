@@ -100,6 +100,18 @@ function doerHint(s) {
   return [inBrackets, after, s.above[0]].map(text).find((h) => h && !NOT_PERSON.test(h) && h.length <= 40) || "";
 }
 
+// A step found in a sheet (Sheet Links): the name its Who row / header gives, and the one user it means,
+// or the users to pick from when it fits several ("Mukesh / Vinod", two Vinods). Pure (covered by tests).
+function suggestDoer(s, users) {
+  const hint = s.who ? text(s.who).slice(0, 80) : doerHint({ above: s.above || [] });
+  const found = hint ? userCandidates(hint, users) : [];
+  return {
+    doerHint: hint,
+    doer: found.length === 1 ? String(found[0]._id) : "",
+    doerCandidates: found.length > 1 ? found.slice(0, 8).map((u) => ({ _id: String(u._id), name: u.name, department: deptOf(u) })) : [],
+  };
+}
+
 // Guess a column's type from its values (formatted text + raw value)
 function guessType(cells) {
   const vals = cells.filter((c) => text(c.f));
@@ -590,4 +602,4 @@ async function importSheetFms(sheets, spreadsheetId, tab, body, user, { now = ne
   return { process: { _id: process._id, name: process.name }, counts };
 }
 
-export = { planFms, applyFormulas, rowTasks, rowValues, entryRows, definition, settleRows, matchUser, userCandidates, personKey, guessType, previewSheetFms, importSheetFms };
+export = { planFms, applyFormulas, rowTasks, rowValues, entryRows, definition, settleRows, matchUser, userCandidates, suggestDoer, personKey, guessType, previewSheetFms, importSheetFms };

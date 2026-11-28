@@ -9,7 +9,7 @@ const { syncLink, syncAll, extractSpreadsheetId, isColumn, serviceAccountEmail, 
 import sheetInspectLib = require("../services/sheetInspect");
 const { inspectSheet } = sheetInspectLib;
 import sheetFmsLib = require("../services/sheetFms");
-const { previewSheetFms, importSheetFms } = sheetFmsLib;
+const { previewSheetFms, importSheetFms, suggestDoer } = sheetFmsLib;
 import auditLib = require("../services/audit");
 const { audit } = auditLib;
 
@@ -94,7 +94,13 @@ router.post("/inspect", async (req, res) => {
   if (!spreadsheetId) return res.status(400).json({ message: "Invalid Google Sheet URL. Paste the plain link." });
   const gid = String(req.body.sheetUrl).match(/[#&?]gid=(\d+)/)?.[1];
   try {
-    res.json(await inspectSheet(getSheets(), spreadsheetId, { tabName: req.body.tabName, gid }));
+    const out = await inspectSheet(getSheets(), spreadsheetId, { tabName: req.body.tabName, gid });
+    // each step's doer, read from the sheet's Who row / step name (the form fills it in; it can be changed)
+    if (out.steps?.length) {
+      const users = await User.find({ active: true }).select("name username department").populate("department", "name").lean<any>();
+      out.steps = out.steps.map((s) => ({ ...s, ...suggestDoer(s, users) }));
+    }
+    res.json(out);
   } catch (err) {
     res.status(400).json({ message: friendlyError(err, { tabName: req.body.tabName }) });
   }
