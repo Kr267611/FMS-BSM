@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import DoerSelect, { useUsers } from "../components/DoerSelect";
 
@@ -8,6 +8,7 @@ const sheetIdOf = (url) => String(url || "").match(/\/spreadsheets\/d\/([a-zA-Z0
 const isCol = (c) => /^[A-Z]{1,3}$/.test(c || "");
 const upper = (v) => String(v).trim().toUpperCase();
 let nextKey = 1;
+const MAX_SPLIT = 40; // "Split by column" is for a column of names (masters, people), not dates or lot numbers
 
 export default function BulkLinkForm({ initialUrl = "", existing = [], onClose, onSaved }) {
   const [sheetUrl, setSheetUrl] = useState(initialUrl);
@@ -58,27 +59,49 @@ export default function BulkLinkForm({ initialUrl = "", existing = [], onClose, 
   }, [sheetUrl]);
 
   const setRow = (key, patch) => setRows((list) => list.map((r) => (r.key === key ? { ...r, ...patch } : r)));
-  // a second row for the same step, right under its last row (another doer, with its own filter)
-  function split(row) {
+  // "+ Add person": one more line for the same step, right under its last line (another doer, with its own filter)
+  function addPerson(si) {
     setRows((list) => {
-      const at = list.map((r) => r.si).lastIndexOf(row.si) + 1;
-      const copy = { ...row, key: nextKey++, on: true, doer: "", filterValues: [] };
-      return [...list.slice(0, at), copy, ...list.slice(at)];
+      const first = list.find((r) => r.si === si);
+      const at = list.map((r) => r.si).lastIndexOf(si) + 1;
+      const line = { ...first, key: nextKey++, on: true, doer: "", filterValues: [] };
+      return [...list.slice(0, at), line, ...list.slice(at)];
     });
   }
   const removeRow = (key) => setRows((list) => list.filter((r) => r.key !== key));
+  // "One line per name in column C": the step's lines become one line per value of that column (one per master), each
+  // with the user that value names ("AVINASH MASTER" -> the master himself); change a line's doer when it is someone
+  // else's work (CRR) – one person's lines become one link when saved
+  async function splitBy(si, col) {
+    const values = await loadValues(col);
+    if (!values) return;
+    if (!values.length) return setError(`Column ${col} is empty`);
+    if (values.length > MAX_SPLIT) return setError(`Column ${col} has ${values.length} different values – that is not a column of names. Use + Add person instead.`);
+    setError("");
+    setRows((list) => {
+      const at = list.findIndex((r) => r.si === si);
+      const each = values.map((v) => ({ ...list[at], key: nextKey++, on: true, doer: v.doer || "", filterCol: col, filterValues: [v.value] }));
+      return [...list.slice(0, at), ...each, ...list.filter((r, i) => i > at && r.si !== si)];
+    });
+  }
 
-  // the values written in a filter column, read once per column
+  // the values written in a filter column, read once per column (returned too, for splitBy)
   async function loadValues(col) {
-    if (!isCol(col) || colValues[col] || !info?.tab) return;
+    if (!isCol(col) || !info?.tab) return null;
+    if (colValues[col]?.values) return colValues[col].values;
     setColValues((c) => ({ ...c, [col]: { loading: true } }));
     try {
       const r = await api("/sheets/column-values", { method: "POST", body: { sheetUrl, tabName: info.tab, col, firstDataRow } });
       setColValues((c) => ({ ...c, [col]: { values: r.values } }));
+      return r.values;
     } catch (err) {
       setColValues((c) => ({ ...c, [col]: { error: err.message } }));
+      setError(err.message);
+      return null;
     }
   }
+  const [splitCol, setSplitCol] = useState({}); // step -> column typed in its "one line per name" box
+  const [lastCol, setLastCol] = useState(""); // the column used last (Master Name is usually the same for every step)
   function toggleValue(row, value) {
     const has = row.filterValues.some((v) => upper(v) === upper(value));
     setRow(row.key, { filterValues: has ? row.filterValues.filter((v) => upper(v) !== upper(value)) : [...row.filterValues, value] });
@@ -109,6 +132,14 @@ export default function BulkLinkForm({ initialUrl = "", existing = [], onClose, 
   }, [rows, colValues]);
 
   const picked = rows.filter((r) => r.on);
+  // one person's rows of one step become one link (their filter values together): one MIS row per person per step
+  const merged = [];
+  for (const r of picked) {
+    const col = isCol(r.filterCol) && r.filterValues.length ? r.filterCol : "";
+    const same = col && r.doer && merged.find((m) => m.si === r.si && m.doer === r.doer && m.filterCol === col);
+    if (same) same.filterValues = [...same.filterValues, ...r.filterValues.filter((v) => !same.filterValues.some((x) => upper(x) === upper(v)))];
+    else merged.push({ ...r, filterCol: col, filterValues: col ? [...r.filterValues] : [] });
+  }
   const problems = [
     ...picked.filter((r) => !r.doer).map((r) => `Choose the doer for "${r.name}"`),
     ...Object.entries(checks)
@@ -121,11 +152,11 @@ export default function BulkLinkForm({ initialUrl = "", existing = [], onClose, 
     if (problems.length) return setError(problems[0]);
     // two rows of one step keep the same name: the doer's name tells them apart in the MIS
     const count = {};
-    picked.forEach((r) => (count[r.name.toLowerCase()] = (count[r.name.toLowerCase()] || 0) + 1));
-    const links = picked.map((r) => {
+    merged.forEach((r) => (count[r.name.toLowerCase()] = (count[r.name.toLowerCase()] || 0) + 1));
+    const links = merged.map((r) => {
       const s = info.steps[r.si];
       const name = count[r.name.toLowerCase()] > 1 ? `${r.name} – ${nameOf(r.doer)}` : r.name;
-      return { name, doer: r.doer, plannedCol: s.plannedCol, actualCol: s.actualCol, filterCol: isCol(r.filterCol) ? r.filterCol : "", filterValues: r.filterValues, active: true };
+      return { name, doer: r.doer, plannedCol: s.plannedCol, actualCol: s.actualCol, filterCol: r.filterCol, filterValues: r.filterValues, active: true };
     });
     setBusy(true);
     setError("");
@@ -161,8 +192,9 @@ export default function BulkLinkForm({ initialUrl = "", existing = [], onClose, 
     <form className="card bulk-links" onSubmit={save}>
       <h3>All steps of a sheet</h3>
       <p className="muted small">
-        Paste the sheet link: every step of the tab is listed with its doer read from the sheet. Untick the steps you don't want. A step done by two
-        people (e.g. “Mukesh / Vinod”): press <b>Split</b> and give each row a filter, so each gets only their own rows.
+        Paste the sheet link: every step of the tab is listed with its doer read from the sheet. Untick the steps you don't want. A step done by more
+        than one person: under the step press <b>+ Add person</b> and give each a filter (e.g. column C = their masters), or <b>Split</b> by a
+        column of names (one person per master).
       </p>
       <div className="form-grid">
         <label className="span-all">
@@ -213,8 +245,11 @@ export default function BulkLinkForm({ initialUrl = "", existing = [], onClose, 
                 const linked = first ? linkedTo(info, s) : null;
                 const vals = colValues[r.filterCol];
                 const check = checks[r.si];
+                const col = splitCol[r.si] ?? lastCol;
+                const stepOn = rows.some((x) => x.si === r.si && x.on);
                 return (
-                  <tr key={r.key} className={r.on ? "" : "inactive"}>
+                  <Fragment key={r.key}>
+                  <tr className={r.on ? "" : "inactive"}>
                     <td>
                       <input type="checkbox" checked={r.on} onChange={(e) => setRow(r.key, { on: e.target.checked })} aria-label="Take this step" />
                     </td>
@@ -224,12 +259,6 @@ export default function BulkLinkForm({ initialUrl = "", existing = [], onClose, 
                         {first ? `Planned ${s.plannedCol} · Actual ${s.actualCol}` : "↳ same step, another doer"}
                         {linked && <span className="tag"> already linked: {linked.name}</span>}
                       </div>
-                      {last && check?.clash && <div className="warn-text small">These rows count the same sheet rows – give each a filter with different values.</div>}
-                      {last && check?.left.length > 0 && (
-                        <div className="warn-text small">
-                          In nobody's score: {check.left.map((v) => `${v.value} (${v.count})`).join(", ")}
-                        </div>
-                      )}
                     </td>
                     <td className="bulk-doer">
                       <DoerSelect value={r.doer} onChange={(d) => setRow(r.key, { doer: d })} required={r.on} />
@@ -278,17 +307,47 @@ export default function BulkLinkForm({ initialUrl = "", existing = [], onClose, 
                       )}
                     </td>
                     <td className="nowrap">
-                      {first ? (
-                        <button type="button" className="btn ghost small" onClick={() => split(r)} title="The same step for another doer, each with its own filter">
-                          Split
-                        </button>
-                      ) : (
-                        <button type="button" className="btn ghost small" onClick={() => removeRow(r.key)} aria-label="Remove this row">
+                      {!first && (
+                        <button type="button" className="btn ghost small" onClick={() => removeRow(r.key)} aria-label="Remove this person" title="Remove this person">
                           ✕
                         </button>
                       )}
                     </td>
                   </tr>
+                  {last && (
+                    // under each step: add the people who do it (like adding doers to a stage)
+                    <tr className="step-add">
+                      <td></td>
+                      <td colSpan={4}>
+                        <div className="row">
+                          <button type="button" className="btn ghost small" onClick={() => addPerson(r.si)} disabled={!stepOn}>
+                            + Add person
+                          </button>
+                          <span className="muted small">or one person per name in column</span>
+                          <input
+                            className="col-box"
+                            value={col}
+                            onChange={(e) => setSplitCol((m) => ({ ...m, [r.si]: e.target.value.toUpperCase().trim() }))}
+                            placeholder="C"
+                            disabled={!stepOn}
+                            aria-label="Column with the names (e.g. C = Master Name)"
+                          />
+                          <button
+                            type="button"
+                            className="btn ghost small"
+                            disabled={!stepOn || !isCol(col) || colValues[col]?.loading}
+                            onClick={() => (setLastCol(col), splitBy(r.si, col))}
+                            title="One line for each name in this column (e.g. each master), each with the user of that name. Change a line's doer where it is someone else's work, e.g. CRR."
+                          >
+                            {colValues[col]?.loading ? "Reading…" : "Split"}
+                          </button>
+                        </div>
+                        {check?.clash && <div className="warn-text small">These lines count the same sheet rows – give each a filter with different values.</div>}
+                        {check?.left.length > 0 && <div className="warn-text small">In nobody's score: {check.left.map((v) => `${v.value} (${v.count})`).join(", ")}</div>}
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 );
               })}
             </tbody>
@@ -299,7 +358,7 @@ export default function BulkLinkForm({ initialUrl = "", existing = [], onClose, 
       {error && <div className="error">{error}</div>}
       <div className="row">
         <button className="btn primary" disabled={busy || !picked.length}>
-          {busy ? "Saving + syncing…" : `Save ${picked.length} link(s) + Sync`}
+          {busy ? "Saving + syncing…" : `Save ${merged.length} link(s) + Sync`}
         </button>
         <button type="button" className="btn ghost" onClick={onClose}>
           Cancel

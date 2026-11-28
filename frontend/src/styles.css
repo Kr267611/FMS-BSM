@@ -1025,6 +1025,9 @@ input.bad-input { border-color: var(--bad); }
 .bulk-links .bulk-doer { min-width: 220px; }
 .bulk-links .bulk-filter { min-width: 200px; max-width: 360px; }
 .bulk-links .chips { margin: 4px 0 0; }
+.bulk-links tr.step-add td { padding-top: 2px; padding-bottom: 12px; border-top: 0; }
+.bulk-links tr.step-add .row { gap: 6px; align-items: center; flex-wrap: wrap; }
+.bulk-links tr.step-add .col-box { width: 4.5em; min-width: 0; }
 .doer-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 4px; font-weight: normal; }
 .share-with { display: grid; gap: 6px; }
 .share-with code { user-select: all; word-break: break-all; }

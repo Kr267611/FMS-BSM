@@ -9,7 +9,7 @@ const { syncLink, syncAll, extractSpreadsheetId, isColumn, serviceAccountEmail, 
 import sheetInspectLib = require("../services/sheetInspect");
 const { inspectSheet } = sheetInspectLib;
 import sheetFmsLib = require("../services/sheetFms");
-const { previewSheetFms, importSheetFms, suggestDoer } = sheetFmsLib;
+const { previewSheetFms, importSheetFms, suggestDoer, matchUser } = sheetFmsLib;
 import auditLib = require("../services/audit");
 const { audit } = auditLib;
 
@@ -108,7 +108,7 @@ router.post("/inspect", async (req, res) => {
     const out = await inspectSheet(getSheets(), spreadsheetId, { tabName: req.body.tabName, gid });
     // each step's doer, read from the sheet's Who row / step name (the form fills it in; it can be changed)
     if (out.steps?.length) {
-      const users = await User.find({ active: true }).select("name username department").populate("department", "name").lean<any>();
+      const users = await activeUsers();
       out.steps = out.steps.map((s) => ({ ...s, ...suggestDoer(s, users) }));
     }
     res.json(out);
@@ -151,7 +151,9 @@ router.post("/bulk", async (req, res) => {
   }
 });
 
-// The values written in one column of the tab (to pick filter values from). Read-only.
+// The values written in one column of the tab (to pick filter values from), each with the one user it names, if any
+// ("AVINASH MASTER" -> the user of that department), for "one row per value". Read-only.
+const activeUsers = () => User.find({ active: true }).select("name username department").populate("department", "name").lean<any>();
 router.post("/column-values", async (req, res) => {
   const spreadsheetId = extractSpreadsheetId(req.body?.sheetUrl);
   const col = String(req.body?.col || "").toUpperCase();
@@ -159,7 +161,9 @@ router.post("/column-values", async (req, res) => {
   if (!spreadsheetId) return res.status(400).json({ message: "Invalid Google Sheet URL. Paste the plain link." });
   if (!req.body.tabName || !isColumn(col) || !(firstDataRow >= 1)) return res.status(400).json({ message: "Choose the tab, the column and the first data row" });
   try {
-    res.json({ values: await columnValues(spreadsheetId, String(req.body.tabName), col, firstDataRow) });
+    const values = await columnValues(spreadsheetId, String(req.body.tabName), col, firstDataRow);
+    const users = await activeUsers();
+    res.json({ values: values.map((v) => ({ ...v, doer: String(matchUser(v.value, users)?._id || "") })) });
   } catch (err) {
     res.status(400).json({ message: friendlyError(err, { tabName: req.body.tabName }) });
   }
